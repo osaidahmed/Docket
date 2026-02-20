@@ -250,6 +250,11 @@ STATUS_CONFIG = {
 }
 
 
+def get_searchable_types():
+    """Return media type values that have a sample_query (i.e., are searchable)."""
+    return [mt for mt, cfg in MEDIA_TYPE_CONFIG.items() if "sample_query" in cfg]
+
+
 def get_config(media_type):
     """Get the full config dictionary for a media type."""
     return MEDIA_TYPE_CONFIG.get(media_type)

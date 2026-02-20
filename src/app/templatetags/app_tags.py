@@ -190,15 +190,16 @@ def get_search_media_types(user):
     """Return available media types for search based on user preferences."""
     enabled_types = user.get_enabled_media_types()
 
-    # Filter and format the types for search
-    return [
+    types = [{"display": "All", "value": "all"}]
+    types.extend(
         {
             "display": media_type_readable_plural(media_type),
             "value": media_type,
         }
         for media_type in enabled_types
         if media_type != MediaTypes.SEASON.value
-    ]
+    )
+    return types
 
 
 @register.simple_tag

@@ -212,15 +212,17 @@
                 {# Define search type from current media type (if it exists) or last search type #}
                 {% if media_type == MediaTypes.SEASON.value %}
                   {% firstof MediaTypes.TV.value as search_type %}
+                {% elif media_type %}
+                  {% firstof media_type as search_type %}
                 {% else %}
-                  {% firstof media_type user.last_search_type as search_type %}
+                  {% firstof "all" as search_type %}
                 {% endif %}
 
                 {# Search bar #}
                 <div class="relative w-full max-w-2xl">
                   <form method="get"
                         action="{% url 'search' %}"
-                        x-data=" { isOpen: false, selectedType: { display: '{{ search_type|media_type_readable_plural }}', value: '{{ search_type }}' }, mediaTypes: {% get_search_media_types user as search_types %}{{ search_types }}, getPlaceholder() { return `Search ${this.selectedType.display.toLowerCase()}...` } }">
+                        x-data=" { isOpen: false, selectedType: { display: '{% if search_type == "all" %}All{% else %}{{ search_type|media_type_readable_plural }}{% endif %}', value: '{{ search_type }}' }, mediaTypes: {% get_search_media_types user as search_types %}{{ search_types }}, getPlaceholder() { return `Search ${this.selectedType.display.toLowerCase()}...` } }">
                     <div class="flex">
                       <div class="relative grow">
                         {# Search input #}

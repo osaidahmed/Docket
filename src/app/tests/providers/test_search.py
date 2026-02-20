@@ -25,7 +25,7 @@ class Search(TestCase):
         """
         response = mal.search(MediaTypes.ANIME.value, "Cowboy Bebop", 1)
 
-        required_keys = {"media_id", "media_type", "title", "image"}
+        required_keys = {"media_id", "media_type", "title", "image", "synopsis"}
 
         for anime in response["results"]:
             self.assertTrue(all(key in anime for key in required_keys))
@@ -42,7 +42,7 @@ class Search(TestCase):
         Assert that all required keys are present in each entry.
         """
         response = mangaupdates.search("One Piece", 1)
-        required_keys = {"media_id", "media_type", "title", "image"}
+        required_keys = {"media_id", "media_type", "title", "image", "synopsis"}
 
         for manga in response["results"]:
             self.assertTrue(all(key in manga for key in required_keys))
@@ -59,7 +59,7 @@ class Search(TestCase):
         Assert that all required keys are present in each entry.
         """
         response = tmdb.search(MediaTypes.TV.value, "Breaking Bad", 1)
-        required_keys = {"media_id", "media_type", "title", "image"}
+        required_keys = {"media_id", "media_type", "title", "image", "synopsis"}
 
         for tv in response["results"]:
             self.assertTrue(all(key in tv for key in required_keys))
@@ -70,7 +70,7 @@ class Search(TestCase):
         Assert that all required keys are present in each entry.
         """
         response = igdb.search("Persona 5", 1)
-        required_keys = {"media_id", "media_type", "title", "image"}
+        required_keys = {"media_id", "media_type", "title", "image", "synopsis"}
 
         for game in response["results"]:
             self.assertTrue(all(key in game for key in required_keys))
@@ -81,7 +81,7 @@ class Search(TestCase):
         Assert that all required keys are present in each entry.
         """
         response = openlibrary.search("The Name of the Wind", 1)
-        required_keys = {"media_id", "media_type", "title", "image"}
+        required_keys = {"media_id", "media_type", "title", "image", "synopsis"}
 
         for book in response["results"]:
             self.assertTrue(all(key in book for key in required_keys))
@@ -92,7 +92,7 @@ class Search(TestCase):
         Assert that all required keys are present in each entry.
         """
         response = igdb.search("Batman", 1)
-        required_keys = {"media_id", "media_type", "title", "image"}
+        required_keys = {"media_id", "media_type", "title", "image", "synopsis"}
 
         for comic in response["results"]:
             self.assertTrue(all(key in comic for key in required_keys))
@@ -103,7 +103,7 @@ class Search(TestCase):
         Assert that all required keys are present in each entry.
         """
         response = hardcover.search("1984 George Orwell", 1)
-        required_keys = {"media_id", "media_type", "title", "image"}
+        required_keys = {"media_id", "media_type", "title", "image", "synopsis"}
 
         self.assertTrue(len(response["results"]) > 0)
 

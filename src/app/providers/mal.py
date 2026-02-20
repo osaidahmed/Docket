@@ -49,7 +49,7 @@ def search(media_type, query, page):
         url = f"{base_url}/{media_type}"
         params = {
             "q": query,
-            "fields": "media_type",
+            "fields": "media_type,synopsis",
             "limit": settings.PER_PAGE,
         }
         if settings.MAL_NSFW:
@@ -74,6 +74,7 @@ def search(media_type, query, page):
                 "media_type": media_type,
                 "title": media["node"]["title"],
                 "image": get_image_url(media["node"]),
+                "synopsis": media["node"].get("synopsis", ""),
             }
             for media in response
         ]

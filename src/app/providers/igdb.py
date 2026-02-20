@@ -200,7 +200,7 @@ def search(query, page):
         # Create the multiquery with both search and count
         multiquery = (
             'query games "SearchResults" {'
-            "fields name,cover.image_id;"
+            "fields name,cover.image_id,summary;"
             "sort total_rating_count desc;"
             f"limit {settings.PER_PAGE};"
             f"offset {offset};"
@@ -249,6 +249,7 @@ def search(query, page):
                 "media_type": MediaTypes.GAME.value,
                 "title": media["name"],
                 "image": get_image_url(media),
+                "synopsis": media.get("summary", ""),
             }
             for media in search_results
         ]

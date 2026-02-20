@@ -357,6 +357,21 @@ class AppTagsTests(TestCase):
             except KeyError:
                 self.fail(f"icon raised KeyError for {media_type}")
 
+    def test_get_search_media_types_includes_all(self):
+        """Test that get_search_media_types returns 'All' as the first entry."""
+        mock_user = MagicMock()
+        mock_user.get_enabled_media_types.return_value = [
+            MediaTypes.TV.value,
+            MediaTypes.MOVIE.value,
+            MediaTypes.ANIME.value,
+        ]
+
+        result = app_tags.get_search_media_types(mock_user)
+
+        self.assertEqual(result[0]["display"], "All")
+        self.assertEqual(result[0]["value"], "all")
+        self.assertEqual(len(result), 4)
+
     def test_show_media_score(self):
         """Test if we should show media rating or not."""
         # Create mock users

@@ -33,6 +33,7 @@ class MediaSearchViewTests(TestCase):
                     "media_type": MediaTypes.MOVIE.value,
                     "source": Sources.TMDB.value,
                     "image": "http://example.com/image.jpg",
+                    "synopsis": "A test movie synopsis.",
                 },
             ],
         }
@@ -52,4 +53,64 @@ class MediaSearchViewTests(TestCase):
             "test",
             1,
             Sources.TMDB.value,
+        )
+
+    @patch("app.providers.services.search_all")
+    def test_unified_search_view(self, mock_search_all):
+        """Test the unified search view with media_type=all."""
+        mock_search_all.return_value = [
+            {
+                "media_type": MediaTypes.ANIME.value,
+                "results": [
+                    {
+                        "media_id": "1",
+                        "title": "Test Anime",
+                        "media_type": MediaTypes.ANIME.value,
+                        "source": Sources.MAL.value,
+                        "image": "http://example.com/anime.jpg",
+                        "synopsis": "An anime synopsis.",
+                    },
+                ],
+            },
+            {
+                "media_type": MediaTypes.TV.value,
+                "results": [
+                    {
+                        "media_id": "2",
+                        "title": "Test TV",
+                        "media_type": MediaTypes.TV.value,
+                        "source": Sources.TMDB.value,
+                        "image": "http://example.com/tv.jpg",
+                        "synopsis": "A TV synopsis.",
+                    },
+                ],
+            },
+        ]
+
+        response = self.client.get(
+            reverse("search") + "?media_type=all&q=test",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "app/search_unified.html")
+
+        self.user.refresh_from_db()
+        self.assertNotEqual(self.user.last_search_type, "all")
+
+        mock_search_all.assert_called_once()
+
+    @patch("app.providers.services.search_all")
+    def test_unified_search_no_results(self, mock_search_all):
+        """Test the unified search view with no results."""
+        mock_search_all.return_value = []
+
+        response = self.client.get(
+            reverse("search") + "?media_type=all&q=nonexistent",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "app/search_unified.html")
+        self.assertEqual(
+            response.context["grouped_results"],
+            [],
         )

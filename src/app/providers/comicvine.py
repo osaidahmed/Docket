@@ -48,7 +48,7 @@ def search(query, page):
             "format": "json",
             "query": query,
             "resources": "volume",
-            "field_list": "id,name,image",
+            "field_list": "id,name,image,description",
             "limit": settings.PER_PAGE,
             "page": page,
         }
@@ -71,6 +71,11 @@ def search(query, page):
                 "media_type": MediaTypes.COMIC.value,
                 "title": item["name"],
                 "image": get_image(item),
+                "synopsis": (
+                    BeautifulSoup(item.get("description") or "", "html.parser")
+                    .get_text(separator=" ")
+                    .strip()
+                ),
             }
             for item in response["results"]
         ]

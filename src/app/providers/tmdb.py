@@ -95,6 +95,7 @@ def search(media_type, query, page):
                 "media_type": media_type,
                 "title": get_title(media),
                 "image": get_image_url(media["poster_path"]),
+                "synopsis": media.get("overview", ""),
             }
             for media in response["results"]
         ]

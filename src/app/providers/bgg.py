@@ -4,6 +4,7 @@ API Documentation: https://boardgamegeek.com/wiki/page/BGG_XML_API2
 API Terms: https://boardgamegeek.com/wiki/page/XML_API_Terms_of_Use
 """
 
+import html as html_module
 import logging
 
 import requests
@@ -80,8 +81,7 @@ def search(query, page):
         end_idx = start_idx + RESULTS_PER_PAGE
         page_results = all_results[start_idx:end_idx]
 
-        # Fetch thumbnails for this page
-        thumbnails = _fetch_thumbnails([r["id"] for r in page_results])
+        details = _fetch_details([r["id"] for r in page_results])
 
         results = [
             {
@@ -89,7 +89,10 @@ def search(query, page):
                 "source": Sources.BGG.value,
                 "media_type": MediaTypes.BOARDGAME.value,
                 "title": r["name"],
-                "image": thumbnails.get(r["id"], settings.IMG_NONE),
+                "image": details.get(r["id"], {}).get("image", settings.IMG_NONE),
+                "synopsis": html_module.unescape(
+                    details.get(r["id"], {}).get("description", "")
+                ),
             }
             for r in page_results
         ]
@@ -106,8 +109,8 @@ def search(query, page):
     return data
 
 
-def _fetch_thumbnails(game_ids):
-    """Fetch thumbnail images for a list of game IDs."""
+def _fetch_details(game_ids):
+    """Fetch thumbnail images and descriptions from BGG's /thing endpoint."""
     if not game_ids:
         return {}
 
@@ -121,21 +124,34 @@ def _fetch_thumbnails(game_ids):
             response_format="xml",
         )
 
-        thumbnails = {}
+        details = {}
         for item in root.findall(".//item"):
             game_id = item.get("id")
+            image = None
             thumbnail_elem = item.find("thumbnail")
             if thumbnail_elem is not None and thumbnail_elem.text:
-                thumbnails[game_id] = thumbnail_elem.text
+                image = thumbnail_elem.text
             else:
                 image_elem = item.find("image")
                 if image_elem is not None and image_elem.text:
-                    thumbnails[game_id] = image_elem.text
+                    image = image_elem.text
+
+            description = ""
+            desc_elem = item.find("description")
+            if desc_elem is not None and desc_elem.text:
+                description = desc_elem.text
+
+            detail = {}
+            if image:
+                detail["image"] = image
+            if description:
+                detail["description"] = description
+            details[game_id] = detail
     except (requests.exceptions.HTTPError, services.ProviderAPIError):
-        logger.exception("Failed to fetch thumbnails from BGG")
+        logger.exception("Failed to fetch details from BGG")
         return {}
     else:
-        return thumbnails
+        return details
 
 
 def boardgame(media_id):

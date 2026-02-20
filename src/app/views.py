@@ -161,13 +161,32 @@ def media_list(request, media_type):
 @require_GET
 def media_search(request):
     """Return the media search page."""
+    media_type = request.GET.get("media_type", "all")
+    query = request.GET["q"]
+    layout = request.GET.get("layout", "list")
+
+    if media_type == "all":
+        enabled_types = request.user.get_enabled_media_types()
+        grouped_results = services.search_all(query, enabled_types)
+
+        for group in grouped_results:
+            group["results"] = helpers.enrich_items_with_user_data(
+                request, group["results"], "search"
+            )
+
+        context = {
+            "grouped_results": grouped_results,
+            "media_type": "all",
+            "query": query,
+            "layout": layout,
+        }
+        return render(request, "app/search_unified.html", context)
+
     media_type = request.user.update_preference(
         "last_search_type",
-        request.GET["media_type"],
+        media_type,
     )
-    query = request.GET["q"]
     page = int(request.GET.get("page", 1))
-    layout = request.GET.get("layout", "grid")
 
     # only receives source when searching with secondary source
     source = request.GET.get(

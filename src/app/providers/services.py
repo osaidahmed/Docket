@@ -1,5 +1,6 @@
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from defusedxml import ElementTree
@@ -270,3 +271,65 @@ def search(media_type, query, page, source=None):
         MediaTypes.BOARDGAME.value: lambda: bgg.search(query, page),
     }
     return search_handlers[media_type]()
+
+
+UNIFIED_SEARCH_MAX_PER_TYPE = 3
+UNIFIED_SEARCH_TIMEOUT = 5  # seconds per future
+
+# Static display order matching user's primary interests
+UNIFIED_SEARCH_ORDER = [
+    MediaTypes.ANIME.value,
+    MediaTypes.MANGA.value,
+    MediaTypes.TV.value,
+    MediaTypes.MOVIE.value,
+    MediaTypes.GAME.value,
+    MediaTypes.BOOK.value,
+    MediaTypes.COMIC.value,
+    MediaTypes.BOARDGAME.value,
+]
+
+
+def search_all(query, enabled_types):
+    """Search all enabled media types in parallel.
+
+    Returns [{"media_type": str, "results": list}, ...] ordered by
+    UNIFIED_SEARCH_ORDER, empty types omitted.
+    """
+    from app import config  # noqa: PLC0415
+
+    searchable = [
+        mt
+        for mt in UNIFIED_SEARCH_ORDER
+        if mt in enabled_types
+        and mt in config.MEDIA_TYPE_CONFIG
+        and "sample_query" in config.MEDIA_TYPE_CONFIG[mt]
+    ]
+
+    if not searchable:
+        return []
+
+    def _search_one(media_type):
+        source = config.get_default_source_name(media_type).value
+        data = search(media_type, query, 1, source)
+        results = data.get("results", [])[:UNIFIED_SEARCH_MAX_PER_TYPE]
+        return media_type, results
+
+    grouped = {}
+    with ThreadPoolExecutor(max_workers=len(searchable)) as executor:
+        futures = {executor.submit(_search_one, mt): mt for mt in searchable}
+        for future in as_completed(futures):
+            media_type = futures[future]
+            try:
+                mt, results = future.result(
+                    timeout=UNIFIED_SEARCH_TIMEOUT,
+                )
+                if results:
+                    grouped[mt] = results
+            except Exception:
+                logger.exception("Unified search failed for %s", media_type)
+
+    return [
+        {"media_type": mt, "results": grouped[mt]}
+        for mt in UNIFIED_SEARCH_ORDER
+        if mt in grouped
+    ]

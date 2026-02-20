@@ -77,6 +77,7 @@ def search(query, page):
                 "media_type": MediaTypes.BOOK.value,
                 "title": hit["document"]["title"],
                 "image": get_image_url(hit["document"]),
+                "synopsis": hit["document"].get("description", ""),
             }
             for hit in hits
         ]

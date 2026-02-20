@@ -524,3 +524,97 @@ class ServicesTests(TestCase):
         self.assertEqual(result, [{"title": "Test Comic"}])
 
         mock_search.assert_called_once_with("test", 1)
+
+    @patch("app.providers.services.search")
+    def test_search_all_returns_grouped_results(self, mock_search):
+        """Test search_all returns results grouped by type in correct order."""
+        mock_search.side_effect = lambda mt, _q, _page, source=None: {
+            "results": [
+                {
+                    "media_id": "1",
+                    "title": f"Test {mt}",
+                    "media_type": mt,
+                    "source": source or "test",
+                    "image": "http://example.com/img.jpg",
+                    "synopsis": "A synopsis.",
+                },
+            ],
+        }
+
+        all_types = [
+            MediaTypes.ANIME.value,
+            MediaTypes.MANGA.value,
+            MediaTypes.TV.value,
+            MediaTypes.MOVIE.value,
+            MediaTypes.GAME.value,
+            MediaTypes.BOOK.value,
+            MediaTypes.COMIC.value,
+            MediaTypes.BOARDGAME.value,
+        ]
+
+        result = services.search_all("test", all_types)
+
+        result_types = [g["media_type"] for g in result]
+        self.assertEqual(result_types, all_types)
+
+        for group in result:
+            self.assertTrue(len(group["results"]) > 0)
+
+    @patch("app.providers.services.search")
+    def test_search_all_caps_at_three(self, mock_search):
+        """Test search_all returns at most 3 results per type."""
+        mock_search.return_value = {
+            "results": [
+                {
+                    "media_id": str(i),
+                    "title": f"Result {i}",
+                    "media_type": MediaTypes.ANIME.value,
+                    "source": Sources.MAL.value,
+                    "image": "http://example.com/img.jpg",
+                    "synopsis": "",
+                }
+                for i in range(10)
+            ],
+        }
+
+        result = services.search_all("test", [MediaTypes.ANIME.value])
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(len(result[0]["results"]), 3)
+
+    @patch("app.providers.services.search")
+    def test_search_all_handles_provider_failure(self, mock_search):
+        """Test search_all gracefully handles a failing provider."""
+
+        def side_effect(mt, _q, _page, source=None):
+            if mt == MediaTypes.ANIME.value:
+                msg = "MAL is down"
+                raise RuntimeError(msg)
+            return {
+                "results": [
+                    {
+                        "media_id": "1",
+                        "title": f"Test {mt}",
+                        "media_type": mt,
+                        "source": source or "test",
+                        "image": "http://example.com/img.jpg",
+                        "synopsis": "",
+                    },
+                ],
+            }
+
+        mock_search.side_effect = side_effect
+
+        result = services.search_all(
+            "test",
+            [MediaTypes.ANIME.value, MediaTypes.TV.value],
+        )
+
+        result_types = [g["media_type"] for g in result]
+        self.assertNotIn(MediaTypes.ANIME.value, result_types)
+        self.assertIn(MediaTypes.TV.value, result_types)
+
+    def test_search_all_empty_enabled_types(self):
+        """Test search_all with no enabled types returns empty list."""
+        result = services.search_all("test", [])
+        self.assertEqual(result, [])
