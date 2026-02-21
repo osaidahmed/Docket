@@ -297,8 +297,8 @@ class QuickCompleteViewTests(TestCase):
         self.anime.refresh_from_db()
         self.assertEqual(self.anime.status, Status.COMPLETED.value)
 
-    def test_quick_complete_returns_confirmation(self):
-        """Test that quick_complete returns the confirmation partial."""
+    def test_quick_complete_returns_confirmation_with_archive(self):
+        """Test that quick_complete returns confirmation with OOB archive card."""
         response = self.client.post(
             reverse("quick_complete"),
             {
@@ -308,8 +308,89 @@ class QuickCompleteViewTests(TestCase):
         )
 
         self.assertTemplateUsed(response, "app/components/backlog_completed.html")
+        self.assertTemplateUsed(response, "app/components/backlog_card_archived.html")
+        self.assertContains(response, "hx-swap-oob")
 
     def test_quick_complete_requires_post(self):
         """Test that quick_complete rejects GET requests."""
         response = self.client.get(reverse("quick_complete"))
         self.assertEqual(response.status_code, 405)
+
+
+class BacklogSaveViewTests(TestCase):
+    """Test the backlog_save view."""
+
+    def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+        self.item = Item.objects.create(
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Test Anime",
+            image="http://example.com/image.jpg",
+        )
+        self.anime = Anime.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=5,
+        )
+
+    def test_backlog_save_updates_fields(self):
+        """Test that backlog_save updates media fields."""
+        response = self.client.post(
+            reverse("backlog_save"),
+            {
+                "media_id": "1",
+                "source": Sources.MAL.value,
+                "media_type": MediaTypes.ANIME.value,
+                "instance_id": str(self.anime.id),
+                "score": "8.5",
+                "progress": "10",
+                "status": Status.IN_PROGRESS.value,
+                "start_date": "",
+                "end_date": "",
+                "link": "https://example.com",
+                "notes": "Good show",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "app/components/backlog_card.html")
+        self.anime.refresh_from_db()
+        self.assertEqual(float(self.anime.score), 8.5)
+        self.assertEqual(self.anime.progress, 10)
+        self.assertEqual(self.anime.link, "https://example.com")
+        self.assertEqual(self.anime.notes, "Good show")
+
+    def test_backlog_save_requires_post(self):
+        """Test that backlog_save rejects GET requests."""
+        response = self.client.get(reverse("backlog_save"))
+        self.assertEqual(response.status_code, 405)
+
+    def test_backlog_save_validation_error(self):
+        """Test that invalid data returns card with form expanded."""
+        response = self.client.post(
+            reverse("backlog_save"),
+            {
+                "media_id": "1",
+                "source": Sources.MAL.value,
+                "media_type": MediaTypes.ANIME.value,
+                "instance_id": str(self.anime.id),
+                "score": "15",
+                "progress": "5",
+                "status": Status.IN_PROGRESS.value,
+                "start_date": "",
+                "end_date": "",
+                "link": "",
+                "notes": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("form_errors", response.context)
+        self.assertTrue(response.context["show_edit"])

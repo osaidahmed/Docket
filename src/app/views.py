@@ -33,18 +33,20 @@ def home(request):
     sort_by = request.user.update_preference("home_sort", request.GET.get("sort"))
     media_type_filter = request.GET.get("type")
 
-    backlog = BasicMedia.objects.get_backlog(
+    backlog_data = BasicMedia.objects.get_backlog(
         request.user,
         sort_by,
         media_type_filter,
     )
 
     context = {
-        "backlog": backlog,
+        "groups": backlog_data["groups"],
+        "archive": backlog_data["archive"],
         "current_sort": sort_by,
         "sort_choices": HomeSortChoices.choices,
         "current_type_filter": media_type_filter or "all",
         "type_filter_choices": _get_type_filter_choices(request.user),
+        "status_choices": Status.choices,
     }
     return render(request, "app/home.html", context)
 
@@ -645,9 +647,57 @@ def quick_complete(request):
     media.status = Status.COMPLETED.value
     media.save()
 
+    media = BasicMedia.objects.get_media_prefetch(
+        request.user,
+        media_type,
+        instance_id,
+    )
+
     return render(
         request,
         "app/components/backlog_completed.html",
+        {"media": media},
+    )
+
+
+@require_POST
+def backlog_save(request):
+    """Save inline edits from backlog card."""
+    media_type = request.POST["media_type"]
+    instance_id = request.POST["instance_id"]
+
+    media = BasicMedia.objects.get_media(
+        request.user,
+        media_type,
+        instance_id,
+    )
+
+    form_class = get_form_class(media_type)
+    form = form_class(request.POST, instance=media)
+
+    if form.is_valid():
+        form.save()
+        logger.info("%s updated from backlog.", form.instance)
+        media = BasicMedia.objects.get_media_prefetch(
+            request.user,
+            media_type,
+            instance_id,
+        )
+        return render(
+            request,
+            "app/components/backlog_card.html",
+            {"media": media, "status_choices": Status.choices},
+        )
+
+    return render(
+        request,
+        "app/components/backlog_card.html",
+        {
+            "media": media,
+            "status_choices": Status.choices,
+            "form_errors": form.errors,
+            "show_edit": True,
+        },
     )
 
 

@@ -18,6 +18,15 @@ from app.models import (
 from users.models import HomeSortChoices
 
 
+def _flatten_group_titles(groups):
+    """Extract all item titles from grouped backlog structure."""
+    titles = []
+    for group in groups:
+        for sg in group["status_groups"]:
+            titles.extend(m.item.title for m in sg["items"])
+    return titles
+
+
 class HomeViewTests(TestCase):
     """Test the home view."""
 
@@ -72,7 +81,7 @@ class HomeViewTests(TestCase):
         )
 
     def test_home_view(self):
-        """Test that backlog shows Planning and In Progress items."""
+        """Test that backlog shows grouped Planning and In Progress items."""
         planning_item = Item.objects.create(
             media_id="238",
             source=Sources.TMDB.value,
@@ -91,11 +100,12 @@ class HomeViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "app/home.html")
 
-        self.assertIn("backlog", response.context)
+        self.assertIn("groups", response.context)
+        self.assertIn("archive", response.context)
         self.assertIn("sort_choices", response.context)
         self.assertEqual(response.context["sort_choices"], HomeSortChoices.choices)
 
-        titles = [m.item.title for m in response.context["backlog"]]
+        titles = _flatten_group_titles(response.context["groups"])
         self.assertIn("Test Anime", titles)
         self.assertIn("Planning Movie", titles)
 
@@ -110,8 +120,8 @@ class HomeViewTests(TestCase):
         self.assertEqual(self.user.home_sort, "completion")
 
     @patch("app.providers.services.get_media_metadata")
-    def test_home_excludes_completed(self, mock_metadata):
-        """Test that completed items do not appear in the backlog."""
+    def test_home_completed_in_archive(self, mock_metadata):
+        """Test that completed items appear in archive, not in groups."""
         mock_metadata.return_value = {"max_progress": None}
         completed_item = Item.objects.create(
             media_id="999",
@@ -128,8 +138,11 @@ class HomeViewTests(TestCase):
 
         response = self.client.get(reverse("home"))
 
-        titles = [m.item.title for m in response.context["backlog"]]
-        self.assertNotIn("Completed Movie", titles)
+        group_titles = _flatten_group_titles(response.context["groups"])
+        self.assertNotIn("Completed Movie", group_titles)
+
+        archive_titles = [m.item.title for m in response.context["archive"]]
+        self.assertIn("Completed Movie", archive_titles)
 
     def test_home_type_filter(self):
         """Test that type filter chips restrict results."""
@@ -148,6 +161,46 @@ class HomeViewTests(TestCase):
 
         response = self.client.get(reverse("home") + "?type=anime")
 
-        types = {m.item.media_type for m in response.context["backlog"]}
-        self.assertNotIn(MediaTypes.MOVIE.value, types)
+        media_types_in_groups = {
+            group["media_type"] for group in response.context["groups"]
+        }
+        self.assertNotIn(MediaTypes.MOVIE.value, media_types_in_groups)
         self.assertEqual(response.context["current_type_filter"], "anime")
+
+    def test_home_status_group_order(self):
+        """Test that status groups appear in fixed order."""
+        paused_item = Item.objects.create(
+            media_id="500",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Paused Anime",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=paused_item,
+            user=self.user,
+            status=Status.PAUSED.value,
+        )
+
+        planning_item = Item.objects.create(
+            media_id="501",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Planning Anime",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=planning_item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        response = self.client.get(reverse("home") + "?type=anime")
+
+        groups = response.context["groups"]
+        self.assertEqual(len(groups), 1)
+        statuses = [sg["status"] for sg in groups[0]["status_groups"]]
+        self.assertEqual(
+            statuses,
+            [Status.IN_PROGRESS.value, Status.PLANNING.value, Status.PAUSED.value],
+        )

@@ -1,27 +1,27 @@
 {% load app_tags %}
 
 <div id="backlog-card-{{ media.item.media_type }}-{{ media.id }}"
-     class="bg-[#2a2f35] rounded-lg hover:bg-[#39404b] transition-colors duration-200">
-  <div class="flex items-center p-4 gap-4">
+     class="bg-[#2a2f35] rounded-lg hover:bg-[#39404b] transition-colors duration-200"
+     x-data="{ editing: {% if show_edit %}true{% else %}false{% endif %} }">
+  <div class="flex items-start p-4 gap-4">
     <div class="shrink-0">
       <a href="{{ media.item|media_url }}">
         <img alt="{{ media }}"
-             class="lazyload w-20 h-30 object-cover rounded shadow-md bg-[#3e454d]"
+             class="lazyload w-16 h-24 object-cover rounded shadow-md bg-[#3e454d]"
              data-src="{{ media.item.image }}"
              src="{{ IMG_NONE }}">
       </a>
     </div>
 
     <div class="flex-1 min-w-0">
-      <div class="flex items-start justify-between gap-4">
+      <div class="flex items-start justify-between gap-3">
         <div class="flex-1 min-w-0">
-          <h3 class="text-lg font-semibold text-white mb-1 line-clamp-2">
+          <h3 class="text-base font-semibold text-white mb-0.5 line-clamp-1">
             <a href="{{ media.item|media_url }}"
                class="hover:text-indigo-400 transition-colors">{{ media }}</a>
           </h3>
-
           {% if media.item.synopsis %}
-            <p class="text-sm text-gray-400 line-clamp-3 mb-2">{{ media.item.synopsis }}</p>
+            <p class="text-sm text-gray-400 mb-1 line-clamp-2">{{ media.item.synopsis|truncatechars:150 }}</p>
           {% endif %}
 
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-400">
@@ -35,7 +35,7 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-1.5 shrink-0">
           {% if media.link %}
             <a href="{{ media.link }}"
                target="_blank"
@@ -44,6 +44,12 @@
               {% include "app/icons/external-link.svg" with classes="w-5 h-5" %}
             </a>
           {% endif %}
+
+          <button @click="editing = !editing"
+                  class="p-2 text-gray-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                  title="Edit">
+            {% include "app/icons/edit-flat.svg" with classes="w-5 h-5" %}
+          </button>
 
           <button hx-post="{% url 'quick_complete' %}"
                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
@@ -57,5 +63,109 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <div x-show="editing" x-transition class="border-t border-gray-700 p-4">
+    <form hx-post="{% url 'backlog_save' %}"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
+          hx-swap="outerHTML">
+
+      <input type="hidden" name="media_id" value="{{ media.item.media_id }}">
+      <input type="hidden" name="source" value="{{ media.item.source }}">
+      <input type="hidden" name="media_type" value="{{ media.item.media_type }}">
+      <input type="hidden" name="instance_id" value="{{ media.id }}">
+
+      {% if form_errors %}
+        <div class="mb-3 p-2 bg-red-900/30 rounded text-red-400 text-sm">
+          {% for field, errors in form_errors.items %}
+            {% for error in errors %}
+              <p>{{ field|title }}: {{ error.message }}</p>
+            {% endfor %}
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1">Score</label>
+          <input type="number" name="score" min="0" max="10" step="0.1"
+                 value="{{ media.score|default_if_none:'' }}"
+                 placeholder="0-10"
+                 class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+        </div>
+
+        {% if media.item.media_type != "movie" %}
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1">Progress</label>
+            {% if media.item.media_type == "game" %}
+              <input type="text" name="progress"
+                     value="{{ media.formatted_progress }}"
+                     placeholder="hh:mm"
+                     class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">
+            {% else %}
+              <input type="number" name="progress" min="0"
+                     value="{{ media.progress }}"
+                     class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+            {% endif %}
+          </div>
+        {% endif %}
+
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1">Status</label>
+          <div class="relative">
+            <select name="status"
+                    class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff] appearance-none">
+              {% for value, label in status_choices %}
+                <option value="{{ value }}"
+                        {% if media.status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <div class="absolute inset-y-0 right-2 flex items-center pointer-events-none">
+              {% include "app/icons/chevron-down.svg" with classes="w-3 h-3" %}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1">Start Date</label>
+          <input type="{% if TRACK_TIME %}datetime-local{% else %}date{% endif %}"
+                 name="start_date"
+                 value="{% if media.start_date %}{{ media.start_date|date:'Y-m-d\TH:i' }}{% endif %}"
+                 onfocus="this.showPicker?.()"
+                 class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1">End Date</label>
+          <input type="{% if TRACK_TIME %}datetime-local{% else %}date{% endif %}"
+                 name="end_date"
+                 value="{% if media.end_date %}{{ media.end_date|date:'Y-m-d\TH:i' }}{% endif %}"
+                 onfocus="this.showPicker?.()"
+                 class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1">Link</label>
+          <input type="url" name="link"
+                 value="{{ media.link|default:'' }}"
+                 placeholder="https://..."
+                 class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <label class="block text-xs font-medium text-gray-400 mb-1">Notes</label>
+        <textarea name="notes" rows="2" placeholder="Add any notes..."
+                  class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">{{ media.notes|default:'' }}</textarea>
+      </div>
+
+      <div class="flex justify-end mt-3">
+        <button type="submit"
+                class="px-4 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium cursor-pointer">
+          Save
+        </button>
+      </div>
+    </form>
   </div>
 </div>

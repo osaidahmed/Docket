@@ -457,16 +457,18 @@ class MediaManager(models.Manager):
         return list_by_type
 
     def get_backlog(self, user, sort_by, media_type_filter=None):
-        """Get a flat list of active backlog items across all types."""
+        """Get grouped backlog items and archive."""
         backlog_statuses = [
-            Status.PLANNING.value,
             Status.IN_PROGRESS.value,
+            Status.PLANNING.value,
             Status.PAUSED.value,
         ]
 
         media_types = self._get_media_types_to_process(user, media_type_filter)
 
-        all_media = []
+        groups = []
+        archive_all = []
+
         for media_type in media_types:
             media_list = self.get_media_list(
                 user=user,
@@ -474,17 +476,44 @@ class MediaManager(models.Manager):
                 status_filter=users.models.MediaStatusChoices.ALL,
                 sort_filter=None,
             )
-            media_list = [m for m in media_list if m.status in backlog_statuses]
+            backlog_items = [m for m in media_list if m.status in backlog_statuses]
+            completed_items = [
+                m for m in media_list if m.status == Status.COMPLETED.value
+            ]
 
-            if not media_list:
-                continue
+            if backlog_items:
+                self.annotate_max_progress(backlog_items, media_type)
+                self._annotate_next_event(backlog_items)
 
-            self.annotate_max_progress(media_list, media_type)
-            self._annotate_next_event(media_list)
+                status_groups = []
+                for status_val in backlog_statuses:
+                    items = [m for m in backlog_items if m.status == status_val]
+                    if items:
+                        status_groups.append(
+                            {
+                                "status": status_val,
+                                "items": self._sort_in_progress_media(items, sort_by),
+                            }
+                        )
 
-            all_media.extend(media_list)
+                if status_groups:
+                    groups.append(
+                        {
+                            "media_type": media_type,
+                            "label": MediaTypes(media_type).label,
+                            "status_groups": status_groups,
+                        }
+                    )
 
-        return self._sort_in_progress_media(all_media, sort_by)
+            archive_all.extend(completed_items)
+
+        archive_all.sort(
+            key=lambda m: (
+                m.end_date is None,
+                -(m.end_date.timestamp() if m.end_date else 0),
+            ),
+        )
+        return {"groups": groups, "archive": archive_all[:20]}
 
     def _get_media_types_to_process(self, user, specific_media_type):
         """Determine which media types to process based on user settings."""

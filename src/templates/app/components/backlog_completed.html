@@ -6,3 +6,9 @@
   {% include "app/icons/circle-check.svg" with classes="w-5 h-5 inline mr-1" %}
   Completed
 </div>
+
+<div id="archive-list" hx-swap-oob="afterbegin">
+  {% include "app/components/backlog_card_archived.html" with media=media %}
+</div>
+
+<p id="archive-empty" hx-swap-oob="delete"></p>
