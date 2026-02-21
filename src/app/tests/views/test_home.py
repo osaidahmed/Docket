@@ -10,6 +10,7 @@ from app.models import (
     Episode,
     Item,
     MediaTypes,
+    Movie,
     Season,
     Sources,
     Status,
@@ -40,7 +41,7 @@ class HomeViewTests(TestCase):
             status=Status.IN_PROGRESS.value,
         )
 
-        for i in range(1, 6):  # Create 5 episodes
+        for i in range(1, 6):
             episode_item = Item.objects.create(
                 media_id="1668",
                 source=Sources.TMDB.value,
@@ -71,22 +72,32 @@ class HomeViewTests(TestCase):
         )
 
     def test_home_view(self):
-        """Test the home view displays in-progress media."""
+        """Test that backlog shows Planning and In Progress items."""
+        planning_item = Item.objects.create(
+            media_id="238",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Planning Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=planning_item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
         response = self.client.get(reverse("home"))
 
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "app/home.html")
 
-        self.assertIn("list_by_type", response.context)
-        self.assertIn(MediaTypes.SEASON.value, response.context["list_by_type"])
-        self.assertIn(MediaTypes.ANIME.value, response.context["list_by_type"])
-
+        self.assertIn("backlog", response.context)
         self.assertIn("sort_choices", response.context)
         self.assertEqual(response.context["sort_choices"], HomeSortChoices.choices)
 
-        season = response.context["list_by_type"][MediaTypes.SEASON.value]
-        self.assertEqual(len(season["items"]), 1)
-        self.assertEqual(season["items"][0].progress, 5)
+        titles = [m.item.title for m in response.context["backlog"]]
+        self.assertIn("Test Anime", titles)
+        self.assertIn("Planning Movie", titles)
 
     def test_home_view_with_sort(self):
         """Test the home view with sorting parameter."""
@@ -99,70 +110,44 @@ class HomeViewTests(TestCase):
         self.assertEqual(self.user.home_sort, "completion")
 
     @patch("app.providers.services.get_media_metadata")
-    def test_home_view_htmx_load_more(self, mock_get_media_metadata):
-        """Test the HTMX load more functionality."""
-        mock_get_media_metadata.return_value = {
-            "title": "Test TV Show",
-            "image": "http://example.com/image.jpg",
-            "season/1": {
-                "episodes": [{"id": 1}, {"id": 2}, {"id": 3}],  # 3 episodes
-            },
-            "related": {
-                "seasons": [
-                    {"season_number": 1, "image": "http://example.com/image.jpg"},
-                ],  # Only one season
-            },
-        }
-
-        for i in range(6, 20):  # Create 14 more TV shows (we already have 1)
-            season_item = Item.objects.create(
-                media_id=str(i),
-                source=Sources.TMDB.value,
-                media_type=MediaTypes.SEASON.value,
-                title=f"Test TV Show {i}",
-                image="http://example.com/image.jpg",
-                season_number=1,
-            )
-            season = Season.objects.create(
-                item=season_item,
-                user=self.user,
-                status=Status.IN_PROGRESS.value,
-            )
-
-            episode_item = Item.objects.create(
-                media_id=str(i),
-                source=Sources.TMDB.value,
-                media_type=MediaTypes.EPISODE.value,
-                title=f"Test TV Show {i}",
-                image="http://example.com/image.jpg",
-                season_number=1,
-                episode_number=1,
-            )
-            Episode.objects.create(
-                item=episode_item,
-                related_season=season,
-                end_date=timezone.now(),
-            )
-
-        # Now test the load more functionality
-        headers = {"HTTP_HX_REQUEST": "true"}
-        response = self.client.get(
-            reverse("home") + "?load_media_type=season",
-            **headers,
+    def test_home_excludes_completed(self, mock_metadata):
+        """Test that completed items do not appear in the backlog."""
+        mock_metadata.return_value = {"max_progress": None}
+        completed_item = Item.objects.create(
+            media_id="999",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Completed Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=completed_item,
+            user=self.user,
+            status=Status.COMPLETED.value,
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "app/components/home_grid.html")
+        response = self.client.get(reverse("home"))
 
-        self.assertIn("media_list", response.context)
+        titles = [m.item.title for m in response.context["backlog"]]
+        self.assertNotIn("Completed Movie", titles)
 
-        self.assertIn("items", response.context["media_list"])
-        self.assertIn("total", response.context["media_list"])
+    def test_home_type_filter(self):
+        """Test that type filter chips restrict results."""
+        movie_item = Item.objects.create(
+            media_id="238",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Test Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=movie_item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
 
-        # Since we're loading more (items after the first 14),
-        # we should have at least 1 item in the response
-        self.assertEqual(len(response.context["media_list"]["items"]), 1)
-        self.assertEqual(
-            response.context["media_list"]["total"],
-            15,
-        )  # 15 TV shows total
+        response = self.client.get(reverse("home") + "?type=anime")
+
+        types = {m.item.media_type for m in response.context["backlog"]}
+        self.assertNotIn(MediaTypes.MOVIE.value, types)
+        self.assertEqual(response.context["current_type_filter"], "anime")

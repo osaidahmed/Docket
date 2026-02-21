@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from app.models import (
+    Anime,
     Item,
     MediaTypes,
     Movie,
@@ -236,4 +237,79 @@ class QuickAddViewTests(TestCase):
     def test_quick_add_requires_post(self):
         """Test that quick_add rejects GET requests."""
         response = self.client.get(reverse("quick_add"))
+        self.assertEqual(response.status_code, 405)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_add_populates_synopsis(self, mock_metadata):
+        """Test that quick_add persists synopsis on the Item."""
+        mock_metadata.return_value = {
+            "title": "Test Movie",
+            "image": "http://example.com/image.jpg",
+            "synopsis": "A great movie about testing.",
+        }
+
+        self.client.post(
+            reverse("quick_add"),
+            {
+                "media_id": "238",
+                "source": Sources.TMDB.value,
+                "media_type": MediaTypes.MOVIE.value,
+            },
+        )
+
+        item = Item.objects.get(media_id="238", source=Sources.TMDB.value)
+        self.assertEqual(item.synopsis, "A great movie about testing.")
+
+
+class QuickCompleteViewTests(TestCase):
+    """Test the quick_complete view."""
+
+    def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+        self.item = Item.objects.create(
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Test Anime",
+            image="http://example.com/image.jpg",
+        )
+        self.anime = Anime.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+    def test_quick_complete_marks_completed(self):
+        """Test that quick_complete sets status to Completed."""
+        response = self.client.post(
+            reverse("quick_complete"),
+            {
+                "media_type": MediaTypes.ANIME.value,
+                "instance_id": str(self.anime.id),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.anime.refresh_from_db()
+        self.assertEqual(self.anime.status, Status.COMPLETED.value)
+
+    def test_quick_complete_returns_confirmation(self):
+        """Test that quick_complete returns the confirmation partial."""
+        response = self.client.post(
+            reverse("quick_complete"),
+            {
+                "media_type": MediaTypes.ANIME.value,
+                "instance_id": str(self.anime.id),
+            },
+        )
+
+        self.assertTemplateUsed(response, "app/components/backlog_completed.html")
+
+    def test_quick_complete_requires_post(self):
+        """Test that quick_complete rejects GET requests."""
+        response = self.client.get(reverse("quick_complete"))
         self.assertEqual(response.status_code, 405)

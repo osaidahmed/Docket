@@ -29,32 +29,34 @@ logger = logging.getLogger(__name__)
 
 @require_GET
 def home(request):
-    """Home page with media items in progress."""
+    """Home page with unified backlog."""
     sort_by = request.user.update_preference("home_sort", request.GET.get("sort"))
-    media_type_to_load = request.GET.get("load_media_type")
-    items_limit = 14
+    media_type_filter = request.GET.get("type")
 
-    list_by_type = BasicMedia.objects.get_in_progress(
+    backlog = BasicMedia.objects.get_backlog(
         request.user,
         sort_by,
-        items_limit,
-        media_type_to_load,
+        media_type_filter,
     )
 
-    # If this is an HTMX request to load more items for a specific media type
-    if request.headers.get("HX-Request") and media_type_to_load:
-        context = {
-            "media_list": list_by_type.get(media_type_to_load, []),
-        }
-        return render(request, "app/components/home_grid.html", context)
-
     context = {
-        "list_by_type": list_by_type,
+        "backlog": backlog,
         "current_sort": sort_by,
         "sort_choices": HomeSortChoices.choices,
-        "items_limit": items_limit,
+        "current_type_filter": media_type_filter or "all",
+        "type_filter_choices": _get_type_filter_choices(request.user),
     }
     return render(request, "app/home.html", context)
+
+
+def _get_type_filter_choices(user):
+    choices = [{"value": "all", "label": "All"}]
+    choices.extend(
+        {"value": mt, "label": MediaTypes(mt).label}
+        for mt in user.get_active_media_types()
+        if mt != MediaTypes.TV.value
+    )
+    return choices
 
 
 @require_POST
@@ -365,6 +367,7 @@ def sync_metadata(request, source, media_type, media_id, season_number=None):
             defaults={
                 "title": metadata["title"],
                 "image": metadata["image"],
+                "synopsis": metadata.get("synopsis", ""),
             },
         )
         title = metadata["title"]
@@ -530,6 +533,7 @@ def media_save(request):
             defaults={
                 "title": metadata["title"],
                 "image": metadata["image"],
+                "synopsis": metadata.get("synopsis", ""),
             },
         )
         model = apps.get_model(app_label="app", model_name=media_type)
@@ -601,6 +605,7 @@ def quick_add(request):
             defaults={
                 "title": metadata["title"],
                 "image": metadata["image"],
+                "synopsis": metadata.get("synopsis", ""),
             },
         )
 
@@ -623,6 +628,26 @@ def quick_add(request):
             },
             "media": instance,
         },
+    )
+
+
+@require_POST
+def quick_complete(request):
+    """Mark a backlog item as completed via HTMX."""
+    media_type = request.POST["media_type"]
+    instance_id = request.POST["instance_id"]
+
+    media = BasicMedia.objects.get_media(
+        request.user,
+        media_type,
+        instance_id,
+    )
+    media.status = Status.COMPLETED.value
+    media.save()
+
+    return render(
+        request,
+        "app/components/backlog_completed.html",
     )
 
 

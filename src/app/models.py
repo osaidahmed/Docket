@@ -79,6 +79,7 @@ class Item(CalendarTriggerMixin, models.Model):
     )
     title = models.TextField()
     image = models.URLField()  # if add default, custom media entry will show the value
+    synopsis = models.TextField(blank=True, default="")
     season_number = models.PositiveIntegerField(null=True, blank=True)
     episode_number = models.PositiveIntegerField(null=True, blank=True)
 
@@ -455,6 +456,36 @@ class MediaManager(models.Manager):
 
         return list_by_type
 
+    def get_backlog(self, user, sort_by, media_type_filter=None):
+        """Get a flat list of active backlog items across all types."""
+        backlog_statuses = [
+            Status.PLANNING.value,
+            Status.IN_PROGRESS.value,
+            Status.PAUSED.value,
+        ]
+
+        media_types = self._get_media_types_to_process(user, media_type_filter)
+
+        all_media = []
+        for media_type in media_types:
+            media_list = self.get_media_list(
+                user=user,
+                media_type=media_type,
+                status_filter=users.models.MediaStatusChoices.ALL,
+                sort_filter=None,
+            )
+            media_list = [m for m in media_list if m.status in backlog_statuses]
+
+            if not media_list:
+                continue
+
+            self.annotate_max_progress(media_list, media_type)
+            self._annotate_next_event(media_list)
+
+            all_media.extend(media_list)
+
+        return self._sort_in_progress_media(all_media, sort_by)
+
     def _get_media_types_to_process(self, user, specific_media_type):
         """Determine which media types to process based on user settings."""
         if specific_media_type:
@@ -785,6 +816,7 @@ class Media(models.Model):
             "user",
             "related_tv",
             "created_at",
+            "link",
         ],
     )
 
@@ -812,6 +844,7 @@ class Media(models.Model):
     start_date = models.DateTimeField(null=True, blank=True)
     end_date = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True, default="")
+    link = models.URLField(blank=True, default="")
 
     class Meta:
         """Meta options for the model."""

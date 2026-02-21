@@ -209,6 +209,7 @@ class MediaForm(forms.ModelForm):
             "start_date",
             "end_date",
             "notes",
+            "link",
         ]
         widgets = {
             "score": forms.NumberInput(
@@ -223,6 +224,9 @@ class MediaForm(forms.ModelForm):
             else forms.DateInput(attrs={"type": "date"}),
             "notes": forms.Textarea(
                 attrs={"placeholder": "Add any notes or comments...", "rows": "5"},
+            ),
+            "link": forms.URLInput(
+                attrs={"placeholder": "https://..."},
             ),
         }
 
@@ -263,6 +267,7 @@ class MovieForm(MediaForm):
             "start_date",
             "end_date",
             "notes",
+            "link",
         ]
 
 
@@ -331,7 +336,7 @@ class TvForm(MediaForm):
         """Bind form to model."""
 
         model = TV
-        fields = ["score", "status", "notes"]
+        fields = ["score", "status", "notes", "link"]
 
 
 class SeasonForm(MediaForm):
@@ -347,6 +352,7 @@ class SeasonForm(MediaForm):
             "score",
             "status",
             "notes",
+            "link",
         ]
 
 
