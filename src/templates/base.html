@@ -159,6 +159,18 @@
                     <span>Calendar</span>
                   </a>
                 </li>
+
+                <li>
+                  <a href="{% url 'home' %}?view=archive"
+                     class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if request.GET.view == 'archive' %}text-white bg-[#2c3136]{% else %}text-gray-400 hover:text-white hover:bg-[#23272b]{% endif %}">
+                    {% if request.GET.view == "archive" %}
+                      {% include "app/icons/circle-check.svg" with classes="w-5 h-5 text-indigo-400 " %}
+                    {% else %}
+                      {% include "app/icons/circle-check.svg" with classes="w-5 h-5" %}
+                    {% endif %}
+                    <span>Archive</span>
+                  </a>
+                </li>
               </ul>
             </div>
           </nav>

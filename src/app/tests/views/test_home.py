@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from app.models import (
+    TV,
     Anime,
     Episode,
     Item,
@@ -204,3 +205,113 @@ class HomeViewTests(TestCase):
             statuses,
             [Status.IN_PROGRESS.value, Status.PLANNING.value, Status.PAUSED.value],
         )
+
+    def test_backlog_card_shows_synopsis(self):
+        """Test that synopsis text appears in the backlog card HTML."""
+        movie_item = Item.objects.create(
+            media_id="600",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Movie With Synopsis",
+            image="http://example.com/image.jpg",
+            synopsis="A gripping tale of adventure and mystery.",
+        )
+        Movie.objects.create(
+            item=movie_item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "A gripping tale of adventure and mystery.")
+
+    def test_archive_opens_with_view_param(self):
+        """Test that ?view=archive sets archive_open in context."""
+        response = self.client.get(reverse("home") + "?view=archive")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context.get("archive_open"))
+
+    def test_sidebar_contains_archive_link(self):
+        """Test that the sidebar includes an Archive navigation link."""
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "?view=archive")
+        self.assertContains(response, ">Archive</span>")
+
+    def test_tv_show_appears_in_backlog(self):
+        """Test that TV shows added via quick_add appear in the backlog."""
+        tv_item = Item.objects.create(
+            media_id="1399",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.TV.value,
+            title="Breaking Bad",
+            image="http://example.com/image.jpg",
+        )
+        TV.objects.create(
+            item=tv_item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        response = self.client.get(reverse("home"))
+        titles = _flatten_group_titles(response.context["groups"])
+        self.assertIn("Breaking Bad", titles)
+
+    def test_tv_filter_chip_exists(self):
+        """Test that TV Show appears as a filter chip option."""
+        response = self.client.get(reverse("home"))
+        filter_values = [c["value"] for c in response.context["type_filter_choices"]]
+        self.assertIn(MediaTypes.TV.value, filter_values)
+        self.assertNotIn(MediaTypes.SEASON.value, filter_values)
+        self.assertNotIn(MediaTypes.EPISODE.value, filter_values)
+
+    def test_tv_filter_includes_seasons(self):
+        """Test that filtering by TV shows both TV and Season items."""
+        tv_item = Item.objects.create(
+            media_id="1399",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.TV.value,
+            title="Breaking Bad",
+            image="http://example.com/image.jpg",
+        )
+        TV.objects.create(
+            item=tv_item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        response = self.client.get(reverse("home") + "?type=tv")
+        media_types_in_groups = {
+            group["media_type"] for group in response.context["groups"]
+        }
+        self.assertIn(MediaTypes.TV.value, media_types_in_groups)
+        self.assertIn(MediaTypes.SEASON.value, media_types_in_groups)
+
+    def test_episodes_excluded_from_backlog(self):
+        """Test that episode items do not appear as standalone backlog entries."""
+        response = self.client.get(reverse("home"))
+        media_types_in_groups = {
+            group["media_type"] for group in response.context["groups"]
+        }
+        self.assertNotIn(MediaTypes.EPISODE.value, media_types_in_groups)
+
+    def test_dropped_items_excluded_from_backlog(self):
+        """Test that dropped items do not appear in backlog groups."""
+        dropped_item = Item.objects.create(
+            media_id="700",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Dropped Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=dropped_item,
+            user=self.user,
+            status=Status.DROPPED.value,
+        )
+
+        response = self.client.get(reverse("home"))
+        titles = _flatten_group_titles(response.context["groups"])
+        self.assertNotIn("Dropped Movie", titles)
+
+        archive_titles = [m.item.title for m in response.context["archive"]]
+        self.assertNotIn("Dropped Movie", archive_titles)

@@ -52,12 +52,12 @@ class Sources(models.TextChoices):
 class MediaTypes(models.TextChoices):
     """Choices for the media type of the item."""
 
+    ANIME = "anime", "Anime"
+    MANGA = "manga", "Manga"
     TV = "tv", "TV Show"
     SEASON = "season", "TV Season"
     EPISODE = "episode", "Episode"
     MOVIE = "movie", "Movie"
-    ANIME = "anime", "Anime"
-    MANGA = "manga", "Manga"
     GAME = "game", "Game"
     BOOK = "book", "Book"
     COMIC = "comic", "Comic"
@@ -517,15 +517,13 @@ class MediaManager(models.Manager):
 
     def _get_media_types_to_process(self, user, specific_media_type):
         """Determine which media types to process based on user settings."""
+        if specific_media_type == MediaTypes.TV.value:
+            return [MediaTypes.TV.value, MediaTypes.SEASON.value]
+
         if specific_media_type:
             return [specific_media_type]
 
-        # Get active types excluding TV
-        return [
-            media_type
-            for media_type in user.get_active_media_types()
-            if media_type != MediaTypes.TV.value
-        ]
+        return user.get_active_media_types()
 
     def _annotate_next_event(self, media_list):
         """Annotate next_event for media items."""

@@ -80,7 +80,7 @@
     </div>
   {% endif %}
 
-  <div class="mt-10" x-data="{ archiveOpen: false }">
+  <div class="mt-10" x-data="{ archiveOpen: {% if archive_open %}true{% else %}false{% endif %} }">
     <button @click="archiveOpen = !archiveOpen"
             class="flex items-center gap-2 text-lg font-semibold text-gray-300 hover:text-white transition-colors cursor-pointer mb-3">
       {% include "app/icons/circle-check.svg" with classes="w-5 h-5 text-emerald-400" %}

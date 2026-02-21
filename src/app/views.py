@@ -39,9 +39,12 @@ def home(request):
         media_type_filter,
     )
 
+    archive_open = request.GET.get("view") == "archive"
+
     context = {
         "groups": backlog_data["groups"],
         "archive": backlog_data["archive"],
+        "archive_open": archive_open,
         "current_sort": sort_by,
         "sort_choices": HomeSortChoices.choices,
         "current_type_filter": media_type_filter or "all",
@@ -55,8 +58,8 @@ def _get_type_filter_choices(user):
     choices = [{"value": "all", "label": "All"}]
     choices.extend(
         {"value": mt, "label": MediaTypes(mt).label}
-        for mt in user.get_active_media_types()
-        if mt != MediaTypes.TV.value
+        for mt in user.get_enabled_media_types()
+        if mt != MediaTypes.SEASON.value
     )
     return choices
 
