@@ -1,0 +1,30 @@
+{% load app_tags %}
+
+{% if media %}
+  <a href="{{ item|media_url }}"
+     class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-800 hover:bg-gray-700 transition-colors {{ media.status|status_color }}">
+    <div class="w-4 h-4">
+      {% if media.status == Status.COMPLETED.value %}
+        {% include "app/icons/states/completed.svg" %}
+      {% elif media.status == Status.IN_PROGRESS.value %}
+        {% include "app/icons/states/in-progress.svg" %}
+      {% elif media.status == Status.PLANNING.value %}
+        {% include "app/icons/states/planning.svg" %}
+      {% elif media.status == Status.PAUSED.value %}
+        {% include "app/icons/states/paused.svg" %}
+      {% elif media.status == Status.DROPPED.value %}
+        {% include "app/icons/states/dropped.svg" %}
+      {% endif %}
+    </div>
+    {{ media.status }}
+  </a>
+{% else %}
+  <button hx-post="{% url 'quick_add' %}"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          hx-vals='{"media_id": "{{ item.media_id }}", "source": "{{ item.source }}", "media_type": "{{ item.media_type }}"}'
+          hx-swap="outerHTML"
+          class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+    {% include "app/icons/plus.svg" with classes="w-4 h-4" %}
+    Add
+  </button>
+{% endif %}

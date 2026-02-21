@@ -74,6 +74,7 @@ def search(query, page):
                     "media_type": MediaTypes.BOOK.value,
                     "title": result_title,
                     "image": get_image_url(top_edition),
+                    "synopsis": "",
                 },
             )
 

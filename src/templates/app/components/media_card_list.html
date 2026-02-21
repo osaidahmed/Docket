@@ -1,12 +1,11 @@
 {% load app_tags %}
 
-<div class="bg-[#2a2f35] rounded-lg overflow-hidden hover:bg-[#39404b] transition-colors duration-200"
-     x-data="{ trackOpen: false, listsOpen: false, historyOpen: false }">
+<div class="bg-[#2a2f35] rounded-lg hover:bg-[#39404b] transition-colors duration-200">
   <div class="flex items-center p-4 gap-4">
     <div class="shrink-0 relative">
       <a href="{{ item|media_url }}">
         <img alt="{{ title }}"
-             class="lazyload w-16 h-24 object-cover rounded shadow-md bg-[#3e454d]"
+             class="lazyload w-20 h-30 object-cover rounded shadow-md bg-[#3e454d]"
              data-src="{{ item.image }}"
              src="{{ IMG_NONE }}">
       </a>
@@ -37,69 +36,8 @@
           </div>
         </div>
 
-        <div class="relative flex items-center justify-center space-x-2.5">
-          {# Track Button #}
-          <button class="p-2.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-500 hover:scale-110 hover:shadow-[0_0_15px_rgba(99,102,241,0.5)] transition-all duration-200 cursor-pointer"
-                  title="Add to tracker"
-                  hx-get="{% media_view_url 'track_modal' item %}"
-                  hx-vals='{"return_url": "{{ request.get_full_path|urlencode }}", "instance_id": "{{ media.id }}"}'
-                  hx-target="#{% component_id 'track' item media.id %}"
-                  hx-trigger="click once"
-                  @click="trackOpen = true">{% include "app/icons/edit.svg" with classes="w-4 h-4" %}</button>
-
-          {# Lists Button #}
-          <button class="p-2.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 hover:scale-110 hover:shadow-[0_0_15px_rgba(16,185,129,0.5)] transition-all duration-200 cursor-pointer"
-                  title="Add to custom lists"
-                  hx-get="{% media_view_url 'lists_modal' item %}"
-                  hx-vals='{"return_url": "{{ request.get_full_path|urlencode }}"}'
-                  hx-target="#{% component_id 'lists' item %}"
-                  hx-trigger="click once"
-                  @click="listsOpen = true">{% include "app/icons/list-add.svg" with classes="w-4 h-4" %}</button>
-
-          {# History Button #}
-          <button class="p-2.5 bg-amber-600 text-white rounded-full hover:bg-amber-500 hover:scale-110 hover:shadow-[0_0_15px_rgba(245,158,11,0.5)] transition-all duration-200 cursor-pointer"
-                  title="View your activity history"
-                  hx-get="{% media_view_url 'history_modal' item %}"
-                  hx-vals='{"return_url": "{{ request.get_full_path|urlencode }}"}'
-                  hx-target="#{% component_id 'history' item %}"
-                  hx-trigger="click once"
-                  @click="historyOpen = true">{% include "app/icons/history.svg" with classes="w-4 h-4" %}</button>
-        </div>
+        {% include "app/components/search_action.html" with item=item media=media %}
       </div>
-    </div>
-  </div>
-
-  {% if item.media_type == MediaTypes.EPISODE.value %}
-    {% include "app/components/fill_track_episode.html" with request=request media=item episode=item episode_title=title csrf_token=csrf_token TRACK_TIME=TRACK_TIME only %}
-  {% else %}
-    {# Track Modal #}
-    <div x-show="trackOpen"
-         @keydown.escape.window="trackOpen = false"
-         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="w-152 max-h-[90vh] px-4 md:px-0 relative z-60"
-           @click.outside="trackOpen = false">
-        <div id="{% component_id 'track' item media.id %}"></div>
-      </div>
-    </div>
-  {% endif %}
-
-  {# Lists Modal #}
-  <div x-show="listsOpen"
-       @keydown.escape.window="listsOpen = false"
-       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="w-96 max-h-[90vh] px-4 md:px-0 relative z-60"
-         @click.outside="listsOpen = false">
-      <div id="{% component_id 'lists' item %}"></div>
-    </div>
-  </div>
-
-  {# History Modal #}
-  <div x-show="historyOpen"
-       @keydown.escape.window="historyOpen = false"
-       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="w-96 max-h-[90vh] px-4 md:px-0 relative z-60"
-         @click.outside="historyOpen = false">
-      <div id="{% component_id 'history' item %}"></div>
     </div>
   </div>
 </div>

@@ -5,8 +5,11 @@ from django.test import TestCase
 from django.urls import reverse
 
 from app.models import (
+    Item,
     MediaTypes,
+    Movie,
     Sources,
+    Status,
 )
 
 
@@ -114,3 +117,123 @@ class MediaSearchViewTests(TestCase):
             response.context["grouped_results"],
             [],
         )
+
+
+class QuickAddViewTests(TestCase):
+    """Test the quick_add view."""
+
+    def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_add_creates_planning_media(self, mock_metadata):
+        """Test that quick_add creates media with Planning status."""
+        mock_metadata.return_value = {
+            "title": "Test Movie",
+            "image": "http://example.com/image.jpg",
+        }
+
+        response = self.client.post(
+            reverse("quick_add"),
+            {
+                "media_id": "238",
+                "source": Sources.TMDB.value,
+                "media_type": MediaTypes.MOVIE.value,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "app/components/search_action.html")
+        movie = Movie.objects.get(item__media_id="238", user=self.user)
+        self.assertEqual(movie.status, Status.PLANNING.value)
+        self.assertIsNone(movie.score)
+        self.assertEqual(movie.progress, 0)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_add_creates_item(self, mock_metadata):
+        """Test that quick_add creates an Item with metadata."""
+        mock_metadata.return_value = {
+            "title": "Test Anime",
+            "image": "http://example.com/anime.jpg",
+        }
+
+        self.client.post(
+            reverse("quick_add"),
+            {
+                "media_id": "1",
+                "source": Sources.MAL.value,
+                "media_type": MediaTypes.ANIME.value,
+            },
+        )
+
+        item = Item.objects.get(media_id="1", source=Sources.MAL.value)
+        self.assertEqual(item.title, "Test Anime")
+        self.assertEqual(item.image, "http://example.com/anime.jpg")
+
+    def test_quick_add_already_tracked_no_duplicate(self):
+        """Test that quick_add does not create duplicates."""
+        item = Item.objects.create(
+            media_id="238",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Test Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_add"),
+            {
+                "media_id": "238",
+                "source": Sources.TMDB.value,
+                "media_type": MediaTypes.MOVIE.value,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            Movie.objects.filter(item__media_id="238", user=self.user).count(),
+            1,
+        )
+
+    def test_quick_add_existing_item_skips_metadata_fetch(self):
+        """Test that quick_add skips API call when Item already exists."""
+        Item.objects.create(
+            media_id="238",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Test Movie",
+            image="http://example.com/image.jpg",
+        )
+
+        with patch(
+            "app.providers.services.get_media_metadata",
+        ) as mock_metadata:
+            self.client.post(
+                reverse("quick_add"),
+                {
+                    "media_id": "238",
+                    "source": Sources.TMDB.value,
+                    "media_type": MediaTypes.MOVIE.value,
+                },
+            )
+            mock_metadata.assert_not_called()
+
+        self.assertTrue(
+            Movie.objects.filter(
+                item__media_id="238",
+                user=self.user,
+            ).exists(),
+        )
+
+    def test_quick_add_requires_post(self):
+        """Test that quick_add rejects GET requests."""
+        response = self.client.get(reverse("quick_add"))
+        self.assertEqual(response.status_code, 405)

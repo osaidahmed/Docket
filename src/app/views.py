@@ -554,6 +554,79 @@ def media_save(request):
 
 
 @require_POST
+def quick_add(request):
+    """Add media to backlog with Planning status via HTMX."""
+    media_id = request.POST["media_id"]
+    source = request.POST["source"]
+    media_type = request.POST["media_type"]
+
+    existing = (
+        BasicMedia.objects.filter_media(
+            request.user,
+            media_id,
+            media_type,
+            source,
+        )
+        .select_related("item")
+        .first()
+    )
+
+    if existing:
+        return render(
+            request,
+            "app/components/search_action.html",
+            {
+                "item": {
+                    "media_id": media_id,
+                    "source": source,
+                    "media_type": media_type,
+                    "title": existing.item.title,
+                },
+                "media": existing,
+            },
+        )
+
+    try:
+        item = Item.objects.get(
+            media_id=media_id,
+            source=source,
+            media_type=media_type,
+        )
+    except Item.DoesNotExist:
+        metadata = services.get_media_metadata(media_type, media_id, source)
+        item, _ = Item.objects.get_or_create(
+            media_id=media_id,
+            source=source,
+            media_type=media_type,
+            defaults={
+                "title": metadata["title"],
+                "image": metadata["image"],
+            },
+        )
+
+    model = apps.get_model(app_label="app", model_name=media_type)
+    instance = model.objects.create(
+        item=item,
+        user=request.user,
+        status=Status.PLANNING.value,
+    )
+
+    return render(
+        request,
+        "app/components/search_action.html",
+        {
+            "item": {
+                "media_id": media_id,
+                "source": source,
+                "media_type": media_type,
+                "title": item.title,
+            },
+            "media": instance,
+        },
+    )
+
+
+@require_POST
 def media_delete(request):
     """Delete media data from the database."""
     instance_id = request.POST["instance_id"]
