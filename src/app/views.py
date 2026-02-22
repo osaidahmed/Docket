@@ -44,6 +44,7 @@ def home(request):
     context = {
         "groups": backlog_data["groups"],
         "archive": backlog_data["archive"],
+        "archive_count": backlog_data["archive_count"],
         "archive_open": archive_open,
         "current_sort": sort_by,
         "sort_choices": HomeSortChoices.choices,
@@ -739,19 +740,62 @@ def quick_complete(request):
         instance_id,
     )
 
-    archive_count = sum(
-        apps.get_model(app_label="app", model_name=mt)
-        .objects.filter(user=request.user, status=Status.COMPLETED.value)
-        .values("item")
-        .distinct()
-        .count()
-        for mt in request.user.get_active_media_types()
-    )
+    archive_count = BasicMedia.objects.count_archive(request.user)
 
     return render(
         request,
         "app/components/backlog_completed.html",
         {"media": media, "archive_count": archive_count},
+    )
+
+
+@require_POST
+def quick_drop(request):
+    """Drop a backlog item via HTMX."""
+    media_type = request.POST["media_type"]
+    instance_id = request.POST["instance_id"]
+
+    media = BasicMedia.objects.get_media(
+        request.user,
+        media_type,
+        instance_id,
+    )
+    media.status = Status.DROPPED.value
+    media.save()
+
+    return render(
+        request,
+        "app/components/backlog_dropped.html",
+    )
+
+
+@require_POST
+def quick_catch_up(request):
+    """Update progress to the latest aired episode."""
+    media_type = request.POST["media_type"]
+    instance_id = request.POST["instance_id"]
+
+    media = BasicMedia.objects.get_media_prefetch(
+        request.user,
+        media_type,
+        instance_id,
+    )
+    BasicMedia.objects._annotate_next_event([media])
+
+    if media.next_event and media.next_event.content_number is not None:
+        media.progress = media.next_event.content_number - 1
+        media.save()
+        media = BasicMedia.objects.get_media_prefetch(
+            request.user,
+            media_type,
+            instance_id,
+        )
+        BasicMedia.objects._annotate_next_event([media])
+
+    return render(
+        request,
+        "app/components/backlog_card.html",
+        {"media": media, "status_choices": Status.choices},
     )
 
 
@@ -767,17 +811,48 @@ def backlog_save(request):
         instance_id,
     )
 
+    old_status = media.status
     form_class = get_form_class(media_type)
     form = form_class(request.POST, instance=media)
 
     if form.is_valid():
         form.save()
         logger.info("%s updated from backlog.", form.instance)
+
+        if media.status == Status.COMPLETED.value:
+            media = BasicMedia.objects.get_media_prefetch(
+                request.user,
+                media_type,
+                instance_id,
+            )
+            archive_count = BasicMedia.objects.count_archive(request.user)
+            return render(
+                request,
+                "app/components/backlog_completed.html",
+                {"media": media, "archive_count": archive_count},
+            )
+
+        if media.status == Status.DROPPED.value:
+            return render(
+                request,
+                "app/components/backlog_dropped.html",
+            )
+
+        if media.status != old_status:
+            response = render(
+                request,
+                "app/components/backlog_card.html",
+                {"media": media, "status_choices": Status.choices},
+            )
+            response["HX-Refresh"] = "true"
+            return response
+
         media = BasicMedia.objects.get_media_prefetch(
             request.user,
             media_type,
             instance_id,
         )
+        BasicMedia.objects._annotate_next_event([media])
         return render(
             request,
             "app/components/backlog_card.html",

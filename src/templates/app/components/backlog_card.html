@@ -33,6 +33,20 @@
               {{ media.status }}
             </span>
           </div>
+
+          {% if media.next_event and not media.next_event.is_max_datetime %}
+            <div class="flex items-center gap-1.5 mt-1 text-xs text-indigo-400">
+              {% include "app/icons/clock.svg" with classes="w-3.5 h-3.5" %}
+              <span>
+                Next:
+                {% if media.next_event.content_number %}
+                  {{ media.item.media_type|short_unit }}{{ media.next_event.content_number }}
+                  ·
+                {% endif %}
+                {{ media.next_event.datetime|natural_day:user }}
+              </span>
+            </div>
+          {% endif %}
         </div>
 
         <div class="flex items-center gap-1.5 shrink-0">
@@ -51,15 +65,36 @@
             {% include "app/icons/edit-flat.svg" with classes="w-5 h-5" %}
           </button>
 
-          <button hx-post="{% url 'quick_complete' %}"
-                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
-                  hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
-                  hx-swap="outerHTML"
-                  class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-sm font-medium cursor-pointer">
-            {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
-            Done
-          </button>
+          {% if media.status == Status.IN_PROGRESS.value %}
+            {% if media.next_event and not media.next_event.is_max_datetime %}
+              {% if media.is_caught_up %}
+                <div class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-gray-300 rounded-full text-sm font-medium">
+                  {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
+                  Caught Up
+                </div>
+              {% else %}
+                <button hx-post="{% url 'quick_catch_up' %}"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                        hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
+                        hx-swap="outerHTML"
+                        class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+                  {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
+                  Caught Up?
+                </button>
+              {% endif %}
+            {% else %}
+              <button hx-post="{% url 'quick_complete' %}"
+                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                      hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
+                      hx-swap="outerHTML"
+                      class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+                {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
+                Done
+              </button>
+            {% endif %}
+          {% endif %}
         </div>
       </div>
     </div>
@@ -160,7 +195,17 @@
                   class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">{{ media.notes|default:'' }}</textarea>
       </div>
 
-      <div class="flex justify-end mt-3">
+      <div class="flex justify-between mt-3">
+        <button hx-post="{% url 'quick_drop' %}"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
+                hx-swap="outerHTML"
+                hx-confirm="Drop this from your backlog?"
+                class="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md text-sm font-medium cursor-pointer transition-colors">
+          {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
+          Drop
+        </button>
         <button type="submit"
                 class="px-4 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium cursor-pointer">
           Save

@@ -513,7 +513,31 @@ class MediaManager(models.Manager):
                 -(m.end_date.timestamp() if m.end_date else 0),
             ),
         )
-        return {"groups": groups, "archive": archive_all[:20]}
+        return {
+            "groups": groups,
+            "archive": archive_all[:20],
+            "archive_count": len(archive_all),
+        }
+
+    def count_archive(self, user):
+        """Count archive items using the same dedup as get_backlog."""
+        count = 0
+        for media_type in user.get_active_media_types():
+            model = apps.get_model(app_label="app", model_name=media_type)
+            statuses = (
+                model.objects.filter(user=user)
+                .annotate(
+                    row_number=Window(
+                        expression=RowNumber(),
+                        partition_by=[F("item")],
+                        order_by=F("created_at").desc(),
+                    )
+                )
+                .filter(row_number=1)
+                .values_list("status", flat=True)
+            )
+            count += sum(1 for s in statuses if s == Status.COMPLETED.value)
+        return count
 
     def _get_media_types_to_process(self, user, specific_media_type):
         """Determine which media types to process based on user settings."""
@@ -541,6 +565,17 @@ class MediaManager(models.Manager):
             )
 
             media.next_event = future_events[0] if future_events else None
+
+            if (
+                media.next_event
+                and media.next_event.content_number is not None
+                and media.progress is not None
+            ):
+                media.is_caught_up = (
+                    media.progress >= media.next_event.content_number - 1
+                )
+            else:
+                media.is_caught_up = False
 
     def _sort_in_progress_media(self, media_list, sort_by):
         """Sort in-progress media based on the sort criteria."""

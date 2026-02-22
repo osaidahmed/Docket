@@ -468,9 +468,18 @@ class MediaManagerTests(TestCase):
         )
         self.assertEqual(media_types, [MediaTypes.ANIME.value])
 
+        media_types = manager._get_media_types_to_process(
+            self.user,
+            MediaTypes.TV.value,
+        )
+        self.assertEqual(
+            media_types,
+            [MediaTypes.TV.value, MediaTypes.SEASON.value],
+        )
+
         media_types = manager._get_media_types_to_process(self.user, None)
 
-        self.assertNotIn(MediaTypes.TV.value, media_types)
+        self.assertIn(MediaTypes.TV.value, media_types)
         self.assertIn(MediaTypes.ANIME.value, media_types)
         self.assertIn(MediaTypes.MOVIE.value, media_types)
         self.assertIn(MediaTypes.GAME.value, media_types)

@@ -69,11 +69,15 @@ class EventManager(models.Manager):
         tv_query = self._build_tv_query(user, enabled_types)
         combined_query = (user_query & active_status_query) | tv_query
 
-        queryset = self.filter(
-            combined_query,
-            datetime__gte=start_datetime,
-            datetime__lte=end_datetime,
-        ).select_related("item")
+        queryset = (
+            self.filter(
+                combined_query,
+                datetime__gte=start_datetime,
+                datetime__lte=end_datetime,
+            )
+            .select_related("item")
+            .distinct()
+        )
 
         return self.sort_with_sentinel_last(queryset)
 

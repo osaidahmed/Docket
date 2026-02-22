@@ -301,3 +301,40 @@ class EventManagerTests(TestCase):
             self.past_event,
             limited_events,
         )  # Past event, but filtered by active status
+
+    def test_get_user_events_no_duplicates_from_rewatches(self):
+        """Test that rewatched media does not duplicate calendar events."""
+        anime_item = Item.objects.create(
+            media_id="437",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Rewatched Anime",
+        )
+        Anime.objects.create(
+            user=self.user,
+            item=anime_item,
+            status=Status.COMPLETED.value,
+        )
+        Anime.objects.create(
+            user=self.user,
+            item=anime_item,
+            status=Status.COMPLETED.value,
+        )
+        Anime.objects.create(
+            user=self.user,
+            item=anime_item,
+            status=Status.IN_PROGRESS.value,
+        )
+
+        anime_event = Event.objects.create(
+            item=anime_item,
+            content_number=10,
+            datetime=self.tomorrow,
+        )
+
+        today = self.base_date.date()
+        next_week = today + datetime.timedelta(days=7)
+        events = Event.objects.get_user_events(self.user, today, next_week)
+
+        event_ids = [e.id for e in events]
+        self.assertEqual(event_ids.count(anime_event.id), 1)
