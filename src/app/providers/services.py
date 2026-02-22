@@ -372,3 +372,65 @@ def search_all(query, enabled_types):
         for mt in UNIFIED_SEARCH_ORDER
         if mt in grouped
     ]
+
+
+SUGGEST_API_TIMEOUT = 2  # seconds per future
+SUGGEST_API_LIMIT = 5
+
+
+def _build_suggest_tasks(query, enabled_types, limit):
+    """Build the list of provider tasks for search suggestions."""
+    tasks = []
+
+    if MediaTypes.TV.value in enabled_types or MediaTypes.MOVIE.value in enabled_types:
+        tasks.append(("tmdb_multi", lambda: tmdb.search_multi(query, limit)))
+
+    if MediaTypes.ANIME.value in enabled_types:
+        tasks.append(
+            (
+                "mal_anime",
+                lambda: mal.search(MediaTypes.ANIME.value, query, 1)["results"][:limit],
+            )
+        )
+
+    if MediaTypes.MANGA.value in enabled_types:
+        tasks.append(
+            (
+                "mal_manga",
+                lambda: mal.search(MediaTypes.MANGA.value, query, 1)["results"][:limit],
+            )
+        )
+
+    return tasks
+
+
+def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_LIMIT):
+    """Search fast API providers for suggestions, combining results in parallel."""
+    if not query or not query.strip():
+        return []
+
+    if local_keys is None:
+        local_keys = set()
+
+    tasks = _build_suggest_tasks(query, enabled_types, limit)
+    if not tasks:
+        return []
+
+    all_results = []
+    seen_keys = set(local_keys)
+
+    with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+        futures = {executor.submit(fn): name for name, fn in tasks}
+        for future in as_completed(futures):
+            name = futures[future]
+            try:
+                results = future.result(timeout=SUGGEST_API_TIMEOUT)
+                for item in results:
+                    key = (str(item["media_id"]), item["source"])
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        all_results.append(item)
+            except Exception:
+                logger.exception("Suggest API failed for %s", name)
+
+    return all_results[:limit]

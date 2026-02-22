@@ -114,6 +114,55 @@ def search(media_type, query, page):
     return data
 
 
+def search_multi(query, limit=5):
+    """Search TMDB for TV and movie results using the multi endpoint."""
+    cache_key = f"suggest_{Sources.TMDB.value}_multi_{query}_{limit}"
+    data = cache.get(cache_key)
+
+    if data is None:
+        url = f"{base_url}/search/multi"
+        params = {
+            **base_params,
+            "query": query,
+            "page": 1,
+        }
+
+        if settings.TMDB_NSFW:
+            params["include_adult"] = "true"
+
+        try:
+            response = services.api_request(
+                Sources.TMDB.value,
+                "GET",
+                url,
+                params=params,
+            )
+        except requests.exceptions.HTTPError as error:
+            handle_error(error)
+
+        results = []
+        for media in response["results"]:
+            mt = media.get("media_type")
+            if mt not in ("tv", "movie"):
+                continue
+            results.append(
+                {
+                    "media_id": media["id"],
+                    "source": Sources.TMDB.value,
+                    "media_type": mt,
+                    "title": get_title(media),
+                    "image": get_image_url(media.get("poster_path")),
+                }
+            )
+            if len(results) >= limit:
+                break
+
+        data = results
+        cache.set(cache_key, data)
+
+    return data
+
+
 def browse(media_type, category, page):
     """Browse media on TMDB by category."""
     cache_key = f"browse_{Sources.TMDB.value}_{media_type}_{category}_{page}"

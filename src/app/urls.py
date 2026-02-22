@@ -93,6 +93,16 @@ urlpatterns = [
         views.search_parent_season,
         name="search_parent_season",
     ),
+    path(
+        "search/suggest/local",
+        views.search_suggest_local,
+        name="search_suggest_local",
+    ),
+    path(
+        "search/suggest/api",
+        views.search_suggest_api,
+        name="search_suggest_api",
+    ),
     path("statistics", views.statistics, name="statistics"),
     path("serviceworker.js", views.service_worker, name="service_worker"),
 ]

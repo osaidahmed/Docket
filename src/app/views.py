@@ -1311,6 +1311,101 @@ def search_parent_season(request):
     )
 
 
+SUGGEST_LOCAL_MIN_QUERY = 2
+SUGGEST_API_MIN_QUERY = 3
+SUGGEST_MAX_RESULTS = 5
+
+
+@require_GET
+def search_suggest_local(request):
+    """Return local DB suggestions for the search dropdown."""
+    query = request.GET.get("q", "").strip()
+
+    if len(query) < SUGGEST_LOCAL_MIN_QUERY:
+        return render(request, "app/components/search_suggest_local.html")
+
+    enabled_types = request.user.get_enabled_media_types()
+    searchable_types = [
+        mt
+        for mt in enabled_types
+        if mt not in (MediaTypes.SEASON.value, MediaTypes.EPISODE.value)
+    ]
+
+    items_with_media = []
+    for media_type in searchable_types:
+        model = apps.get_model(app_label="app", model_name=media_type)
+        qs = model.objects.filter(
+            Q(item__title__icontains=query) | Q(item__english_title__icontains=query),
+            user=request.user,
+        ).select_related("item")[:SUGGEST_MAX_RESULTS]
+
+        items_with_media.extend(
+            {
+                "title": media.item.title,
+                "english_title": media.item.english_title,
+                "image": media.item.image,
+                "media_type": media.item.media_type,
+                "media_id": media.item.media_id,
+                "source": media.item.source,
+                "status": media.status,
+            }
+            for media in qs
+        )
+
+    query_lower = query.lower()
+    prefix = [
+        r
+        for r in items_with_media
+        if r["title"].lower().startswith(query_lower)
+        or (r["english_title"] and r["english_title"].lower().startswith(query_lower))
+    ]
+    contains = [r for r in items_with_media if r not in prefix]
+    results = (prefix + contains)[:SUGGEST_MAX_RESULTS]
+
+    return render(
+        request,
+        "app/components/search_suggest_local.html",
+        {"results": results, "query": query},
+    )
+
+
+@require_GET
+def search_suggest_api(request):
+    """Return API search suggestions for the search dropdown."""
+    query = request.GET.get("q", "").strip()
+
+    if len(query) < SUGGEST_API_MIN_QUERY:
+        return render(request, "app/components/search_suggest_api.html")
+
+    enabled_types = request.user.get_enabled_media_types()
+
+    local_keys = set()
+    for media_type in enabled_types:
+        if media_type in (MediaTypes.SEASON.value, MediaTypes.EPISODE.value):
+            continue
+        model = apps.get_model(app_label="app", model_name=media_type)
+        for media in (
+            model.objects.filter(
+                Q(item__title__icontains=query)
+                | Q(item__english_title__icontains=query),
+                user=request.user,
+            )
+            .select_related("item")
+            .values_list("item__media_id", "item__source")[:10]
+        ):
+            local_keys.add((str(media[0]), media[1]))
+
+    results = services.search_suggest_api(query, enabled_types, local_keys=local_keys)[
+        :5
+    ]
+
+    return render(
+        request,
+        "app/components/search_suggest_api.html",
+        {"results": results, "query": query},
+    )
+
+
 @require_GET
 def history_modal(
     request,

@@ -1,0 +1,435 @@
+from unittest.mock import patch
+
+from django.test import TestCase
+
+from app.models import MediaTypes, Sources
+from app.providers import services, tmdb
+
+
+class TMDBSearchMultiTests(TestCase):
+    """Test the tmdb.search_multi() function."""
+
+    @patch("app.providers.services.api_request")
+    def test_returns_tv_and_movie_results(self, mock_api):
+        """search_multi returns both TV and movie results."""
+        mock_api.return_value = {
+            "page": 1,
+            "total_results": 3,
+            "results": [
+                {
+                    "id": 1399,
+                    "media_type": "tv",
+                    "name": "Breaking Bad",
+                    "poster_path": "/path.jpg",
+                    "overview": "A show",
+                },
+                {
+                    "id": 550,
+                    "media_type": "movie",
+                    "title": "Fight Club",
+                    "poster_path": "/fc.jpg",
+                    "overview": "A movie",
+                },
+            ],
+        }
+
+        results = tmdb.search_multi("Breaking")
+
+        media_types = {r["media_type"] for r in results}
+        self.assertIn("tv", media_types)
+        self.assertIn("movie", media_types)
+        self.assertEqual(len(results), 2)
+
+    @patch("app.providers.services.api_request")
+    def test_filters_out_person_results(self, mock_api):
+        """Person results from TMDB multi endpoint are excluded."""
+        mock_api.return_value = {
+            "page": 1,
+            "total_results": 3,
+            "results": [
+                {
+                    "id": 1399,
+                    "media_type": "tv",
+                    "name": "Breaking Bad",
+                    "poster_path": "/path.jpg",
+                },
+                {
+                    "id": 17419,
+                    "media_type": "person",
+                    "name": "Bryan Cranston",
+                    "profile_path": "/profile.jpg",
+                },
+                {
+                    "id": 550,
+                    "media_type": "movie",
+                    "title": "Fight Club",
+                    "poster_path": "/fc.jpg",
+                },
+            ],
+        }
+
+        results = tmdb.search_multi("Breaking")
+
+        for result in results:
+            self.assertNotEqual(result["media_type"], "person")
+        self.assertEqual(len(results), 2)
+
+    @patch("app.providers.services.api_request")
+    def test_result_format(self, mock_api):
+        """Each result has all required keys."""
+        mock_api.return_value = {
+            "page": 1,
+            "total_results": 1,
+            "results": [
+                {
+                    "id": 1399,
+                    "media_type": "tv",
+                    "name": "Breaking Bad",
+                    "poster_path": "/path.jpg",
+                },
+            ],
+        }
+
+        results = tmdb.search_multi("Breaking")
+
+        required_keys = {"media_id", "source", "media_type", "title", "image"}
+        for result in results:
+            self.assertTrue(
+                all(key in result for key in required_keys),
+                f"Missing keys: {required_keys - set(result.keys())}",
+            )
+        self.assertEqual(results[0]["source"], Sources.TMDB.value)
+
+    @patch("app.providers.services.api_request")
+    def test_capped_at_limit(self, mock_api):
+        """Results are capped at the specified limit."""
+        mock_api.return_value = {
+            "page": 1,
+            "total_results": 20,
+            "results": [
+                {
+                    "id": i,
+                    "media_type": "movie",
+                    "title": f"Movie {i}",
+                    "poster_path": f"/m{i}.jpg",
+                }
+                for i in range(20)
+            ],
+        }
+
+        results = tmdb.search_multi("Movie", limit=5)
+
+        self.assertLessEqual(len(results), 5)
+
+    @patch("app.providers.services.api_request")
+    def test_uses_cache(self, mock_api):
+        """Second call with same query hits cache, not the API."""
+        mock_api.return_value = {
+            "page": 1,
+            "total_results": 1,
+            "results": [
+                {
+                    "id": 1399,
+                    "media_type": "tv",
+                    "name": "Breaking Bad",
+                    "poster_path": "/path.jpg",
+                },
+            ],
+        }
+
+        tmdb.search_multi("CacheTest", limit=5)
+        tmdb.search_multi("CacheTest", limit=5)
+
+        mock_api.assert_called_once()
+
+
+class SearchSuggestServiceTests(TestCase):
+    """Test the services.search_suggest_api() function."""
+
+    def _all_types_enabled(self):
+        return [
+            MediaTypes.TV.value,
+            MediaTypes.MOVIE.value,
+            MediaTypes.ANIME.value,
+            MediaTypes.MANGA.value,
+        ]
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_returns_combined_results(self, mock_tmdb, mock_mal):
+        """Combines results from TMDB multi + MAL anime + MAL manga."""
+        mock_tmdb.return_value = [
+            {
+                "media_id": 100,
+                "source": Sources.TMDB.value,
+                "media_type": "tv",
+                "title": "Narcos",
+                "image": "http://example.com/narcos.jpg",
+            },
+        ]
+        mock_mal.side_effect = [
+            {
+                "page": 1,
+                "total_results": 1,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "media_id": 20,
+                        "source": Sources.MAL.value,
+                        "media_type": MediaTypes.ANIME.value,
+                        "title": "Naruto",
+                        "image": "http://example.com/naruto.jpg",
+                        "synopsis": "",
+                    },
+                ],
+            },
+            {
+                "page": 1,
+                "total_results": 1,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "media_id": 30,
+                        "source": Sources.MAL.value,
+                        "media_type": MediaTypes.MANGA.value,
+                        "title": "Naruto Manga",
+                        "image": "http://example.com/naruto_m.jpg",
+                        "synopsis": "",
+                    },
+                ],
+            },
+        ]
+
+        results = services.search_suggest_api("Naruto", self._all_types_enabled())
+
+        sources_in_results = {r["source"] for r in results}
+        self.assertIn(Sources.TMDB.value, sources_in_results)
+        self.assertIn(Sources.MAL.value, sources_in_results)
+        self.assertGreaterEqual(len(results), 3)
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_respects_enabled_types(self, mock_tmdb, mock_mal):
+        """Disabled types are not queried."""
+        mock_tmdb.return_value = []
+        mock_mal.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        # Only manga enabled (no TV, Movie, Anime)
+        services.search_suggest_api("Test", [MediaTypes.MANGA.value])
+
+        mock_tmdb.assert_not_called()
+        # MAL should be called once for manga only
+        self.assertEqual(mock_mal.call_count, 1)
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_deduplication_by_media_id_and_source(self, mock_tmdb, mock_mal):
+        """Duplicate (media_id, source) pairs are removed."""
+        mock_tmdb.return_value = [
+            {
+                "media_id": 20,
+                "source": Sources.TMDB.value,
+                "media_type": "tv",
+                "title": "Show A",
+                "image": "http://example.com/a.jpg",
+            },
+        ]
+        mock_mal.side_effect = [
+            {
+                "page": 1,
+                "total_results": 1,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "media_id": 20,
+                        "source": Sources.TMDB.value,
+                        "media_type": "tv",
+                        "title": "Show A Duplicate",
+                        "image": "http://example.com/a2.jpg",
+                        "synopsis": "",
+                    },
+                ],
+            },
+            {
+                "page": 1,
+                "total_results": 0,
+                "total_pages": 1,
+                "results": [],
+            },
+        ]
+
+        results = services.search_suggest_api("Show", self._all_types_enabled())
+
+        keys = [(str(r["media_id"]), r["source"]) for r in results]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_handles_tmdb_failure(self, mock_tmdb, mock_mal):
+        """TMDB failure doesn't crash; MAL results still returned."""
+        mock_tmdb.side_effect = Exception("TMDB down")
+        mock_mal.side_effect = [
+            {
+                "page": 1,
+                "total_results": 1,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "media_id": 20,
+                        "source": Sources.MAL.value,
+                        "media_type": MediaTypes.ANIME.value,
+                        "title": "Naruto",
+                        "image": "http://example.com/n.jpg",
+                        "synopsis": "",
+                    },
+                ],
+            },
+            {
+                "page": 1,
+                "total_results": 0,
+                "total_pages": 1,
+                "results": [],
+            },
+        ]
+
+        results = services.search_suggest_api("Naruto", self._all_types_enabled())
+
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]["source"], Sources.MAL.value)
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_handles_mal_failure(self, mock_tmdb, mock_mal):
+        """MAL failure doesn't crash; TMDB results still returned."""
+        mock_tmdb.return_value = [
+            {
+                "media_id": 100,
+                "source": Sources.TMDB.value,
+                "media_type": "tv",
+                "title": "Narcos",
+                "image": "http://example.com/narcos.jpg",
+            },
+        ]
+        mock_mal.side_effect = Exception("MAL down")
+
+        results = services.search_suggest_api("Nar", self._all_types_enabled())
+
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]["source"], Sources.TMDB.value)
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_handles_all_providers_failing(self, mock_tmdb, mock_mal):
+        """All providers failing returns empty list, no crash."""
+        mock_tmdb.side_effect = Exception("TMDB down")
+        mock_mal.side_effect = Exception("MAL down")
+
+        results = services.search_suggest_api("Naruto", self._all_types_enabled())
+
+        self.assertEqual(results, [])
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_total_results_capped(self, mock_tmdb, mock_mal):
+        """Combined results are capped at the limit."""
+        mock_tmdb.return_value = [
+            {
+                "media_id": i,
+                "source": Sources.TMDB.value,
+                "media_type": "movie",
+                "title": f"Movie {i}",
+                "image": "http://example.com/m.jpg",
+            }
+            for i in range(5)
+        ]
+        mock_mal.side_effect = [
+            {
+                "page": 1,
+                "total_results": 5,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "media_id": 100 + i,
+                        "source": Sources.MAL.value,
+                        "media_type": MediaTypes.ANIME.value,
+                        "title": f"Anime {i}",
+                        "image": "http://example.com/a.jpg",
+                        "synopsis": "",
+                    }
+                    for i in range(5)
+                ],
+            },
+            {
+                "page": 1,
+                "total_results": 5,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "media_id": 200 + i,
+                        "source": Sources.MAL.value,
+                        "media_type": MediaTypes.MANGA.value,
+                        "title": f"Manga {i}",
+                        "image": "http://example.com/mg.jpg",
+                        "synopsis": "",
+                    }
+                    for i in range(5)
+                ],
+            },
+        ]
+
+        results = services.search_suggest_api(
+            "Test", self._all_types_enabled(), limit=5
+        )
+
+        self.assertLessEqual(len(results), 5)
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_excludes_local_keys(self, mock_tmdb, mock_mal):
+        """Items matching local_keys are excluded from results."""
+        mock_tmdb.return_value = [
+            {
+                "media_id": 100,
+                "source": Sources.TMDB.value,
+                "media_type": "tv",
+                "title": "Narcos",
+                "image": "http://example.com/narcos.jpg",
+            },
+            {
+                "media_id": 200,
+                "source": Sources.TMDB.value,
+                "media_type": "movie",
+                "title": "Narnia",
+                "image": "http://example.com/narnia.jpg",
+            },
+        ]
+        mock_mal.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        local_keys = {("100", Sources.TMDB.value)}
+        results = services.search_suggest_api(
+            "Nar",
+            [MediaTypes.TV.value, MediaTypes.MOVIE.value],
+            local_keys=local_keys,
+        )
+
+        result_ids = [(str(r["media_id"]), r["source"]) for r in results]
+        self.assertNotIn(("100", Sources.TMDB.value), result_ids)
+        self.assertIn(("200", Sources.TMDB.value), result_ids)
+
+    def test_empty_query_returns_empty(self):
+        """Empty or whitespace query returns empty list."""
+        result = services.search_suggest_api("", self._all_types_enabled())
+        self.assertEqual(result, [])
+
+        result = services.search_suggest_api("   ", self._all_types_enabled())
+        self.assertEqual(result, [])

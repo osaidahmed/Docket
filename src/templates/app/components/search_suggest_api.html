@@ -1,0 +1,26 @@
+{% load app_tags %}
+{% if results %}
+  <div class="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-t border-gray-600">
+    Suggestions
+  </div>
+  {% for result in results %}
+    <button type="button"
+            class="suggest-item w-full flex items-center gap-3 px-3 py-2 text-left text-sm text-gray-300 hover:bg-[#2a2f35] hover:text-white transition-colors"
+            data-title="{{ result.title }}">
+      <img src="{{ result.image }}"
+           alt=""
+           class="w-8 h-10 object-cover rounded shrink-0"
+           loading="lazy">
+      <div class="flex-1 min-w-0">
+        <div class="truncate">{{ result.title }}</div>
+        <div class="text-xs text-gray-500">{{ result.media_type|media_type_readable }}</div>
+      </div>
+    </button>
+  {% endfor %}
+{% endif %}
+{% if query %}
+  <a href="{% url 'search' %}?media_type=all&q={{ query|urlencode }}"
+     class="suggest-item block w-full px-3 py-2 text-sm text-[#4a9eff] hover:bg-[#2a2f35] border-t border-gray-600 transition-colors">
+    See all results for "{{ query }}"
+  </a>
+{% endif %}
