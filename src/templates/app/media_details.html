@@ -98,7 +98,12 @@
           </div>
         </div>
       {% else %}
-        <h1 class="text-3xl font-bold mb-4 text-center md:text-start">{{ media.title }}</h1>
+        <h1 class="text-3xl font-bold mb-1 text-center md:text-start">{{ media.title }}</h1>
+        {% if media.english_title %}
+          <p class="text-lg text-gray-400 mb-4 text-center md:text-start">{{ media.english_title }}</p>
+        {% else %}
+          <div class="mb-4"></div>
+        {% endif %}
       {% endif %}
 
       {# Genres #}

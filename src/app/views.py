@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db import IntegrityError
-from django.db.models import prefetch_related_objects
+from django.db.models import Q, prefetch_related_objects
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -448,6 +448,7 @@ def sync_metadata(request, source, media_type, media_id, season_number=None):
             season_number=season_number,
             defaults={
                 "title": metadata["title"],
+                "english_title": metadata.get("english_title", ""),
                 "image": metadata["image"],
                 "synopsis": metadata.get("synopsis", ""),
             },
@@ -614,6 +615,7 @@ def media_save(request):
             season_number=season_number,
             defaults={
                 "title": metadata["title"],
+                "english_title": metadata.get("english_title", ""),
                 "image": metadata["image"],
                 "synopsis": metadata.get("synopsis", ""),
             },
@@ -686,6 +688,7 @@ def quick_add(request):
             media_type=media_type,
             defaults={
                 "title": metadata["title"],
+                "english_title": metadata.get("english_title", ""),
                 "image": metadata["image"],
                 "synopsis": metadata.get("synopsis", ""),
             },
@@ -1155,10 +1158,10 @@ def search_parent_tv(request):
     )
 
     parent_tvs = TV.objects.filter(
+        Q(item__title__icontains=query) | Q(item__english_title__icontains=query),
         user=request.user,
         item__source=Sources.MANUAL.value,
         item__media_type=MediaTypes.TV.value,
-        item__title__icontains=query,
     )[:5]
 
     return render(
@@ -1183,10 +1186,10 @@ def search_parent_season(request):
     )
 
     parent_seasons = Season.objects.filter(
+        Q(item__title__icontains=query) | Q(item__english_title__icontains=query),
         user=request.user,
         item__source=Sources.MANUAL.value,
         item__media_type=MediaTypes.SEASON.value,
-        item__title__icontains=query,
     )[:5]
 
     return render(

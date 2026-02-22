@@ -19,6 +19,7 @@ from app.models import (
     Sources,
     Status,
 )
+from app.providers.mal import get_english_title
 from events.models import Event
 from users.models import HomeSortChoices
 
@@ -3188,3 +3189,136 @@ class EnrichmentTests(TestCase):
         )
 
         self.assertFalse(results[0]["has_active"])
+
+
+class EnglishTitleTests(TestCase):
+    """Test English title display and search."""
+
+    def setUp(self):
+        """Create anime item with English title for testing."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+        self.item = Item.objects.create(
+            media_id="16498",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Shingeki no Kyojin",
+            english_title="Attack on Titan",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+    def test_english_title_displayed_on_backlog_card(self):
+        """Test that English title subtitle appears on home backlog cards."""
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "Attack on Titan")
+
+    def test_english_title_not_shown_when_empty(self):
+        """Test that no subtitle is rendered when english_title is empty."""
+        self.item.english_title = ""
+        self.item.save()
+        response = self.client.get(reverse("home"))
+        self.assertNotContains(response, "Attack on Titan")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_english_title_on_media_details(self, mock_metadata):
+        """Test that English title subtitle appears on media details page."""
+        mock_metadata.return_value = {
+            "media_id": "16498",
+            "source": Sources.MAL.value,
+            "source_url": "https://myanimelist.net/anime/16498",
+            "media_type": MediaTypes.ANIME.value,
+            "title": "Shingeki no Kyojin",
+            "english_title": "Attack on Titan",
+            "image": "http://example.com/image.jpg",
+            "synopsis": "Test synopsis",
+            "genres": [],
+            "score": None,
+            "score_count": 0,
+            "max_progress": 25,
+            "details": {},
+            "related": {},
+        }
+        response = self.client.get(
+            reverse(
+                "media_details",
+                kwargs={
+                    "source": Sources.MAL.value,
+                    "media_type": MediaTypes.ANIME.value,
+                    "media_id": "16498",
+                    "title": "shingeki-no-kyojin",
+                },
+            )
+        )
+        self.assertContains(response, "Attack on Titan")
+
+    def test_search_matches_english_title(self):
+        """Test that in-library search finds items by English title."""
+        response = self.client.get(
+            reverse("medialist", kwargs={"media_type": MediaTypes.ANIME.value})
+            + "?search=Attack"
+        )
+        self.assertContains(response, "Shingeki no Kyojin")
+
+    def test_search_matches_original_title(self):
+        """Test that in-library search still finds items by original title."""
+        response = self.client.get(
+            reverse("medialist", kwargs={"media_type": MediaTypes.ANIME.value})
+            + "?search=Shingeki"
+        )
+        self.assertContains(response, "Shingeki no Kyojin")
+
+    def test_search_no_match(self):
+        """Test that search returns no results for unrelated queries."""
+        response = self.client.get(
+            reverse("medialist", kwargs={"media_type": MediaTypes.ANIME.value})
+            + "?search=Naruto"
+        )
+        self.assertNotContains(response, "Shingeki no Kyojin")
+
+
+class GetEnglishTitleTests(TestCase):
+    """Test the get_english_title helper from MAL provider."""
+
+    def test_returns_english_title(self):
+        """Test extraction of English title from alternative_titles."""
+        response = {
+            "title": "Shingeki no Kyojin",
+            "alternative_titles": {"en": "Attack on Titan", "ja": "進撃の巨人"},
+        }
+        self.assertEqual(get_english_title(response), "Attack on Titan")
+
+    def test_returns_empty_when_same_as_title(self):
+        """Test that empty string is returned when English title matches main title."""
+        response = {
+            "title": "Attack on Titan",
+            "alternative_titles": {"en": "Attack on Titan"},
+        }
+        self.assertEqual(get_english_title(response), "")
+
+    def test_returns_empty_when_no_alternative_titles(self):
+        """Test graceful handling when alternative_titles field is missing."""
+        response = {"title": "Some Anime"}
+        self.assertEqual(get_english_title(response), "")
+
+    def test_returns_empty_when_en_is_empty_string(self):
+        """Test that empty English title string is treated as no title."""
+        response = {
+            "title": "Some Anime",
+            "alternative_titles": {"en": "", "ja": "何かのアニメ"},
+        }
+        self.assertEqual(get_english_title(response), "")
+
+    def test_returns_empty_when_alternative_titles_empty(self):
+        """Test handling of empty alternative_titles dict."""
+        response = {
+            "title": "Some Anime",
+            "alternative_titles": {},
+        }
+        self.assertEqual(get_english_title(response), "")

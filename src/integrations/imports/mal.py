@@ -75,7 +75,7 @@ class MyAnimeListImporter:
         logger.info("Fetching %s from MyAnimeList", media_type)
         params = {
             "fields": (
-                "num_episodes,num_chapters,"
+                "alternative_titles,num_episodes,num_chapters,"
                 "list_status{comments,num_times_rewatched,num_times_reread}"
             ),
             "nsfw": "true",
@@ -151,6 +151,7 @@ class MyAnimeListImporter:
             media_type=media_type,
             defaults={
                 "title": content["node"]["title"],
+                "english_title": self._get_english_title(content["node"]),
                 "image": image_url,
             },
         )
@@ -233,6 +234,14 @@ class MyAnimeListImporter:
             second=0,
             tzinfo=timezone.get_current_timezone(),
         )
+
+    @staticmethod
+    def _get_english_title(node):
+        """Return the English title if different from the main title."""
+        en_title = node.get("alternative_titles", {}).get("en", "")
+        if en_title == node.get("title", ""):
+            return ""
+        return en_title
 
     def _get_status(self, status):
         """Convert the status from MyAnimeList to the status used in the app."""

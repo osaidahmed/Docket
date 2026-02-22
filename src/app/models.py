@@ -78,6 +78,7 @@ class Item(CalendarTriggerMixin, models.Model):
         default=MediaTypes.MOVIE.value,
     )
     title = models.TextField()
+    english_title = models.TextField(blank=True, default="")
     image = models.URLField()  # if add default, custom media entry will show the value
     synopsis = models.TextField(blank=True, default="")
     season_number = models.PositiveIntegerField(null=True, blank=True)
@@ -241,7 +242,10 @@ class MediaManager(models.Manager):
             queryset = queryset.filter(status=status_filter)
 
         if search:
-            queryset = queryset.filter(item__title__icontains=search)
+            queryset = queryset.filter(
+                Q(item__title__icontains=search)
+                | Q(item__english_title__icontains=search)
+            )
 
         queryset = queryset.annotate(
             repeats=Window(

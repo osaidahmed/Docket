@@ -162,6 +162,13 @@ def media_past_verb(media_type):
 
 
 @register.filter
+def has_caught_up(media_type):
+    """Return True if the media type supports the caught-up concept."""
+    verb = config.get_verb(media_type, past_tense=False)
+    return verb in ("watch", "read")
+
+
+@register.filter
 def sample_search(media_type):
     """Return a sample search URL for the given media type using GET parameters."""
     return config.get_sample_search_url(media_type)
@@ -197,7 +204,6 @@ def get_search_media_types(user):
             "value": media_type,
         }
         for media_type in enabled_types
-        if media_type != MediaTypes.SEASON.value
     )
     return types
 

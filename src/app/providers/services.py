@@ -200,6 +200,19 @@ def api_request(
 
         raise error from None
 
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as error:
+        logger.exception("Connection error for %s", provider)
+        mock_response = type(
+            "obj",
+            (object,),
+            {"status_code": 503, "text": str(error)},
+        )()
+        raise ProviderAPIError(
+            provider,
+            requests.exceptions.HTTPError(response=mock_response),
+            "Connection failed — the provider may be temporarily unavailable",
+        ) from error
+
 
 def get_media_metadata(
     media_type,

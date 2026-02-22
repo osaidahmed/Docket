@@ -136,6 +136,7 @@ class YamtrackImporter:
             episode_number=episode_number,
             defaults={
                 "title": row["title"],
+                "english_title": row.get("english_title", ""),
                 "image": row["image"],
             },
         )

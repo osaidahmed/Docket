@@ -135,6 +135,7 @@ class AniListImporter:
                         media{
                             title {
                                 userPreferred
+                                english
                             }
                             coverImage {
                                 large
@@ -169,6 +170,7 @@ class AniListImporter:
                         media{
                             title {
                                 userPreferred
+                                english
                             }
                             coverImage {
                                 large
@@ -277,12 +279,17 @@ class AniListImporter:
         else:
             status = content["status"].capitalize()
 
+        en_title = content["media"]["title"].get("english") or ""
+        if en_title == content["media"]["title"]["userPreferred"]:
+            en_title = ""
+
         item, _ = app.models.Item.objects.get_or_create(
             media_id=str(content["media"]["idMal"]),
             source=Sources.MAL.value,
             media_type=media_type,
             defaults={
                 "title": content["media"]["title"]["userPreferred"],
+                "english_title": en_title,
                 "image": content["media"]["coverImage"]["large"],
             },
         )

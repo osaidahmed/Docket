@@ -414,6 +414,7 @@ class BaseWebhookProcessor:
             media_type=MediaTypes.ANIME.value,
             defaults={
                 "title": anime_metadata["title"],
+                "english_title": anime_metadata.get("english_title", ""),
                 "image": anime_metadata["image"],
             },
         )

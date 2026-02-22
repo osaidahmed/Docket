@@ -12,7 +12,7 @@ from app.providers import services
 
 logger = logging.getLogger(__name__)
 base_url = "https://api.myanimelist.net/v2"
-base_fields = "title,main_picture,media_type,start_date,end_date,synopsis,status,genres,mean,num_scoring_users,recommendations"  # noqa: E501
+base_fields = "title,alternative_titles,main_picture,media_type,start_date,end_date,synopsis,status,genres,mean,num_scoring_users,recommendations"  # noqa: E501
 
 
 def handle_error(error):
@@ -49,7 +49,7 @@ def search(media_type, query, page):
         url = f"{base_url}/{media_type}"
         params = {
             "q": query,
-            "fields": "media_type,synopsis",
+            "fields": "media_type,synopsis,alternative_titles",
             "limit": settings.PER_PAGE,
         }
         if settings.MAL_NSFW:
@@ -73,6 +73,7 @@ def search(media_type, query, page):
                 "source": Sources.MAL.value,
                 "media_type": media_type,
                 "title": media["node"]["title"],
+                "english_title": get_english_title(media["node"]),
                 "image": get_image_url(media["node"]),
                 "synopsis": media["node"].get("synopsis", ""),
             }
@@ -101,7 +102,7 @@ def browse(media_type, category, page):
         offset = (page - 1) * settings.PER_PAGE
         params = {
             "ranking_type": category,
-            "fields": "media_type,synopsis",
+            "fields": "media_type,synopsis,alternative_titles",
             "limit": settings.PER_PAGE,
             "offset": offset,
         }
@@ -126,6 +127,7 @@ def browse(media_type, category, page):
                 "source": Sources.MAL.value,
                 "media_type": media_type,
                 "title": entry["node"]["title"],
+                "english_title": get_english_title(entry["node"]),
                 "image": get_image_url(entry["node"]),
                 "synopsis": entry["node"].get("synopsis", ""),
             }
@@ -158,7 +160,7 @@ def browse_seasonal(year, season, page):
         url = f"{base_url}/anime/season/{year}/{season}"
         offset = (page - 1) * settings.PER_PAGE
         params = {
-            "fields": "media_type,synopsis",
+            "fields": "media_type,synopsis,alternative_titles",
             "sort": "anime_num_list_users",
             "limit": settings.PER_PAGE,
             "offset": offset,
@@ -184,6 +186,7 @@ def browse_seasonal(year, season, page):
                 "source": Sources.MAL.value,
                 "media_type": MediaTypes.ANIME.value,
                 "title": entry["node"]["title"],
+                "english_title": get_english_title(entry["node"]),
                 "image": get_image_url(entry["node"]),
                 "synopsis": entry["node"].get("synopsis", ""),
             }
@@ -237,6 +240,7 @@ def anime(media_id):
             "source_url": f"https://myanimelist.net/anime/{media_id}",
             "media_type": MediaTypes.ANIME.value,
             "title": response["title"],
+            "english_title": get_english_title(response),
             "max_progress": num_episodes,
             "image": get_image_url(response),
             "synopsis": get_synopsis(response),
@@ -302,6 +306,7 @@ def manga(media_id):
             "source_url": f"https://myanimelist.net/manga/{media_id}",
             "media_type": MediaTypes.MANGA.value,
             "title": response["title"],
+            "english_title": get_english_title(response),
             "image": get_image_url(response),
             "synopsis": get_synopsis(response),
             "max_progress": num_chapters,
@@ -498,6 +503,15 @@ def get_score_count(response):
     return 0
 
 
+def get_english_title(response):
+    """Return the English title if available and different from the main title."""
+    alt_titles = response.get("alternative_titles", {})
+    en_title = alt_titles.get("en", "")
+    if en_title and en_title != response.get("title", ""):
+        return en_title
+    return ""
+
+
 def get_related(related_medias, media_type):
     """Return list of related media for the selected media."""
     if related_medias:
@@ -506,6 +520,7 @@ def get_related(related_medias, media_type):
                 "media_id": media["node"]["id"],
                 "source": Sources.MAL.value,
                 "title": media["node"]["title"],
+                "english_title": get_english_title(media["node"]),
                 "media_type": media_type,
                 "image": get_image_url(media["node"]),
             }
