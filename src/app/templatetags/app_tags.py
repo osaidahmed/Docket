@@ -388,6 +388,12 @@ def str_equals(value, arg):
 
 
 @register.filter
+def startswith(value, arg):
+    """Return True if the string value starts with the argument."""
+    return str(value).startswith(str(arg))
+
+
+@register.filter
 def get_range(value):
     """Return a range from 1 to the given value."""
     return range(1, int(value) + 1)

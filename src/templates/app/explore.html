@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load app_tags %}
+
+{% block title %}
+  Explore - Yamtrack
+{% endblock title %}
+
+{% block content %}
+  <div class="mb-8">
+    <h2 class="text-2xl font-bold">Explore</h2>
+    <p class="text-gray-400 mt-1">Browse trending, popular, and top-rated media</p>
+  </div>
+
+  {% if explorable_types %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {% for type_info in explorable_types %}
+        <a href="{% url 'explore_type' media_type=type_info.media_type %}"
+           class="bg-[#2a2f35] rounded-lg p-6 hover:bg-[#39404b] transition-colors duration-200 group">
+          <div class="flex items-center gap-3 mb-4">
+            {% icon type_info.media_type is_active=False extra_classes="w-6 h-6 text-gray-300 group-hover:text-indigo-400 transition-colors" %}
+            <h3 class="text-lg font-semibold text-white">{{ type_info.label }}</h3>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            {% for cat in type_info.categories %}
+              <span class="px-3 py-1.5 text-sm rounded-full bg-[#39404b] text-gray-300 group-hover:bg-[#454d5a]">{{ cat.label }}</span>
+            {% endfor %}
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="flex flex-col items-center justify-center py-32 px-4 bg-[#2a2f35] rounded-lg">
+      <div class="bg-[#39404b] rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+        {% include "app/icons/compass.svg" with classes="w-8 h-8 text-gray-400" %}
+      </div>
+      <h3 class="text-xl font-semibold mb-2">No explorable types</h3>
+      <p class="text-gray-400 text-center max-w-md">Enable media types in your settings to start exploring.</p>
+    </div>
+  {% endif %}
+{% endblock content %}

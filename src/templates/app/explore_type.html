@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load app_tags %}
+
+{% block title %}
+  Explore {{ media_type|media_type_readable_plural }} - Yamtrack
+{% endblock title %}
+
+{% block content %}
+  <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-y-4">
+    <h2 class="text-2xl font-bold">Explore {{ media_type|media_type_readable_plural }}</h2>
+    <div class="flex rounded-md overflow-hidden border border-gray-700">
+      <a href="?category={{ current_category }}&layout=grid{{ extra_params }}"
+         {% if layout == 'grid' %} class="p-2 cursor-pointer bg-indigo-600 text-white flex items-center" {% else %} class="p-2 cursor-pointer bg-[#39404b] hover:bg-[#454d5a] flex items-center" {% endif %}
+         title="Grid View">{% include "app/icons/four-square.svg" with classes="w-5 h-5" %}</a>
+      <a href="?category={{ current_category }}&layout=list{{ extra_params }}"
+         {% if layout == 'list' %} class="p-2 cursor-pointer bg-indigo-600 text-white flex items-center" {% else %} class="p-2 cursor-pointer bg-[#39404b] hover:bg-[#454d5a] flex items-center" {% endif %}
+         title="List View">{% include "app/icons/list.svg" with classes="w-5 h-5" %}</a>
+    </div>
+  </div>
+
+  <div id="explore-results">{% include "app/explore_results.html" %}</div>
+{% endblock content %}

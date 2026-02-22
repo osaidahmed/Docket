@@ -507,6 +507,9 @@ class MediaManager(models.Manager):
 
             archive_all.extend(completed_items)
 
+        if media_type_filter is None:
+            groups = self._extract_rewatches(groups, backlog_statuses, sort_by)
+
         archive_all.sort(
             key=lambda m: (
                 m.end_date is None,
@@ -518,6 +521,41 @@ class MediaManager(models.Manager):
             "archive": archive_all[:20],
             "archive_count": len(archive_all),
         }
+
+    def _extract_rewatches(self, groups, backlog_statuses, sort_by):
+        """Separate is_rewatch items into a dedicated Rewatches group."""
+        rewatch_items = []
+        for group in groups:
+            for sg in group["status_groups"]:
+                rewatches = [m for m in sg["items"] if m.is_rewatch]
+                sg["items"] = [m for m in sg["items"] if not m.is_rewatch]
+                rewatch_items.extend(rewatches)
+            group["status_groups"] = [
+                sg for sg in group["status_groups"] if sg["items"]
+            ]
+        groups = [g for g in groups if g["status_groups"]]
+
+        if rewatch_items:
+            rewatch_status_groups = []
+            for status_val in backlog_statuses:
+                items = [m for m in rewatch_items if m.status == status_val]
+                if items:
+                    rewatch_status_groups.append(
+                        {
+                            "status": status_val,
+                            "items": self._sort_in_progress_media(items, sort_by),
+                        }
+                    )
+            if rewatch_status_groups:
+                groups.append(
+                    {
+                        "media_type": "rewatch",
+                        "label": "Rewatches",
+                        "status_groups": rewatch_status_groups,
+                    }
+                )
+
+        return groups
 
     def count_archive(self, user):
         """Count archive items using the same dedup as get_backlog."""
@@ -891,6 +929,7 @@ class Media(models.Model):
             "created_at",
             "link",
             "caught_up",
+            "is_rewatch",
         ],
     )
 
@@ -920,6 +959,7 @@ class Media(models.Model):
     notes = models.TextField(blank=True, default="")
     link = models.URLField(blank=True, default="")
     caught_up = models.BooleanField(default=False)
+    is_rewatch = models.BooleanField(default=False)
 
     class Meta:
         """Meta options for the model."""

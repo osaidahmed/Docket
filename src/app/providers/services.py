@@ -273,6 +273,32 @@ def search(media_type, query, page, source=None):
     return search_handlers[media_type]()
 
 
+def browse(media_type, category, page, year=None, season=None):
+    """Browse media by category and return the results."""
+    from app import helpers as app_helpers  # noqa: PLC0415
+
+    if category == "seasonal" and media_type == MediaTypes.ANIME.value:
+        return mal.browse_seasonal(year, season, page)
+
+    browse_handlers = {
+        MediaTypes.ANIME.value: lambda: mal.browse(
+            MediaTypes.ANIME.value, category, page
+        ),
+        MediaTypes.MANGA.value: lambda: mal.browse(
+            MediaTypes.MANGA.value, category, page
+        ),
+        MediaTypes.TV.value: lambda: tmdb.browse(MediaTypes.TV.value, category, page),
+        MediaTypes.MOVIE.value: lambda: tmdb.browse(
+            MediaTypes.MOVIE.value, category, page
+        ),
+        MediaTypes.GAME.value: lambda: igdb.browse(category, page),
+    }
+    handler = browse_handlers.get(media_type)
+    if handler is None:
+        return app_helpers.format_search_response(page, 24, 0, [])
+    return handler()
+
+
 UNIFIED_SEARCH_MAX_PER_TYPE = 3
 UNIFIED_SEARCH_TIMEOUT = 5  # seconds per future
 

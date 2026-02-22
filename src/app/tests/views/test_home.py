@@ -1324,6 +1324,588 @@ class HomeViewTests(TestCase):
         self.assertNotContains(response, "quick_catch_up")
 
 
+class RewatchSectionTests(TestCase):
+    """Tests for the Rewatches section in the backlog."""
+
+    def setUp(self):  # noqa: D102
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    def _backlog_save_data(self, media):
+        return {
+            "media_id": media.item.media_id,
+            "source": media.item.source,
+            "media_type": media.item.media_type,
+            "instance_id": media.id,
+            "score": "",
+            "progress": media.progress if media.progress is not None else "",
+            "status": media.status,
+            "start_date": "",
+            "end_date": "",
+            "notes": "",
+            "link": "",
+        }
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_rewatch_in_dedicated_section_all_mode(self, mock_metadata):
+        """Rewatch items appear in a Rewatches group, not in type groups."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="5000",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Rewatch Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+        Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value, is_rewatch=True
+        )
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+
+        type_titles = []
+        rewatch_titles = []
+        for group in groups:
+            for sg in group["status_groups"]:
+                for m in sg["items"]:
+                    if group["media_type"] == "rewatch":
+                        rewatch_titles.append(m.item.title)
+                    else:
+                        type_titles.append(m.item.title)
+
+        self.assertIn("Rewatch Movie", rewatch_titles)
+        self.assertNotIn("Rewatch Movie", type_titles)
+
+    def test_rewatch_inline_in_type_filter(self):
+        """Rewatch items appear in type group when filtering by type."""
+        item = Item.objects.create(
+            media_id="5001",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Rewatch Anime",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value, is_rewatch=True
+        )
+
+        response = self.client.get(reverse("home") + "?type=anime")
+        groups = response.context["groups"]
+
+        media_types = {g["media_type"] for g in groups}
+        self.assertNotIn("rewatch", media_types)
+
+        titles = _flatten_group_titles(groups)
+        self.assertIn("Rewatch Anime", titles)
+
+    def test_no_rewatch_section_when_empty(self):
+        """No Rewatches group when no items have is_rewatch=True."""
+        item = Item.objects.create(
+            media_id="5002",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Normal Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+        media_types = {g["media_type"] for g in groups}
+        self.assertNotIn("rewatch", media_types)
+        self.assertNotContains(response, "Rewatches")
+
+    def test_rewatch_manual_flag_no_history(self):
+        """Single instance with is_rewatch=True appears in Rewatches group."""
+        item = Item.objects.create(
+            media_id="5003",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Manual Rewatch",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value, is_rewatch=True
+        )
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+        rewatch_group = [g for g in groups if g["media_type"] == "rewatch"]
+        self.assertEqual(len(rewatch_group), 1)
+
+        titles = []
+        for sg in rewatch_group[0]["status_groups"]:
+            titles.extend(m.item.title for m in sg["items"])
+        self.assertIn("Manual Rewatch", titles)
+
+    def test_quick_rewatch_sets_is_rewatch(self):
+        """quick_rewatch creates an instance with is_rewatch=True."""
+        item = Item.objects.create(
+            media_id="5004",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Quick Rewatch Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+
+        self.client.post(
+            reverse("quick_rewatch"),
+            {
+                "media_id": "5004",
+                "source": Sources.TMDB.value,
+                "media_type": "movie",
+                "source_context": "archive",
+            },
+        )
+
+        rewatch = Movie.objects.filter(
+            user=self.user, item=item, status=Status.PLANNING.value
+        ).first()
+        self.assertIsNotNone(rewatch)
+        self.assertTrue(rewatch.is_rewatch)
+
+    def test_backlog_save_rewatch_toggle(self):
+        """Saving with is_rewatch=on sets the flag on the instance."""
+        item = Item.objects.create(
+            media_id="5005",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Toggle Rewatch",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["is_rewatch"] = "on"
+        self.client.post(reverse("backlog_save"), data)
+
+        movie.refresh_from_db()
+        self.assertTrue(movie.is_rewatch)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_rewatch_section_has_status_subgroups(self, mock_metadata):
+        """Rewatches group has correct status subgroups."""
+        mock_metadata.return_value = {"max_progress": None}
+        for mid, status in [
+            ("5010", Status.IN_PROGRESS.value),
+            ("5011", Status.PLANNING.value),
+            ("5012", Status.PAUSED.value),
+        ]:
+            item = Item.objects.create(
+                media_id=mid,
+                source=Sources.TMDB.value,
+                media_type=MediaTypes.MOVIE.value,
+                title=f"Rewatch {status}",
+                image="http://example.com/image.jpg",
+            )
+            Movie.objects.create(
+                item=item, user=self.user, status=status, is_rewatch=True
+            )
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+        rewatch_group = [g for g in groups if g["media_type"] == "rewatch"]
+        self.assertEqual(len(rewatch_group), 1)
+
+        statuses = [sg["status"] for sg in rewatch_group[0]["status_groups"]]
+        self.assertEqual(
+            statuses,
+            [Status.IN_PROGRESS.value, Status.PLANNING.value, Status.PAUSED.value],
+        )
+
+    def test_backlog_save_rewatch_toggle_triggers_refresh(self):
+        """Toggling is_rewatch on via backlog_save triggers HX-Refresh."""
+        item = Item.objects.create(
+            media_id="5030",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Refresh Toggle Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["is_rewatch"] = "on"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertEqual(response["HX-Refresh"], "true")
+
+    def test_backlog_save_rewatch_untoggle_triggers_refresh(self):
+        """Toggling is_rewatch off via backlog_save triggers HX-Refresh."""
+        item = Item.objects.create(
+            media_id="5031",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Unrefresh Toggle Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value, is_rewatch=True
+        )
+
+        data = self._backlog_save_data(movie)
+        # checkbox unchecked = field absent from POST
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertEqual(response["HX-Refresh"], "true")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_backlog_save_rewatch_unchanged_no_refresh(self, mock_metadata):
+        """Saving without changing is_rewatch does not trigger HX-Refresh."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="5032",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="No Refresh Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["score"] = "8.0"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertNotIn("HX-Refresh", response)
+
+    def test_archive_save_rewatch_toggle_triggers_refresh(self):
+        """Toggling is_rewatch on archive card triggers HX-Refresh."""
+        item = Item.objects.create(
+            media_id="5033",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Archive Rewatch Toggle",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["source_context"] = "archive"
+        data["is_rewatch"] = "on"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertEqual(response["HX-Refresh"], "true")
+
+    def test_rewatch_toggle_moves_item_on_reload(self):
+        """Toggling is_rewatch moves item to Rewatches group on reload."""
+        item = Item.objects.create(
+            media_id="5034",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Move To Rewatch",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        page_before = self.client.get(reverse("home"))
+        groups_before = page_before.context["groups"]
+        rewatch_groups = [g for g in groups_before if g["media_type"] == "rewatch"]
+        self.assertEqual(len(rewatch_groups), 0)
+
+        data = self._backlog_save_data(movie)
+        data["is_rewatch"] = "on"
+        self.client.post(reverse("backlog_save"), data)
+
+        page_after = self.client.get(reverse("home"))
+        groups_after = page_after.context["groups"]
+        rewatch_group = [g for g in groups_after if g["media_type"] == "rewatch"]
+        self.assertEqual(len(rewatch_group), 1)
+        titles = []
+        for sg in rewatch_group[0]["status_groups"]:
+            titles.extend(m.item.title for m in sg["items"])
+        self.assertIn("Move To Rewatch", titles)
+
+    def test_rewatch_section_after_type_groups(self):
+        """Rewatches group appears after all type groups."""
+        item_normal = Item.objects.create(
+            media_id="5020",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Normal Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=item_normal, user=self.user, status=Status.PLANNING.value
+        )
+
+        item_rewatch = Item.objects.create(
+            media_id="5021",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Rewatch Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=item_rewatch,
+            user=self.user,
+            status=Status.PLANNING.value,
+            is_rewatch=True,
+        )
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+        self.assertGreaterEqual(len(groups), 2)
+        self.assertEqual(groups[-1]["media_type"], "rewatch")
+        self.assertEqual(groups[-1]["label"], "Rewatches")
+
+    def test_edit_form_has_is_rewatch_checkbox(self):
+        """The backlog card edit form contains an is_rewatch checkbox."""
+        item = Item.objects.create(
+            media_id="5040",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Checkbox Form Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
+
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, 'name="is_rewatch"')
+
+    def test_is_rewatch_checkbox_checked_when_true(self):
+        """The is_rewatch checkbox is checked when the field is True."""
+        item = Item.objects.create(
+            media_id="5041",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Checked Rewatch Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.PLANNING.value,
+            is_rewatch=True,
+        )
+
+        response = self.client.get(reverse("home"))
+        content = response.content.decode()
+        rewatch_pos = content.find('name="is_rewatch"')
+        checkbox_context = content[rewatch_pos : rewatch_pos + 200]
+        self.assertIn("checked", checkbox_context)
+
+    def test_backlog_save_is_rewatch_uncheck_persists(self):
+        """Unchecking is_rewatch via edit form persists on reload."""
+        item = Item.objects.create(
+            media_id="5042",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Uncheck Rewatch Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.PLANNING.value,
+            is_rewatch=True,
+        )
+
+        data = self._backlog_save_data(movie)
+        # checkbox unchecked = field absent from POST
+        self.client.post(reverse("backlog_save"), data)
+
+        movie.refresh_from_db()
+        self.assertFalse(movie.is_rewatch)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_save_is_rewatch_untoggle_triggers_refresh(self, mock_metadata):
+        """Toggling is_rewatch off on archive card triggers HX-Refresh."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="5043",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Archive Untoggle Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+            is_rewatch=True,
+        )
+
+        data = self._backlog_save_data(movie)
+        data["source_context"] = "archive"
+        # checkbox unchecked = absent from POST
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertEqual(response["HX-Refresh"], "true")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_save_is_rewatch_unchanged_no_refresh(self, mock_metadata):
+        """Archive edit without is_rewatch change has no refresh."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="5044",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Archive No Refresh Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["source_context"] = "archive"
+        data["score"] = "9.0"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertNotIn("HX-Refresh", response)
+
+    def test_is_rewatch_combined_with_status_change(self):
+        """Both status and is_rewatch change in one save triggers refresh."""
+        item = Item.objects.create(
+            media_id="5045",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Combined Change Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["status"] = Status.IN_PROGRESS.value
+        data["is_rewatch"] = "on"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertEqual(response["HX-Refresh"], "true")
+        movie.refresh_from_db()
+        self.assertEqual(movie.status, Status.IN_PROGRESS.value)
+        self.assertTrue(movie.is_rewatch)
+
+    def test_is_rewatch_with_caught_up_both_toggled(self):
+        """Both is_rewatch and caught_up save correctly together."""
+        item = Item.objects.create(
+            media_id="5046",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Both Flags Anime",
+            image="http://example.com/image.jpg",
+        )
+        anime = Anime.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        data = self._backlog_save_data(anime)
+        data["is_rewatch"] = "on"
+        data["caught_up"] = "on"
+        self.client.post(reverse("backlog_save"), data)
+
+        anime.refresh_from_db()
+        self.assertTrue(anime.is_rewatch)
+        self.assertTrue(anime.caught_up)
+
+    def test_type_group_disappears_when_all_items_are_rewatches(self):
+        """Type group is removed when all its items are rewatches."""
+        item = Item.objects.create(
+            media_id="5047",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Only Rewatch Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.PLANNING.value,
+            is_rewatch=True,
+        )
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+        type_groups = [g for g in groups if g["media_type"] == MediaTypes.MOVIE.value]
+        self.assertEqual(len(type_groups), 0)
+
+        rewatch_groups = [g for g in groups if g["media_type"] == "rewatch"]
+        self.assertEqual(len(rewatch_groups), 1)
+
+    def test_quick_rewatch_archive_response_has_hx_refresh(self):
+        """quick_rewatch from archive context returns HX-Refresh header."""
+        item = Item.objects.create(
+            media_id="5048",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="HX Refresh Rewatch",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+
+        response = self.client.post(
+            reverse("quick_rewatch"),
+            {
+                "media_id": "5048",
+                "source": Sources.TMDB.value,
+                "media_type": "movie",
+                "source_context": "archive",
+            },
+        )
+
+        self.assertEqual(response["HX-Refresh"], "true")
+
+    def test_rewatch_untoggle_moves_back_to_type_group(self):
+        """Untoggling is_rewatch moves item back to type group on reload."""
+        normal_item = Item.objects.create(
+            media_id="5049",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Keep In Type",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=normal_item, user=self.user, status=Status.PLANNING.value
+        )
+
+        item = Item.objects.create(
+            media_id="5050",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Back To Type Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.PLANNING.value,
+            is_rewatch=True,
+        )
+
+        page_before = self.client.get(reverse("home"))
+        rewatch_groups = [
+            g for g in page_before.context["groups"] if g["media_type"] == "rewatch"
+        ]
+        self.assertEqual(len(rewatch_groups), 1)
+
+        data = self._backlog_save_data(movie)
+        # checkbox unchecked = absent
+        self.client.post(reverse("backlog_save"), data)
+
+        page_after = self.client.get(reverse("home"))
+        groups_after = page_after.context["groups"]
+        rewatch_groups = [g for g in groups_after if g["media_type"] == "rewatch"]
+        self.assertEqual(len(rewatch_groups), 0)
+
+        type_titles = _flatten_group_titles(groups_after)
+        self.assertIn("Back To Type Movie", type_titles)
+
+
 class HomeViewConsistencyTests(TestCase):
     """Test that HTMX partial responses match full page reloads."""
 

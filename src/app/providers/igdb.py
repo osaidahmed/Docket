@@ -266,6 +266,116 @@ def search(query, page):
     return data
 
 
+def browse(category, page):
+    """Browse games on IGDB by category."""
+    cache_key = f"browse_{Sources.IGDB.value}_{MediaTypes.GAME.value}_{category}_{page}"
+    data = cache.get(cache_key)
+
+    if data is None:
+        access_token = get_access_token()
+        url = f"{base_url}/multiquery"
+        headers = {
+            "Client-ID": settings.IGDB_ID,
+            "Authorization": f"Bearer {access_token}",
+        }
+
+        now_timestamp = int(timezone.now().timestamp())
+        offset = (page - 1) * settings.PER_PAGE
+
+        base_type_filter = "game_type = (0,1,2,3,4,5,6,7,8,9,10)"
+        nsfw_filter = "" if settings.IGDB_NSFW else " & themes != (42)"
+
+        category_queries = {
+            "popular": (
+                f"where {base_type_filter}{nsfw_filter}"
+                " & total_rating_count > 50;"
+                " sort total_rating_count desc;"
+            ),
+            "top_rated": (
+                f"where {base_type_filter}{nsfw_filter}"
+                " & total_rating_count > 100;"
+                " sort total_rating desc;"
+            ),
+            "recent": (
+                f"where {base_type_filter}{nsfw_filter}"
+                f" & first_release_date < {now_timestamp}"
+                " & first_release_date != null;"
+                " sort first_release_date desc;"
+            ),
+            "anticipated": (
+                f"where {base_type_filter}{nsfw_filter}"
+                f" & first_release_date > {now_timestamp}"
+                " & hypes > 0;"
+                " sort hypes desc;"
+            ),
+        }
+
+        query_clause = category_queries[category]
+        multiquery = (
+            'query games "BrowseResults" {'
+            "fields name,cover.image_id,summary;"
+            f"{query_clause}"
+            f"limit {settings.PER_PAGE};"
+            f"offset {offset};"
+            "};"
+            'query games/count "TotalCount" {'
+            f"{query_clause}"
+            "};"
+        )
+
+        try:
+            response = services.api_request(
+                Sources.IGDB.value,
+                "POST",
+                url,
+                data=multiquery,
+                headers=headers,
+            )
+        except requests.exceptions.HTTPError as error:
+            error_resp = handle_error(error)
+            if error_resp and error_resp.get("retry"):
+                headers["Authorization"] = f"Bearer {get_access_token()}"
+                response = services.api_request(
+                    Sources.IGDB.value,
+                    "POST",
+                    url,
+                    data=multiquery,
+                    headers=headers,
+                )
+
+        search_results = next(
+            (item["result"] for item in response if item["name"] == "BrowseResults"),
+            [],
+        )
+        total_results = next(
+            (item["count"] for item in response if item["name"] == "TotalCount"),
+            0,
+        )
+
+        results = [
+            {
+                "media_id": media["id"],
+                "source": Sources.IGDB.value,
+                "media_type": MediaTypes.GAME.value,
+                "title": media["name"],
+                "image": get_image_url(media),
+                "synopsis": media.get("summary", ""),
+            }
+            for media in search_results
+        ]
+
+        data = helpers.format_search_response(
+            page,
+            settings.PER_PAGE,
+            total_results,
+            results,
+        )
+
+        cache.set(cache_key, data)
+
+    return data
+
+
 def game(media_id):
     """Return the metadata for the selected game from IGDB."""
     cache_key = f"{Sources.IGDB.value}_{MediaTypes.GAME.value}_{media_id}"

@@ -250,6 +250,83 @@ STATUS_CONFIG = {
 }
 
 
+EXPLORE_CATEGORIES = {
+    MediaTypes.TV.value: [
+        {"slug": "trending", "label": "Trending"},
+        {"slug": "popular", "label": "Popular"},
+        {"slug": "top_rated", "label": "Top Rated"},
+        {"slug": "on_the_air", "label": "Airing Now"},
+    ],
+    MediaTypes.MOVIE.value: [
+        {"slug": "trending", "label": "Trending"},
+        {"slug": "popular", "label": "Popular"},
+        {"slug": "top_rated", "label": "Top Rated"},
+        {"slug": "now_playing", "label": "Now Playing"},
+    ],
+    MediaTypes.ANIME.value: [
+        {"slug": "all", "label": "Top Rated"},
+        {"slug": "airing", "label": "Currently Airing"},
+        {"slug": "upcoming", "label": "Upcoming"},
+        {"slug": "bypopularity", "label": "Most Popular"},
+        {"slug": "seasonal", "label": "Seasonal"},
+    ],
+    MediaTypes.MANGA.value: [
+        {"slug": "all", "label": "Top Rated"},
+        {"slug": "bypopularity", "label": "Most Popular"},
+        {"slug": "manga", "label": "Top Manga"},
+        {"slug": "novels", "label": "Top Novels"},
+    ],
+    MediaTypes.GAME.value: [
+        {"slug": "popular", "label": "Popular"},
+        {"slug": "top_rated", "label": "Top Rated"},
+        {"slug": "recent", "label": "Recently Released"},
+        {"slug": "anticipated", "label": "Most Anticipated"},
+    ],
+}
+
+
+ANIME_SEASONS = [
+    {"value": "winter", "label": "Winter"},
+    {"value": "spring", "label": "Spring"},
+    {"value": "summer", "label": "Summer"},
+    {"value": "fall", "label": "Fall"},
+]
+
+
+MONTH_TO_SEASON = {
+    1: "winter",
+    2: "winter",
+    3: "winter",
+    4: "spring",
+    5: "spring",
+    6: "spring",
+    7: "summer",
+    8: "summer",
+    9: "summer",
+    10: "fall",
+    11: "fall",
+    12: "fall",
+}
+
+
+def get_current_anime_season():
+    """Return the current (year, season) tuple for seasonal anime."""
+    from django.utils import timezone  # noqa: PLC0415
+
+    now = timezone.now()
+    return now.year, MONTH_TO_SEASON[now.month]
+
+
+def get_explore_categories(media_type):
+    """Return the browse categories for a media type, or None if not explorable."""
+    return EXPLORE_CATEGORIES.get(media_type)
+
+
+def get_explorable_types():
+    """Return media type values that support explore/browse."""
+    return list(EXPLORE_CATEGORIES.keys())
+
+
 def get_searchable_types():
     """Return media type values that have a sample_query (i.e., are searchable)."""
     return [mt for mt, cfg in MEDIA_TYPE_CONFIG.items() if "sample_query" in cfg]

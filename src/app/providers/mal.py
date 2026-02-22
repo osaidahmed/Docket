@@ -91,6 +91,122 @@ def search(media_type, query, page):
     return data
 
 
+def browse(media_type, category, page):
+    """Browse ranked media on MyAnimeList."""
+    cache_key = f"browse_{Sources.MAL.value}_{media_type}_{category}_{page}"
+    data = cache.get(cache_key)
+
+    if data is None:
+        url = f"{base_url}/{media_type}/ranking"
+        offset = (page - 1) * settings.PER_PAGE
+        params = {
+            "ranking_type": category,
+            "fields": "media_type,synopsis",
+            "limit": settings.PER_PAGE,
+            "offset": offset,
+        }
+        if settings.MAL_NSFW:
+            params["nsfw"] = "true"
+
+        try:
+            response = services.api_request(
+                Sources.MAL.value,
+                "GET",
+                url,
+                params=params,
+                headers={"X-MAL-CLIENT-ID": settings.MAL_API},
+            )
+        except requests.exceptions.HTTPError as error:
+            response = handle_error(error)
+
+        has_next = "next" in response.get("paging", {})
+        results = [
+            {
+                "media_id": entry["node"]["id"],
+                "source": Sources.MAL.value,
+                "media_type": media_type,
+                "title": entry["node"]["title"],
+                "image": get_image_url(entry["node"]),
+                "synopsis": entry["node"].get("synopsis", ""),
+            }
+            for entry in response["data"]
+        ]
+
+        if has_next:
+            total_results = max(offset + settings.PER_PAGE * 5, len(results))
+        else:
+            total_results = offset + len(results)
+
+        data = helpers.format_search_response(
+            page,
+            settings.PER_PAGE,
+            total_results,
+            results,
+        )
+
+        cache.set(cache_key, data)
+
+    return data
+
+
+def browse_seasonal(year, season, page):
+    """Browse seasonal anime on MyAnimeList."""
+    cache_key = f"browse_{Sources.MAL.value}_anime_seasonal_{year}_{season}_{page}"
+    data = cache.get(cache_key)
+
+    if data is None:
+        url = f"{base_url}/anime/season/{year}/{season}"
+        offset = (page - 1) * settings.PER_PAGE
+        params = {
+            "fields": "media_type,synopsis",
+            "sort": "anime_num_list_users",
+            "limit": settings.PER_PAGE,
+            "offset": offset,
+        }
+        if settings.MAL_NSFW:
+            params["nsfw"] = "true"
+
+        try:
+            response = services.api_request(
+                Sources.MAL.value,
+                "GET",
+                url,
+                params=params,
+                headers={"X-MAL-CLIENT-ID": settings.MAL_API},
+            )
+        except requests.exceptions.HTTPError as error:
+            response = handle_error(error)
+
+        has_next = "next" in response.get("paging", {})
+        results = [
+            {
+                "media_id": entry["node"]["id"],
+                "source": Sources.MAL.value,
+                "media_type": MediaTypes.ANIME.value,
+                "title": entry["node"]["title"],
+                "image": get_image_url(entry["node"]),
+                "synopsis": entry["node"].get("synopsis", ""),
+            }
+            for entry in response["data"]
+        ]
+
+        if has_next:
+            total_results = max(offset + settings.PER_PAGE * 5, len(results))
+        else:
+            total_results = offset + len(results)
+
+        data = helpers.format_search_response(
+            page,
+            settings.PER_PAGE,
+            total_results,
+            results,
+        )
+
+        cache.set(cache_key, data)
+
+    return data
+
+
 def anime(media_id):
     """Return the metadata for the selected anime or manga from MyAnimeList."""
     cache_key = f"{Sources.MAL.value}_{MediaTypes.ANIME.value}_{media_id}"

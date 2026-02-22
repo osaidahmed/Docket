@@ -211,6 +211,7 @@ class MediaForm(forms.ModelForm):
             "notes",
             "link",
             "caught_up",
+            "is_rewatch",
         ]
         widgets = {
             "score": forms.NumberInput(
@@ -269,6 +270,7 @@ class MovieForm(MediaForm):
             "end_date",
             "notes",
             "link",
+            "is_rewatch",
         ]
 
 
@@ -337,7 +339,7 @@ class TvForm(MediaForm):
         """Bind form to model."""
 
         model = TV
-        fields = ["score", "status", "notes", "link"]
+        fields = ["score", "status", "notes", "link", "is_rewatch"]
 
 
 class SeasonForm(MediaForm):
@@ -354,6 +356,7 @@ class SeasonForm(MediaForm):
             "status",
             "notes",
             "link",
+            "is_rewatch",
         ]
 
 
