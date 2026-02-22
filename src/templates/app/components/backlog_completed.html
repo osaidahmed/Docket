@@ -8,7 +8,7 @@
 </div>
 
 <div hx-swap-oob="afterbegin:#archive-list">
-  {% include "app/components/backlog_card_archived.html" with media=media %}
+  {% include "app/components/backlog_card_archived.html" with media=media status_choices=status_choices %}
 </div>
 
 <span id="archive-count" class="text-sm text-gray-500" hx-swap-oob="true">({{ archive_count }})</span>

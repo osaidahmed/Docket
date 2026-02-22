@@ -745,7 +745,11 @@ def quick_complete(request):
     return render(
         request,
         "app/components/backlog_completed.html",
-        {"media": media, "archive_count": archive_count},
+        {
+            "media": media,
+            "archive_count": archive_count,
+            "status_choices": Status.choices,
+        },
     )
 
 
@@ -804,6 +808,7 @@ def backlog_save(request):
     """Save inline edits from backlog card."""
     media_type = request.POST["media_type"]
     instance_id = request.POST["instance_id"]
+    source_context = request.POST.get("source_context")
 
     media = BasicMedia.objects.get_media(
         request.user,
@@ -819,6 +824,22 @@ def backlog_save(request):
         form.save()
         logger.info("%s updated from backlog.", form.instance)
 
+        if source_context == "archive":
+            if media.status == old_status:
+                media = BasicMedia.objects.get_media_prefetch(
+                    request.user,
+                    media_type,
+                    instance_id,
+                )
+            response = render(
+                request,
+                "app/components/backlog_card_archived.html",
+                {"media": media, "status_choices": Status.choices},
+            )
+            if media.status != old_status:
+                response["HX-Refresh"] = "true"
+            return response
+
         if media.status == Status.COMPLETED.value:
             media = BasicMedia.objects.get_media_prefetch(
                 request.user,
@@ -829,7 +850,11 @@ def backlog_save(request):
             return render(
                 request,
                 "app/components/backlog_completed.html",
-                {"media": media, "archive_count": archive_count},
+                {
+                    "media": media,
+                    "archive_count": archive_count,
+                    "status_choices": Status.choices,
+                },
             )
 
         if media.status == Status.DROPPED.value:
@@ -859,9 +884,14 @@ def backlog_save(request):
             {"media": media, "status_choices": Status.choices},
         )
 
+    card_template = (
+        "app/components/backlog_card_archived.html"
+        if source_context == "archive"
+        else "app/components/backlog_card.html"
+    )
     return render(
         request,
-        "app/components/backlog_card.html",
+        card_template,
         {
             "media": media,
             "status_choices": Status.choices,

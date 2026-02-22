@@ -74,8 +74,8 @@
             <ul class="space-y-1 mb-6">
               <li>
                 <a href="{% url 'home' %}"
-                   class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if request.path == "/" %}text-white bg-[#2c3136]{% else %}text-gray-400 hover:text-white hover:bg-[#23272b]{% endif %}">
-                  {% if request.path|str_equals:"/" %}
+                   class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if request.path == "/" and request.GET.view != "archive" %}text-white bg-[#2c3136]{% else %}text-gray-400 hover:text-white hover:bg-[#23272b]{% endif %}">
+                  {% if request.path == "/" and request.GET.view != "archive" %}
                     {% include "app/icons/house.svg" with classes="w-5 h-5 text-indigo-400 " %}
 
                   {% else %}

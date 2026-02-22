@@ -2,103 +2,123 @@
 {% load app_tags %}
 
 {% block title %}
-  Home - Yamtrack
+  {% if archive_open %}Archive{% else %}Home{% endif %} - Yamtrack
 {% endblock title %}
 
 {% block content %}
-  <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-    <h1 class="text-3xl font-bold text-center w-full sm:w-auto">Backlog</h1>
-    <div class="relative" x-data="{ open: false }">
-      <button @click="open = !open"
-              @click.outside="open = false"
-              class="flex items-center gap-2 px-4 py-2 bg-[#39404b] hover:bg-[#454d5a] rounded-md transition-colors cursor-pointer">
-        {% include "app/icons/arrows-up-down.svg" with classes="w-4 h-4" %}
-        <span class="text-sm font-medium">{{ current_sort|no_underscore|title }}</span>
-        {% include "app/icons/chevron-down.svg" with classes="w-4 h-4 text-gray-400" %}
-      </button>
-      <div x-show="open"
-           x-transition:enter="transition ease-out duration-100"
-           x-transition:enter-start="transform opacity-0 scale-95"
-           x-transition:enter-end="transform opacity-100 scale-100"
-           x-transition:leave="transition ease-in duration-75"
-           x-transition:leave-start="transform opacity-100 scale-100"
-           x-transition:leave-end="transform opacity-0 scale-95"
-           class="absolute right-0 mt-2 py-1 w-48 bg-[#39404b] rounded-md shadow-lg overflow-hidden z-10 border border-gray-700">
-        {% for value, label in sort_choices %}
-          <a href="{% url 'home' %}?sort={{ value }}{% if current_type_filter != 'all' %}&type={{ current_type_filter }}{% endif %}"
-             class="block w-full px-4 py-2 text-left text-sm transition-colors {% if current_sort == value %}bg-indigo-600 text-white font-medium{% else %}text-gray-300 hover:bg-[#454d5a] hover:text-white{% endif %}">
-            {{ label }}
-          </a>
+  {% if archive_open %}
+    <h1 class="text-3xl font-bold mb-6">Archive</h1>
+
+    {% if archive %}
+      <div id="archive-list" class="space-y-2">
+        {% for media in archive %}
+          {% include "app/components/backlog_card_archived.html" with media=media status_choices=status_choices %}
         {% endfor %}
       </div>
-    </div>
-  </div>
-
-  <div class="flex flex-wrap gap-2 mb-6">
-    {% for chip in type_filter_choices %}
-      <a href="{% url 'home' %}?sort={{ current_sort }}{% if chip.value != 'all' %}&type={{ chip.value }}{% endif %}"
-         class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors
-                {% if current_type_filter == chip.value %}bg-indigo-600 text-white{% else %}bg-[#39404b] text-gray-300 hover:bg-[#454d5a]{% endif %}">
-        {{ chip.label }}
-      </a>
-    {% endfor %}
-  </div>
-
-  {% if groups %}
-    {% for group in groups %}
-      {% if current_type_filter == "all" %}
-        <div class="flex items-center gap-2 mt-6 mb-3">
-          {% icon group.media_type is_active=False extra_classes="w-5 h-5" %}
-          <h2 class="text-xl font-semibold text-white">{{ group.label }}</h2>
+    {% else %}
+      <div class="flex flex-col items-center justify-center py-32 px-4 bg-[#2a2f35] rounded-lg">
+        <div class="bg-[#39404b] rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+          {% include "app/icons/circle-check.svg" with classes="w-8 h-8 text-gray-400" %}
         </div>
-      {% endif %}
-
-      {% for sg in group.status_groups %}
-        <div class="mb-4">
-          <h3 class="text-sm font-medium uppercase tracking-wider mb-2 {{ sg.status|status_color }}">
-            {{ sg.status }}
-          </h3>
-          <div class="space-y-3">
-            {% for media in sg.items %}
-              {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
-            {% endfor %}
-          </div>
-        </div>
-      {% endfor %}
-    {% endfor %}
-  {% else %}
-    <div class="flex flex-col items-center justify-center py-32 px-4 bg-[#2a2f35] rounded-lg">
-      <div class="bg-[#39404b] rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-        {% include "app/icons/pulse.svg" with classes="w-8 h-8 text-gray-400" %}
+        <h3 class="text-xl font-semibold mb-2">No completed items yet</h3>
+        <p class="text-gray-400 text-center max-w-md">Items you complete will appear here.</p>
       </div>
-      <h3 class="text-xl font-semibold mb-2">No items in your backlog</h3>
-      <p class="text-gray-400 text-center max-w-md mb-4">Search for media and tap Add to start building your backlog.</p>
-      <div class="pt-4">
-        <a href="{{ 'tv'|sample_search }}"
-           class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">Browse Media</a>
+    {% endif %}
+  {% else %}
+    <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+      <h1 class="text-3xl font-bold text-center w-full sm:w-auto">Backlog</h1>
+      <div class="relative" x-data="{ open: false }">
+        <button @click="open = !open"
+                @click.outside="open = false"
+                class="flex items-center gap-2 px-4 py-2 bg-[#39404b] hover:bg-[#454d5a] rounded-md transition-colors cursor-pointer">
+          {% include "app/icons/arrows-up-down.svg" with classes="w-4 h-4" %}
+          <span class="text-sm font-medium">{{ current_sort|no_underscore|title }}</span>
+          {% include "app/icons/chevron-down.svg" with classes="w-4 h-4 text-gray-400" %}
+        </button>
+        <div x-show="open"
+             x-transition:enter="transition ease-out duration-100"
+             x-transition:enter-start="transform opacity-0 scale-95"
+             x-transition:enter-end="transform opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-75"
+             x-transition:leave-start="transform opacity-100 scale-100"
+             x-transition:leave-end="transform opacity-0 scale-95"
+             class="absolute right-0 mt-2 py-1 w-48 bg-[#39404b] rounded-md shadow-lg overflow-hidden z-10 border border-gray-700">
+          {% for value, label in sort_choices %}
+            <a href="{% url 'home' %}?sort={{ value }}{% if current_type_filter != 'all' %}&type={{ current_type_filter }}{% endif %}"
+               class="block w-full px-4 py-2 text-left text-sm transition-colors {% if current_sort == value %}bg-indigo-600 text-white font-medium{% else %}text-gray-300 hover:bg-[#454d5a] hover:text-white{% endif %}">
+              {{ label }}
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-2 mb-6">
+      {% for chip in type_filter_choices %}
+        <a href="{% url 'home' %}?sort={{ current_sort }}{% if chip.value != 'all' %}&type={{ chip.value }}{% endif %}"
+           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                  {% if current_type_filter == chip.value %}bg-indigo-600 text-white{% else %}bg-[#39404b] text-gray-300 hover:bg-[#454d5a]{% endif %}">
+          {{ chip.label }}
+        </a>
+      {% endfor %}
+    </div>
+
+    {% if groups %}
+      {% for group in groups %}
+        {% if current_type_filter == "all" %}
+          <div class="flex items-center gap-2 mt-6 mb-3">
+            {% icon group.media_type is_active=False extra_classes="w-5 h-5" %}
+            <h2 class="text-xl font-semibold text-white">{{ group.label }}</h2>
+          </div>
+        {% endif %}
+
+        {% for sg in group.status_groups %}
+          <div class="mb-4">
+            <h3 class="text-sm font-medium uppercase tracking-wider mb-2 {{ sg.status|status_color }}">
+              {{ sg.status }}
+            </h3>
+            <div class="space-y-3">
+              {% for media in sg.items %}
+                {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      {% endfor %}
+    {% else %}
+      <div class="flex flex-col items-center justify-center py-32 px-4 bg-[#2a2f35] rounded-lg">
+        <div class="bg-[#39404b] rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+          {% include "app/icons/pulse.svg" with classes="w-8 h-8 text-gray-400" %}
+        </div>
+        <h3 class="text-xl font-semibold mb-2">No items in your backlog</h3>
+        <p class="text-gray-400 text-center max-w-md mb-4">Search for media and tap Add to start building your backlog.</p>
+        <div class="pt-4">
+          <a href="{{ 'tv'|sample_search }}"
+             class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">Browse Media</a>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="mt-10" x-data="{ archiveOpen: false }">
+      <button @click="archiveOpen = !archiveOpen"
+              class="flex items-center gap-2 text-lg font-semibold text-gray-300 hover:text-white transition-colors cursor-pointer mb-3">
+        {% include "app/icons/circle-check.svg" with classes="w-5 h-5 text-emerald-400" %}
+        Archive
+        <span id="archive-count" class="text-sm text-gray-500">({{ archive_count }})</span>
+        <span :class="archiveOpen ? 'rotate-180' : ''" class="transition-transform">
+          {% include "app/icons/chevron-down.svg" with classes="w-4 h-4" %}
+        </span>
+      </button>
+
+      <div x-show="archiveOpen" x-transition id="archive-section">
+        <div id="archive-list" class="space-y-2">
+          {% for media in archive %}
+            {% include "app/components/backlog_card_archived.html" with media=media status_choices=status_choices %}
+          {% empty %}
+            <p id="archive-empty" class="text-gray-500 text-sm py-4">No completed items yet.</p>
+          {% endfor %}
+        </div>
       </div>
     </div>
   {% endif %}
-
-  <div class="mt-10" x-data="{ archiveOpen: {% if archive_open %}true{% else %}false{% endif %} }">
-    <button @click="archiveOpen = !archiveOpen"
-            class="flex items-center gap-2 text-lg font-semibold text-gray-300 hover:text-white transition-colors cursor-pointer mb-3">
-      {% include "app/icons/circle-check.svg" with classes="w-5 h-5 text-emerald-400" %}
-      Archive
-      <span id="archive-count" class="text-sm text-gray-500">({{ archive_count }})</span>
-      <span :class="archiveOpen ? 'rotate-180' : ''" class="transition-transform">
-        {% include "app/icons/chevron-down.svg" with classes="w-4 h-4" %}
-      </span>
-    </button>
-
-    <div x-show="archiveOpen" x-transition id="archive-section">
-      <div id="archive-list" class="space-y-2">
-        {% for media in archive %}
-          {% include "app/components/backlog_card_archived.html" with media=media %}
-        {% empty %}
-          <p id="archive-empty" class="text-gray-500 text-sm py-4">No completed items yet.</p>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
 {% endblock content %}

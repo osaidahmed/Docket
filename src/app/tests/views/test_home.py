@@ -969,6 +969,982 @@ class HomeViewTests(TestCase):
         self.assertNotContains(response, "Caught Up")
 
 
+class HomeViewConsistencyTests(TestCase):
+    """Test that HTMX partial responses match full page reloads."""
+
+    def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    def _backlog_save_data(self, media):
+        return {
+            "media_id": media.item.media_id,
+            "source": media.item.source,
+            "media_type": media.item.media_type,
+            "instance_id": media.id,
+            "score": "",
+            "progress": media.progress if media.progress is not None else "",
+            "status": media.status,
+            "start_date": "",
+            "end_date": "",
+            "notes": "",
+            "link": "",
+        }
+
+    # --- quick_complete consistency ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_complete_item_leaves_backlog_on_reload(self, mock_metadata):
+        """Completing an item removes it from backlog groups on reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1000",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Will Complete",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        self.client.post(
+            reverse("quick_complete"),
+            {"media_type": "movie", "instance_id": movie.id},
+        )
+
+        page = self.client.get(reverse("home"))
+        titles = _flatten_group_titles(page.context["groups"])
+        self.assertNotIn("Will Complete", titles)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_complete_item_in_archive_on_reload(self, mock_metadata):
+        """Completed item appears in archive on reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1001",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Archive Me",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        self.client.post(
+            reverse("quick_complete"),
+            {"media_type": "movie", "instance_id": movie.id},
+        )
+
+        page = self.client.get(reverse("home"))
+        archive_titles = [m.item.title for m in page.context["archive"]]
+        self.assertIn("Archive Me", archive_titles)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_complete_sequential_archive_count(self, mock_metadata):
+        """Two quick_completes in a row: final OOB count matches reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        items = []
+        movies = []
+        for mid in ["1010", "1011"]:
+            item = Item.objects.create(
+                media_id=mid,
+                source=Sources.TMDB.value,
+                media_type=MediaTypes.MOVIE.value,
+                title=f"Seq Movie {mid}",
+                image="http://example.com/image.jpg",
+            )
+            items.append(item)
+            movies.append(
+                Movie.objects.create(
+                    item=item,
+                    user=self.user,
+                    status=Status.IN_PROGRESS.value,
+                )
+            )
+
+        self.client.post(
+            reverse("quick_complete"),
+            {"media_type": "movie", "instance_id": movies[0].id},
+        )
+
+        response = self.client.post(
+            reverse("quick_complete"),
+            {"media_type": "movie", "instance_id": movies[1].id},
+        )
+        oob_count = int(
+            response.content.decode()
+            .split('id="archive-count"')[1]
+            .split("(")[1]
+            .split(")")[0]
+        )
+
+        page = self.client.get(reverse("home"))
+        self.assertEqual(oob_count, page.context["archive_count"])
+
+    # --- quick_drop consistency ---
+
+    def test_quick_drop_absent_from_backlog_and_archive_on_reload(self):
+        """Dropped item appears in neither backlog nor archive on reload."""
+        item = Item.objects.create(
+            media_id="1020",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Drop Me Fully",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        self.client.post(
+            reverse("quick_drop"),
+            {"media_type": "movie", "instance_id": movie.id},
+        )
+
+        page = self.client.get(reverse("home"))
+        backlog_titles = _flatten_group_titles(page.context["groups"])
+        archive_titles = [m.item.title for m in page.context["archive"]]
+        self.assertNotIn("Drop Me Fully", backlog_titles)
+        self.assertNotIn("Drop Me Fully", archive_titles)
+
+    # --- quick_catch_up consistency ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_catch_up_state_matches_reload(self, mock_metadata):
+        """After catch_up, response and reload both show 'Caught Up'."""
+        mock_metadata.return_value = {"max_progress": 24}
+        anime_item = Item.objects.create(
+            media_id="1030",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Catch Up Consistency",
+            image="http://example.com/image.jpg",
+        )
+        anime = Anime.objects.create(
+            item=anime_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=5,
+        )
+        Event.objects.create(
+            item=anime_item,
+            content_number=11,
+            datetime=timezone.now() + timedelta(days=2),
+        )
+
+        response = self.client.post(
+            reverse("quick_catch_up"),
+            {"media_type": "anime", "instance_id": anime.id},
+        )
+
+        self.assertContains(response, "Caught Up")
+        self.assertNotContains(response, "Caught Up?")
+
+        page = self.client.get(reverse("home") + "?type=anime")
+        self.assertContains(page, "Caught Up")
+        self.assertNotContains(page, "Caught Up?")
+
+        anime.refresh_from_db()
+        self.assertEqual(anime.progress, 10)
+
+    # --- backlog_save field persistence ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_backlog_save_score_persists_on_reload(self, mock_metadata):
+        """Score saved via inline edit appears on page reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1040",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Score Persist Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["score"] = "8.5"
+        self.client.post(reverse("backlog_save"), data)
+
+        movie.refresh_from_db()
+        self.assertEqual(float(movie.score), 8.5)
+
+        page = self.client.get(reverse("home"))
+        self.assertContains(page, "8.5")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_backlog_save_notes_persist_on_reload(self, mock_metadata):
+        """Notes saved via inline edit appear on page reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1041",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Notes Persist Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["notes"] = "Great movie so far"
+        self.client.post(reverse("backlog_save"), data)
+
+        movie.refresh_from_db()
+        self.assertEqual(movie.notes, "Great movie so far")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_backlog_save_link_persists_on_reload(self, mock_metadata):
+        """Link saved via inline edit persists in DB."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1042",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Link Persist Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["link"] = "https://example.com/watch"
+        self.client.post(reverse("backlog_save"), data)
+
+        movie.refresh_from_db()
+        self.assertEqual(movie.link, "https://example.com/watch")
+
+        page = self.client.get(reverse("home"))
+        self.assertContains(page, "https://example.com/watch")
+
+    # --- backlog_save status transitions on reload ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_backlog_save_complete_in_archive_on_reload(self, mock_metadata):
+        """Completing via inline edit puts item in archive on reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1050",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Save Complete Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["status"] = Status.COMPLETED.value
+        self.client.post(reverse("backlog_save"), data)
+
+        page = self.client.get(reverse("home"))
+        backlog_titles = _flatten_group_titles(page.context["groups"])
+        archive_titles = [m.item.title for m in page.context["archive"]]
+        self.assertNotIn("Save Complete Movie", backlog_titles)
+        self.assertIn("Save Complete Movie", archive_titles)
+
+    def test_backlog_save_drop_gone_on_reload(self):
+        """Dropping via inline edit removes item from everything on reload."""
+        item = Item.objects.create(
+            media_id="1051",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Save Drop Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["status"] = Status.DROPPED.value
+        self.client.post(reverse("backlog_save"), data)
+
+        page = self.client.get(reverse("home"))
+        backlog_titles = _flatten_group_titles(page.context["groups"])
+        archive_titles = [m.item.title for m in page.context["archive"]]
+        self.assertNotIn("Save Drop Movie", backlog_titles)
+        self.assertNotIn("Save Drop Movie", archive_titles)
+
+    def test_backlog_save_status_change_correct_group_on_reload(self):
+        """Changing status via inline edit places item in correct group on reload."""
+        item = Item.objects.create(
+            media_id="1052",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Regroup Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["status"] = Status.IN_PROGRESS.value
+        self.client.post(reverse("backlog_save"), data)
+
+        page = self.client.get(reverse("home") + "?type=movie")
+        groups = page.context["groups"]
+        for group in groups:
+            for sg in group["status_groups"]:
+                titles = [m.item.title for m in sg["items"]]
+                if "Regroup Movie" in titles:
+                    self.assertEqual(sg["status"], Status.IN_PROGRESS.value)
+                    return
+        self.fail("Regroup Movie not found in any status group")
+
+    def test_backlog_save_paused_correct_group_on_reload(self):
+        """Pausing via inline edit places item in Paused group on reload."""
+        item = Item.objects.create(
+            media_id="1053",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Pause Me Anime",
+            image="http://example.com/image.jpg",
+        )
+        anime = Anime.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        data = self._backlog_save_data(anime)
+        data["status"] = Status.PAUSED.value
+        self.client.post(reverse("backlog_save"), data)
+
+        page = self.client.get(reverse("home") + "?type=anime")
+        groups = page.context["groups"]
+        for group in groups:
+            for sg in group["status_groups"]:
+                titles = [m.item.title for m in sg["items"]]
+                if "Pause Me Anime" in titles:
+                    self.assertEqual(sg["status"], Status.PAUSED.value)
+                    return
+        self.fail("Pause Me Anime not found in any status group")
+
+    # --- quick_rewatch consistency ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_rewatch_creates_planning_in_backlog_on_reload(self, mock_metadata):
+        """Rewatching from archive creates a Planning item in backlog on reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1060",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Rewatch Target",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+
+        self.client.post(
+            reverse("quick_rewatch"),
+            {
+                "media_id": "1060",
+                "source": Sources.TMDB.value,
+                "media_type": "movie",
+                "source_context": "archive",
+            },
+        )
+
+        page = self.client.get(reverse("home") + "?type=movie")
+        groups = page.context["groups"]
+        for group in groups:
+            for sg in group["status_groups"]:
+                titles = [m.item.title for m in sg["items"]]
+                if "Rewatch Target" in titles:
+                    self.assertEqual(sg["status"], Status.PLANNING.value)
+                    return
+        self.fail("Rewatch Target not found in backlog after rewatch")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_rewatch_does_not_duplicate_if_active_exists(self, mock_metadata):
+        """Rewatching when an active instance exists doesn't create a new one."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1061",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Already Active Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+        Movie.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
+
+        count_before = Movie.objects.filter(user=self.user, item=item).count()
+
+        self.client.post(
+            reverse("quick_rewatch"),
+            {
+                "media_id": "1061",
+                "source": Sources.TMDB.value,
+                "media_type": "movie",
+                "source_context": "archive",
+            },
+        )
+
+        count_after = Movie.objects.filter(user=self.user, item=item).count()
+        self.assertEqual(count_after, count_before)
+
+    # --- Full lifecycle consistency ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_complete_then_rewatch_lifecycle(self, mock_metadata):
+        """Complete → rewatch → verify backlog and archive are both correct."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1070",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Lifecycle Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        self.client.post(
+            reverse("quick_complete"),
+            {"media_type": "movie", "instance_id": movie.id},
+        )
+
+        mid_page = self.client.get(reverse("home"))
+        self.assertNotIn(
+            "Lifecycle Movie",
+            _flatten_group_titles(mid_page.context["groups"]),
+        )
+
+        self.client.post(
+            reverse("quick_rewatch"),
+            {
+                "media_id": "1070",
+                "source": Sources.TMDB.value,
+                "media_type": "movie",
+                "source_context": "archive",
+            },
+        )
+
+        final_page = self.client.get(reverse("home"))
+        backlog_titles = _flatten_group_titles(final_page.context["groups"])
+        self.assertIn("Lifecycle Movie", backlog_titles)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_complete_rewatch_complete_archive_count(self, mock_metadata):
+        """Complete → rewatch → complete again: archive count increases by 1."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1071",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Double Complete Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        self.client.post(
+            reverse("quick_complete"),
+            {"media_type": "movie", "instance_id": movie.id},
+        )
+
+        page_after_first = self.client.get(reverse("home"))
+        count_after_first = page_after_first.context["archive_count"]
+
+        self.client.post(
+            reverse("quick_rewatch"),
+            {
+                "media_id": "1071",
+                "source": Sources.TMDB.value,
+                "media_type": "movie",
+                "source_context": "archive",
+            },
+        )
+
+        page_mid = self.client.get(reverse("home"))
+        count_mid = page_mid.context["archive_count"]
+        self.assertEqual(
+            count_mid,
+            count_after_first - 1,
+            "Rewatch makes newest instance Planning, removing from archive",
+        )
+
+        rewatch = Movie.objects.filter(
+            user=self.user, item=item, status=Status.PLANNING.value
+        ).first()
+        self.client.post(
+            reverse("quick_complete"),
+            {"media_type": "movie", "instance_id": rewatch.id},
+        )
+
+        page_final = self.client.get(reverse("home"))
+        count_final = page_final.context["archive_count"]
+        self.assertEqual(count_final, count_after_first)
+
+    # --- Card content consistency ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_backlog_save_response_shows_updated_score(self, mock_metadata):
+        """The HTMX card response includes the updated score value."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1080",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Score Response Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["score"] = "7.5"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertContains(response, "7.5")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_backlog_save_response_shows_updated_link(self, mock_metadata):
+        """The HTMX card response includes the external link icon when saved."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="1081",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Link Response Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["link"] = "https://example.com/stream"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertContains(response, "https://example.com/stream")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_backlog_save_progress_response_matches_reload(self, mock_metadata):
+        """Progress value in HTMX response matches page reload."""
+        mock_metadata.return_value = {"max_progress": 24}
+        item = Item.objects.create(
+            media_id="1082",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Progress Consistency Anime",
+            image="http://example.com/image.jpg",
+        )
+        anime = Anime.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=3,
+        )
+
+        data = self._backlog_save_data(anime)
+        data["progress"] = "7"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertContains(response, 'value="7"')
+
+        anime.refresh_from_db()
+        self.assertEqual(anime.progress, 7)
+
+
+class ArchiveViewTests(TestCase):
+    """Tests for the dedicated archive page and archive card editing."""
+
+    def setUp(self):  # noqa: D102
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    def _archive_url(self):
+        return reverse("home") + "?view=archive"
+
+    def _backlog_save_data(self, media, source_context="archive"):
+        return {
+            "media_id": media.item.media_id,
+            "source": media.item.source,
+            "media_type": media.item.media_type,
+            "instance_id": media.id,
+            "score": "",
+            "progress": media.progress if media.progress is not None else "",
+            "status": media.status,
+            "start_date": "",
+            "end_date": "",
+            "notes": "",
+            "link": "",
+            "source_context": source_context,
+        }
+
+    # --- Archive page layout ---
+
+    def test_archive_page_shows_archive_title(self):
+        """Archive view shows 'Archive' as page title, not 'Backlog'."""
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, ">Archive</h1>")
+        self.assertNotContains(response, ">Backlog</h1>")
+
+    def test_archive_page_hides_sort_and_filters(self):
+        """Archive view does not show sort dropdown or type filter chips."""
+        response = self.client.get(self._archive_url())
+        self.assertNotContains(response, "arrows-up-down")
+        self.assertNotContains(response, "rounded-full text-sm font-medium")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_page_shows_completed_items(self, mock_metadata):
+        """Completed items appear on the archive page."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2000",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Archived Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, "Archived Movie")
+
+    def test_archive_page_empty_state(self):
+        """Archive page shows empty state when no completed items."""
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, "No completed items yet")
+
+    def test_archive_page_excludes_backlog_items(self):
+        """In-progress items do not appear on the archive page."""
+        item = Item.objects.create(
+            media_id="2001",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Active Anime",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(item=item, user=self.user, status=Status.IN_PROGRESS.value)
+
+        response = self.client.get(self._archive_url())
+        self.assertNotContains(response, "Active Anime")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_page_no_collapsible_section(self, mock_metadata):
+        """Archive view shows items directly, not inside a collapsible."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2002",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Direct Display Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+
+        response = self.client.get(self._archive_url())
+        self.assertNotContains(response, "archiveOpen")
+        self.assertContains(response, "Direct Display Movie")
+
+    # --- Archive card edit button ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_card_has_edit_button(self, mock_metadata):
+        """Archive cards include an edit button."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2010",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Editable Archive Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, 'title="Edit"')
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_card_has_edit_form(self, mock_metadata):
+        """Archive cards include an inline edit form with source_context."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2011",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Form Archive Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, 'name="source_context" value="archive"')
+        self.assertContains(response, 'name="score"')
+        self.assertContains(response, 'name="notes"')
+
+    # --- Archive edit persistence ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_edit_score_persists_on_reload(self, mock_metadata):
+        """Score edited on archive card persists after page reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2020",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Score Edit Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["score"] = "8.5"
+        self.client.post(reverse("backlog_save"), data)
+
+        movie.refresh_from_db()
+        self.assertEqual(float(movie.score), 8.5)
+
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, "8.5")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_edit_notes_persist_on_reload(self, mock_metadata):
+        """Notes edited on archive card persist after page reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2021",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Notes Edit Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["notes"] = "Great film, would watch again"
+        self.client.post(reverse("backlog_save"), data)
+
+        movie.refresh_from_db()
+        self.assertEqual(movie.notes, "Great film, would watch again")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_edit_link_persists_on_reload(self, mock_metadata):
+        """Link edited on archive card persists after page reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2022",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Link Edit Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["link"] = "https://example.com/watch"
+        self.client.post(reverse("backlog_save"), data)
+
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, "https://example.com/watch")
+
+    # --- Archive edit returns correct template ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_edit_returns_archived_card(self, mock_metadata):
+        """Saving from archive returns the archived card template."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2030",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Archive Template Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["score"] = "9"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertTemplateUsed(response, "app/components/backlog_card_archived.html")
+        self.assertContains(response, "archive-card-")
+        self.assertContains(response, "Archive Template Movie")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_edit_status_change_triggers_refresh(self, mock_metadata):
+        """Changing status from archive triggers HX-Refresh."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2031",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Status Change Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["status"] = Status.PLANNING.value
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertEqual(response["HX-Refresh"], "true")
+
+    # --- Archive edit consistency (HTMX response vs reload) ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_edit_score_response_matches_reload(self, mock_metadata):
+        """Score in HTMX response matches what appears on archive reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2040",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Score Consistency Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["score"] = "7.0"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertContains(response, "7.0")
+
+        page = self.client.get(self._archive_url())
+        self.assertContains(page, "7.0")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_edit_link_response_matches_reload(self, mock_metadata):
+        """Link in HTMX response matches what appears on archive reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2041",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Link Consistency Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["link"] = "https://example.com/consistent"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertContains(response, "https://example.com/consistent")
+
+        page = self.client.get(self._archive_url())
+        self.assertContains(page, "https://example.com/consistent")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_status_change_moves_to_backlog(self, mock_metadata):
+        """Changing archived item to Planning moves it to backlog on reload."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2042",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Unarchive Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["status"] = Status.PLANNING.value
+        self.client.post(reverse("backlog_save"), data)
+
+        archive_page = self.client.get(self._archive_url())
+        self.assertNotContains(archive_page, "Unarchive Movie")
+
+        backlog_page = self.client.get(reverse("home"))
+        titles = _flatten_group_titles(backlog_page.context["groups"])
+        self.assertIn("Unarchive Movie", titles)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_edit_form_errors_keep_form_open(self, mock_metadata):
+        """Invalid form submission returns archived card with errors shown."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2043",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Error Form Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        data = self._backlog_save_data(movie)
+        data["score"] = "999"
+        response = self.client.post(reverse("backlog_save"), data)
+
+        self.assertTemplateUsed(response, "app/components/backlog_card_archived.html")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_card_id_present(self, mock_metadata):
+        """Archive cards have a unique ID for HTMX targeting."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2044",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="ID Check Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, f"archive-card-movie-{movie.id}")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_completed_oob_card_has_edit_button(self, mock_metadata):
+        """OOB-inserted archive card from quick_complete has edit button."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2050",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="OOB Edit Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value
+        )
+
+        response = self.client.post(
+            reverse("quick_complete"),
+            {"media_type": "movie", "instance_id": movie.id},
+        )
+
+        self.assertContains(response, 'title="Edit"')
+        self.assertContains(response, "archive-card-")
+
+
 class EnrichmentTests(TestCase):
     """Test the enrich_items_with_user_data helper."""
 
