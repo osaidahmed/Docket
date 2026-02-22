@@ -550,32 +550,43 @@ class MediaManager(models.Manager):
         return user.get_active_media_types()
 
     def _annotate_next_event(self, media_list):
-        """Annotate next_event for media items."""
+        """Annotate next_event and is_ongoing for media items."""
         current_time = timezone.now()
 
         for media in media_list:
-            # Get future events sorted by datetime
+            all_events = getattr(media.item, "prefetched_events", [])
+
             future_events = sorted(
-                [
-                    event
-                    for event in getattr(media.item, "prefetched_events", [])
-                    if event.datetime > current_time
-                ],
+                [e for e in all_events if e.datetime > current_time],
                 key=lambda e: e.datetime,
             )
 
             media.next_event = future_events[0] if future_events else None
+            media.is_ongoing = any(e.is_min_datetime for e in all_events) or (
+                not all_events
+                and media.max_progress is None
+                and media.item.media_type
+                in (MediaTypes.MANGA.value, MediaTypes.ANIME.value)
+            )
 
             if (
                 media.next_event
                 and media.next_event.content_number is not None
                 and media.progress is not None
             ):
-                media.is_caught_up = (
+                media.is_caught_up = media.caught_up or (
                     media.progress >= media.next_event.content_number - 1
                 )
+            elif (
+                media.is_ongoing
+                and media.max_progress is not None
+                and media.progress is not None
+            ):
+                media.is_caught_up = (
+                    media.caught_up or media.progress >= media.max_progress
+                )
             else:
-                media.is_caught_up = False
+                media.is_caught_up = media.caught_up
 
     def _sort_in_progress_media(self, media_list, sort_by):
         """Sort in-progress media based on the sort criteria."""
@@ -879,6 +890,7 @@ class Media(models.Model):
             "related_tv",
             "created_at",
             "link",
+            "caught_up",
         ],
     )
 
@@ -907,6 +919,7 @@ class Media(models.Model):
     end_date = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True, default="")
     link = models.URLField(blank=True, default="")
+    caught_up = models.BooleanField(default=False)
 
     class Meta:
         """Meta options for the model."""

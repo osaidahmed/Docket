@@ -12,6 +12,7 @@ from app.models import (
     Anime,
     Episode,
     Item,
+    Manga,
     MediaTypes,
     Movie,
     Season,
@@ -673,7 +674,361 @@ class HomeViewTests(TestCase):
         )
 
         response = self.client.get(reverse("home"))
-        self.assertNotContains(response, "Caught Up")
+        self.assertNotContains(response, "quick_catch_up")
+        self.assertContains(response, "quick_complete")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_manga_ongoing_shows_caught_up(self, _mock_releases, mock_metadata):
+        """Test that ongoing manga with undated events shows Caught Up."""
+        mock_metadata.return_value = {"max_progress": 100}
+        manga_item = Item.objects.create(
+            media_id="66296374554",
+            source=Sources.MANGAUPDATES.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Ongoing Manga",
+            image="http://example.com/image.jpg",
+        )
+        Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=50,
+        )
+        Event.objects.create(
+            item=manga_item,
+            content_number=50,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.get(reverse("home") + "?type=manga")
+        self.assertContains(response, "Caught Up")
+        self.assertNotContains(response, "quick_complete")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_manga_ongoing_no_next_info(self, _mock_releases, mock_metadata):
+        """Test that ongoing manga with undated events does not show Next: info."""
+        mock_metadata.return_value = {"max_progress": 100}
+        manga_item = Item.objects.create(
+            media_id="66296374555",
+            source=Sources.MANGAUPDATES.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Ongoing Manga No Next",
+            image="http://example.com/image.jpg",
+        )
+        Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+        Event.objects.create(
+            item=manga_item,
+            content_number=10,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.get(reverse("home") + "?type=manga")
+        self.assertNotContains(response, "Next:")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_manga_no_events_shows_catch_up_button(self, _mock_releases, mock_metadata):
+        """Test that manga with no events shows Caught Up? button."""
+        mock_metadata.return_value = {"max_progress": None}
+        manga_item = Item.objects.create(
+            media_id="66296374556",
+            source=Sources.MANGAUPDATES.value,
+            media_type=MediaTypes.MANGA.value,
+            title="No Events Manga",
+            image="http://example.com/image.jpg",
+        )
+        Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+        response = self.client.get(reverse("home") + "?type=manga")
+        self.assertContains(response, "quick_catch_up")
+        self.assertNotContains(response, "quick_complete")
+
+    def test_season_ongoing_shows_caught_up(self):
+        """Test that TV season with undated events shows Caught Up."""
+        season_item = Item.objects.get(
+            media_id="1668",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+        )
+        Event.objects.create(
+            item=season_item,
+            content_number=6,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.get(reverse("home") + "?type=tv")
+        self.assertContains(response, "Caught Up")
+
+    def test_anime_min_datetime_shows_caught_up(self):
+        """Test that anime with datetime.min events shows Caught Up."""
+        anime_item = Item.objects.get(media_id="1", source=Sources.MAL.value)
+        Event.objects.create(
+            item=anime_item,
+            content_number=11,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.get(reverse("home") + "?type=anime")
+        self.assertContains(response, "Caught Up")
+        self.assertNotContains(response, "quick_complete")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_paused_manga_no_caught_up(self, _mock_releases, mock_metadata):
+        """Test that paused manga with events shows neither Caught Up nor Done."""
+        mock_metadata.return_value = {"max_progress": 100}
+        manga_item = Item.objects.create(
+            media_id="66296374557",
+            source=Sources.MANGAUPDATES.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Paused Manga",
+            image="http://example.com/image.jpg",
+        )
+        Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.PAUSED.value,
+        )
+        Event.objects.create(
+            item=manga_item,
+            content_number=10,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.get(reverse("home") + "?type=manga")
+        self.assertNotContains(response, "quick_catch_up")
+        self.assertNotContains(response, "quick_complete")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_backlog_save_preserves_manga_caught_up(
+        self, _mock_releases, mock_metadata
+    ):
+        """Test that saving ongoing manga preserves Caught Up badge."""
+        mock_metadata.return_value = {"max_progress": 100}
+        manga_item = Item.objects.create(
+            media_id="66296374558",
+            source=Sources.MANGAUPDATES.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Save Manga",
+            image="http://example.com/image.jpg",
+        )
+        manga = Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=20,
+        )
+        Event.objects.create(
+            item=manga_item,
+            content_number=20,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.post(
+            reverse("backlog_save"), self._backlog_save_data(manga)
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Caught Up")
+        self.assertNotContains(response, "quick_complete")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_mal_manga_ongoing_no_chapters_shows_catch_up_button(
+        self, _mock_releases, mock_metadata
+    ):
+        """Test MAL manga with unknown chapters shows Caught Up? button."""
+        mock_metadata.return_value = {"max_progress": None}
+        manga_item = Item.objects.create(
+            media_id="66296374559",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.MANGA.value,
+            title="MAL Ongoing Manga",
+            image="http://example.com/image.jpg",
+        )
+        Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+        Event.objects.create(
+            item=manga_item,
+            content_number=None,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.get(reverse("home") + "?type=manga")
+        self.assertContains(response, "quick_catch_up")
+        self.assertNotContains(response, "quick_complete")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_manga_caught_up_field_shows_badge(self, _mock_releases, mock_metadata):
+        """Test that caught_up=True on model shows Caught Up badge."""
+        mock_metadata.return_value = {"max_progress": None}
+        manga_item = Item.objects.create(
+            media_id="66296374570",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Manual Caught Up Manga",
+            image="http://example.com/image.jpg",
+        )
+        Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            caught_up=True,
+        )
+
+        response = self.client.get(reverse("home") + "?type=manga")
+        self.assertContains(response, "Caught Up")
+        self.assertNotContains(response, "quick_catch_up")
+        self.assertNotContains(response, "quick_complete")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_quick_catch_up_unknown_progress_sets_caught_up(
+        self, _mock_releases, mock_metadata
+    ):
+        """Test quick_catch_up sets caught_up=True when max_progress unknown."""
+        mock_metadata.return_value = {"max_progress": None}
+        manga_item = Item.objects.create(
+            media_id="66296374571",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Unknown Progress Manga",
+            image="http://example.com/image.jpg",
+        )
+        manga = Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+        Event.objects.create(
+            item=manga_item,
+            content_number=None,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.post(
+            reverse("quick_catch_up"),
+            {
+                "media_type": MediaTypes.MANGA.value,
+                "instance_id": manga.id,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        manga.refresh_from_db()
+        self.assertTrue(manga.caught_up)
+        self.assertContains(response, "Caught Up")
+        self.assertNotContains(response, "quick_catch_up")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_manga_ongoing_behind_shows_catch_up_button(
+        self, _mock_releases, mock_metadata
+    ):
+        """Test ongoing manga where user is behind shows Caught Up? button."""
+        mock_metadata.return_value = {"max_progress": 100}
+        manga_item = Item.objects.create(
+            media_id="66296374560",
+            source=Sources.MANGAUPDATES.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Behind Manga",
+            image="http://example.com/image.jpg",
+        )
+        Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=20,
+        )
+        Event.objects.create(
+            item=manga_item,
+            content_number=50,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.get(reverse("home") + "?type=manga")
+        self.assertContains(response, "quick_catch_up")
+        self.assertNotContains(response, "quick_complete")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_manga_ongoing_zero_progress_shows_catch_up_button(
+        self, _mock_releases, mock_metadata
+    ):
+        """Test ongoing manga at progress 0 shows Caught Up? button."""
+        mock_metadata.return_value = {"max_progress": 100}
+        manga_item = Item.objects.create(
+            media_id="66296374561",
+            source=Sources.MANGAUPDATES.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Zero Progress Manga",
+            image="http://example.com/image.jpg",
+        )
+        Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=0,
+        )
+        Event.objects.create(
+            item=manga_item,
+            content_number=30,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.get(reverse("home") + "?type=manga")
+        self.assertContains(response, "quick_catch_up")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_quick_catch_up_ongoing_manga(self, _mock_releases, mock_metadata):
+        """Test quick_catch_up sets progress to max_progress for ongoing."""
+        mock_metadata.return_value = {"max_progress": 100}
+        manga_item = Item.objects.create(
+            media_id="66296374562",
+            source=Sources.MANGAUPDATES.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Catch Up Manga",
+            image="http://example.com/image.jpg",
+        )
+        manga = Manga.objects.create(
+            item=manga_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=10,
+        )
+        Event.objects.create(
+            item=manga_item,
+            content_number=50,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+
+        response = self.client.post(
+            reverse("quick_catch_up"),
+            {
+                "media_type": MediaTypes.MANGA.value,
+                "instance_id": manga.id,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        manga.refresh_from_db()
+        self.assertEqual(manga.progress, 50)
+        self.assertContains(response, "Caught Up")
+        self.assertNotContains(response, "quick_catch_up")
 
     def test_planning_item_no_done_button(self):
         """Test that Planning items don't show a Done button."""
@@ -876,7 +1231,7 @@ class HomeViewTests(TestCase):
         )
 
         self.assertNotContains(response, "quick_complete")
-        self.assertNotContains(response, "Caught Up")
+        self.assertNotContains(response, "quick_catch_up")
 
     def test_backlog_save_status_change_triggers_refresh(self):
         """Test that changing status via inline edit triggers a page refresh."""
@@ -966,7 +1321,7 @@ class HomeViewTests(TestCase):
         )
 
         self.assertNotContains(response, "quick_complete")
-        self.assertNotContains(response, "Caught Up")
+        self.assertNotContains(response, "quick_catch_up")
 
 
 class HomeViewConsistencyTests(TestCase):
@@ -1558,6 +1913,222 @@ class HomeViewConsistencyTests(TestCase):
 
         anime.refresh_from_db()
         self.assertEqual(anime.progress, 7)
+
+
+class CaughtUpToggleTests(TestCase):
+    """Tests for manual caught_up toggle on backlog cards."""
+
+    def setUp(self):  # noqa: D102
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+        self.anime_item = Item.objects.create(
+            media_id="3000",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Ongoing Anime",
+            image="http://example.com/image.jpg",
+        )
+
+    def _backlog_save_data(self, media):
+        return {
+            "media_id": media.item.media_id,
+            "source": media.item.source,
+            "media_type": media.item.media_type,
+            "instance_id": media.id,
+            "score": "",
+            "progress": media.progress if media.progress is not None else "",
+            "status": media.status,
+            "start_date": "",
+            "end_date": "",
+            "notes": "",
+            "link": "",
+        }
+
+    def test_manual_caught_up_overrides_auto_detection(self):
+        """Manual caught_up=True shows 'Caught Up' even when progress is behind."""
+        anime = Anime.objects.create(
+            item=self.anime_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=3,
+            caught_up=True,
+        )
+        Event.objects.create(
+            item=self.anime_item,
+            content_number=10,
+            datetime=timezone.now() + timedelta(days=2),
+        )
+
+        response = self.client.get(reverse("home"))
+        content = response.content.decode()
+
+        card_id = f"backlog-card-anime-{anime.id}"
+        card_start = content.find(card_id)
+        self.assertNotEqual(card_start, -1)
+        card_section = content[card_start : card_start + 8000]
+
+        self.assertIn("Caught Up", card_section)
+        self.assertNotIn("Caught Up?", card_section)
+
+    def test_manual_caught_up_false_uses_auto_detection(self):
+        """With caught_up=False and progress behind, shows 'Caught Up?'."""
+        Anime.objects.create(
+            item=self.anime_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=3,
+            caught_up=False,
+        )
+        Event.objects.create(
+            item=self.anime_item,
+            content_number=10,
+            datetime=timezone.now() + timedelta(days=2),
+        )
+
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "Caught Up?")
+
+    def test_auto_caught_up_works_without_manual_flag(self):
+        """Progress matching next event shows 'Caught Up' even without flag."""
+        Anime.objects.create(
+            item=self.anime_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=9,
+            caught_up=False,
+        )
+        Event.objects.create(
+            item=self.anime_item,
+            content_number=10,
+            datetime=timezone.now() + timedelta(days=2),
+        )
+
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "Caught Up")
+        self.assertNotContains(response, "Caught Up?")
+
+    def test_caught_up_toggle_persists_via_backlog_save(self):
+        """Setting caught_up via edit form persists on reload."""
+        anime = Anime.objects.create(
+            item=self.anime_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=3,
+        )
+        Event.objects.create(
+            item=self.anime_item,
+            content_number=10,
+            datetime=timezone.now() + timedelta(days=2),
+        )
+
+        data = self._backlog_save_data(anime)
+        data["caught_up"] = "on"
+        self.client.post(reverse("backlog_save"), data)
+
+        anime.refresh_from_db()
+        self.assertTrue(anime.caught_up)
+
+    def test_caught_up_uncheck_persists_via_backlog_save(self):
+        """Unchecking caught_up via edit form persists on reload."""
+        anime = Anime.objects.create(
+            item=self.anime_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=3,
+            caught_up=True,
+        )
+        Event.objects.create(
+            item=self.anime_item,
+            content_number=10,
+            datetime=timezone.now() + timedelta(days=2),
+        )
+
+        data = self._backlog_save_data(anime)
+        # checkbox unchecked = field absent from POST
+        self.client.post(reverse("backlog_save"), data)
+
+        anime.refresh_from_db()
+        self.assertFalse(anime.caught_up)
+
+    def test_edit_form_has_caught_up_checkbox(self):
+        """The backlog card edit form contains a caught_up checkbox."""
+        Anime.objects.create(
+            item=self.anime_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=3,
+        )
+
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, 'name="caught_up"')
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_caught_up_no_effect_without_next_event(self, mock_metadata):
+        """caught_up=True on finished content still shows 'Done' button."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="3001",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Finished Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            caught_up=True,
+        )
+
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "Done")
+
+    def test_caught_up_response_matches_reload(self):
+        """HTMX response after toggling caught_up matches page reload."""
+        anime = Anime.objects.create(
+            item=self.anime_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=3,
+        )
+        Event.objects.create(
+            item=self.anime_item,
+            content_number=10,
+            datetime=timezone.now() + timedelta(days=2),
+        )
+
+        data = self._backlog_save_data(anime)
+        data["caught_up"] = "on"
+        response = self.client.post(reverse("backlog_save"), data)
+        self.assertContains(response, "Caught Up")
+        self.assertNotContains(response, "Caught Up?")
+
+        page = self.client.get(reverse("home"))
+        content = page.content.decode()
+        card_id = f"backlog-card-anime-{anime.id}"
+        card_start = content.find(card_id)
+        card_section = content[card_start : card_start + 8000]
+        self.assertIn("Caught Up", card_section)
+        self.assertNotIn("Caught Up?", card_section)
+
+    def test_caught_up_checkbox_checked_when_true(self):
+        """The caught_up checkbox is checked when the field is True."""
+        Anime.objects.create(
+            item=self.anime_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=3,
+            caught_up=True,
+        )
+
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, 'name="caught_up"')
+        content = response.content.decode()
+        caught_up_pos = content.find('name="caught_up"')
+        checkbox_context = content[caught_up_pos : caught_up_pos + 200]
+        self.assertIn("checked", checkbox_context)
 
 
 class ArchiveViewTests(TestCase):

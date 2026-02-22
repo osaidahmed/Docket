@@ -210,6 +210,7 @@ class MediaForm(forms.ModelForm):
             "end_date",
             "notes",
             "link",
+            "caught_up",
         ]
         widgets = {
             "score": forms.NumberInput(

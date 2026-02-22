@@ -742,9 +742,17 @@ def process_other(item, events_bulk):
     date_key = config.get_date_key(item.media_type)
     content_number = metadata["max_progress"]
 
-    if date_key in metadata["details"] and content_number:
+    if date_key in metadata["details"]:
         if metadata["details"][date_key]:
-            content_datetime = date_parser(metadata["details"][date_key])
+            try:
+                content_datetime = date_parser(metadata["details"][date_key])
+            except ValueError:
+                logger.warning(
+                    "Invalid date for %s: %s",
+                    item,
+                    metadata["details"][date_key],
+                )
+                return
         else:
             content_datetime = datetime.min.replace(tzinfo=ZoneInfo("UTC"))
 

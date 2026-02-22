@@ -795,6 +795,24 @@ def quick_catch_up(request):
             instance_id,
         )
         BasicMedia.objects._annotate_next_event([media])
+    elif media.max_progress is not None:
+        media.progress = media.max_progress
+        media.save()
+        media = BasicMedia.objects.get_media_prefetch(
+            request.user,
+            media_type,
+            instance_id,
+        )
+        BasicMedia.objects._annotate_next_event([media])
+    else:
+        media.caught_up = True
+        media.save()
+        media = BasicMedia.objects.get_media_prefetch(
+            request.user,
+            media_type,
+            instance_id,
+        )
+        BasicMedia.objects._annotate_next_event([media])
 
     return render(
         request,

@@ -482,6 +482,48 @@ class ReloadCalendarTaskTests(TestCase):
         expected_end_date = date_parser("2023-12-22")
         self.assertEqual(events_bulk[0].datetime, expected_end_date)
 
+    @patch("events.calendar.services.get_media_metadata")
+    def test_process_other_manga_ongoing_no_chapters(self, mock_get_media_metadata):
+        """Test process_other for ongoing MAL manga with unknown chapters."""
+        mock_get_media_metadata.return_value = {
+            "details": {
+                "end_date": None,
+            },
+            "max_progress": None,
+        }
+
+        events_bulk = []
+        process_other(self.manga_item, events_bulk)
+
+        self.assertEqual(len(events_bulk), 1)
+        self.assertEqual(events_bulk[0].item, self.manga_item)
+        self.assertIsNone(events_bulk[0].content_number)
+        self.assertEqual(
+            events_bulk[0].datetime,
+            datetime.datetime.min.replace(tzinfo=ZoneInfo("UTC")),
+        )
+
+    @patch("events.calendar.services.get_media_metadata")
+    def test_process_other_manga_completed_no_chapters(self, mock_get_media_metadata):
+        """Test process_other for completed MAL manga with unknown chapters."""
+        mock_get_media_metadata.return_value = {
+            "details": {
+                "end_date": "2023-12-22",
+            },
+            "max_progress": None,
+        }
+
+        events_bulk = []
+        process_other(self.manga_item, events_bulk)
+
+        # Completed manga with known end date but no chapters:
+        # still create event with the end date
+        self.assertEqual(len(events_bulk), 1)
+        self.assertEqual(events_bulk[0].item, self.manga_item)
+        self.assertIsNone(events_bulk[0].content_number)
+        expected_date = date_parser("2023-12-22")
+        self.assertEqual(events_bulk[0].datetime, expected_date)
+
     @patch("events.calendar.services.api_request")
     def test_get_anime_schedule_bulk(self, mock_api_request):
         """Test get_anime_schedule_bulk function."""

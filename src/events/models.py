@@ -244,3 +244,12 @@ class Event(models.Model):
             and self.datetime.minute == SentinelDatetime.MINUTE
             and self.datetime.second == SentinelDatetime.SECOND
         )
+
+    @property
+    def is_min_datetime(self):
+        """Check if the event datetime is a placeholder (datetime.min)."""
+        return (
+            self.datetime.year == 1
+            and self.datetime.month == 1
+            and self.datetime.day == 1
+        )
