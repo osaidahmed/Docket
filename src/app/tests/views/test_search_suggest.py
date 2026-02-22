@@ -307,40 +307,45 @@ class SearchSuggestApiViewTests(TestCase):
         mock_suggest.assert_called_once()
 
     @patch("app.providers.services.search_suggest_api")
-    def test_local_deduplication(self, mock_suggest):
-        """Items already in user's local DB are excluded via local_keys."""
-        # Create a local item
-        item = Item.objects.create(
-            media_id="20",
-            source=Sources.MAL.value,
-            media_type=MediaTypes.ANIME.value,
-            title="Naruto",
-            image="http://example.com/naruto.jpg",
-        )
-        Anime.objects.create(
-            item=item,
-            user=self.user,
-            status=Status.IN_PROGRESS.value,
+    def test_local_keys_parsed_from_query_param(self, mock_suggest):
+        """local_keys query param is parsed and forwarded to the service."""
+        mock_suggest.return_value = []
+
+        self.client.get(
+            reverse("search_suggest_api") + "?q=Naruto&local_keys=20:mal,100:tmdb",
         )
 
-        mock_suggest.return_value = [
-            {
-                "media_id": "99",
-                "source": Sources.TMDB.value,
-                "media_type": MediaTypes.TV.value,
-                "title": "Narcos",
-                "image": "http://example.com/narcos.jpg",
-            },
-        ]
+        call_kwargs = mock_suggest.call_args
+        local_keys = call_kwargs[1].get("local_keys") or call_kwargs[0][2]
+        self.assertIn(("20", "mal"), local_keys)
+        self.assertIn(("100", "tmdb"), local_keys)
+
+    @patch("app.providers.services.search_suggest_api")
+    def test_empty_local_keys_param(self, mock_suggest):
+        """Omitting local_keys param passes empty set to the service."""
+        mock_suggest.return_value = []
 
         self.client.get(
             reverse("search_suggest_api") + "?q=Naruto",
         )
 
-        # Verify local_keys was passed to exclude the local item
+        local_keys = mock_suggest.call_args[1].get("local_keys", set())
+        self.assertEqual(local_keys, set())
+
+    @patch("app.providers.services.search_suggest_api")
+    def test_malformed_local_keys_ignored(self, mock_suggest):
+        """Malformed local_keys entries are silently skipped."""
+        mock_suggest.return_value = []
+
+        self.client.get(
+            reverse("search_suggest_api") + "?q=Naruto&local_keys=invalid,20:mal,,:",
+        )
+
         call_kwargs = mock_suggest.call_args
         local_keys = call_kwargs[1].get("local_keys") or call_kwargs[0][2]
-        self.assertIn(("20", Sources.MAL.value), local_keys)
+        self.assertIn(("20", "mal"), local_keys)
+        # "invalid" has no colon, should be skipped
+        self.assertNotIn(("invalid",), local_keys)
 
     @patch("app.providers.services.search_suggest_api")
     def test_results_capped_at_five(self, mock_suggest):

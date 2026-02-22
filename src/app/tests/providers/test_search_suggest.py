@@ -1,3 +1,4 @@
+import time
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -433,3 +434,44 @@ class SearchSuggestServiceTests(TestCase):
 
         result = services.search_suggest_api("   ", self._all_types_enabled())
         self.assertEqual(result, [])
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_slow_provider_returns_partial_results(self, mock_tmdb, mock_mal):
+        """A slow provider times out; fast provider results still returned."""
+
+        def slow_tmdb(_query, _limit=5):
+            time.sleep(services.SUGGEST_API_TIMEOUT + 3)
+            return []
+
+        mock_tmdb.side_effect = slow_tmdb
+        mock_mal.side_effect = [
+            {
+                "page": 1,
+                "total_results": 1,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "media_id": 20,
+                        "source": Sources.MAL.value,
+                        "media_type": MediaTypes.ANIME.value,
+                        "title": "Naruto",
+                        "image": "http://example.com/n.jpg",
+                        "synopsis": "",
+                    },
+                ],
+            },
+            {
+                "page": 1,
+                "total_results": 0,
+                "total_pages": 1,
+                "results": [],
+            },
+        ]
+
+        start = time.monotonic()
+        results = services.search_suggest_api("Naruto", self._all_types_enabled())
+        elapsed = time.monotonic() - start
+
+        self.assertGreater(len(results), 0)
+        self.assertLess(elapsed, services.SUGGEST_API_TIMEOUT + 2)

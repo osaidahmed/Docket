@@ -1,6 +1,6 @@
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 
 import requests
 from defusedxml import ElementTree
@@ -419,12 +419,15 @@ def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_
     all_results = []
     seen_keys = set(local_keys)
 
-    with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+    executor = ThreadPoolExecutor(max_workers=len(tasks))
+    try:
         futures = {executor.submit(fn): name for name, fn in tasks}
-        for future in as_completed(futures):
+        done, not_done = wait(futures, timeout=SUGGEST_API_TIMEOUT)
+
+        for future in done:
             name = futures[future]
             try:
-                results = future.result(timeout=SUGGEST_API_TIMEOUT)
+                results = future.result()
                 for item in results:
                     key = (str(item["media_id"]), item["source"])
                     if key not in seen_keys:
@@ -432,5 +435,11 @@ def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_
                         all_results.append(item)
             except Exception:
                 logger.exception("Suggest API failed for %s", name)
+
+        for future in not_done:
+            future.cancel()
+            logger.warning("Suggest API timed out for %s", futures[future])
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
     return all_results[:limit]

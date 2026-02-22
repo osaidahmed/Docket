@@ -1380,20 +1380,11 @@ def search_suggest_api(request):
     enabled_types = request.user.get_enabled_media_types()
 
     local_keys = set()
-    for media_type in enabled_types:
-        if media_type in (MediaTypes.SEASON.value, MediaTypes.EPISODE.value):
-            continue
-        model = apps.get_model(app_label="app", model_name=media_type)
-        for media in (
-            model.objects.filter(
-                Q(item__title__icontains=query)
-                | Q(item__english_title__icontains=query),
-                user=request.user,
-            )
-            .select_related("item")
-            .values_list("item__media_id", "item__source")[:10]
-        ):
-            local_keys.add((str(media[0]), media[1]))
+    local_keys_param = request.GET.get("local_keys", "")
+    for pair in local_keys_param.split(","):
+        if ":" in pair:
+            media_id, source = pair.split(":", 1)
+            local_keys.add((media_id, source))
 
     results = services.search_suggest_api(query, enabled_types, local_keys=local_keys)[
         :5

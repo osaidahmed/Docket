@@ -279,7 +279,10 @@
                          if (q.length >= 3) {
                            this.$refs.suggestApi.innerHTML = this.$refs.suggestLoading.innerHTML;
                            this.apiTimer = setTimeout(() => {
-                             fetch(apiUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                             const localItems = this.$refs.suggestLocal.querySelectorAll('.suggest-item[data-media-id]');
+                             const keys = [...localItems].map(el => el.dataset.mediaId + ':' + el.dataset.source).join(',');
+                             const fullApiUrl = keys ? apiUrl + '&local_keys=' + encodeURIComponent(keys) : apiUrl;
+                             fetch(fullApiUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                                .then(r => r.text())
                                .then(html => { if (this.currentQuery === savedQuery) this.$refs.suggestApi.innerHTML = html; });
                            }, 500);
@@ -318,8 +321,10 @@
                        },
                        updateHighlight(items) {
                          items.forEach((el, i) => {
-                           el.classList.toggle('bg-[#2a2f35]', i === this.highlightIndex);
-                           el.classList.toggle('text-white', i === this.highlightIndex);
+                           const active = i === this.highlightIndex;
+                           el.classList.toggle('bg-[#2a2f35]', active);
+                           el.classList.toggle('text-white', active);
+                           if (el.getAttribute('role') === 'option') el.setAttribute('aria-selected', active);
                          });
                          if (items[this.highlightIndex]) items[this.highlightIndex].scrollIntoView({ block: 'nearest' });
                        },
@@ -350,6 +355,9 @@
                                @keydown="handleKeydown($event)"
                                @focus="if (currentQuery.length >= 2) suggestOpen = true"
                                autocomplete="off"
+                               aria-autocomplete="list"
+                               :aria-expanded="suggestOpen"
+                               aria-controls="suggest-dropdown"
                                class="w-full py-2 pl-10 pr-4 text-sm text-gray-300 bg-[#272c31] rounded-l-md focus:outline-none focus:ring-2 focus:ring-[#4a9eff] focus:ring-inset placeholder-gray-500">
                         <button type="submit"
                                 class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-200 focus:outline-none cursor-pointer">
@@ -392,6 +400,9 @@
                   <div x-cloak
                        x-show="suggestOpen"
                        x-ref="suggestDropdown"
+                       id="suggest-dropdown"
+                       role="listbox"
+                       aria-label="Search suggestions"
                        @click.outside="suggestOpen = false"
                        @click="selectItem($event)"
                        x-transition:enter="transition ease-out duration-100"
