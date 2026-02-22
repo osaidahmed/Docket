@@ -66,6 +66,18 @@ def format_search_response(page, per_page, total_results, results):
     }
 
 
+def _media_key(item, is_season):
+    if is_season:
+        return (item.media_id, item.source, item.season_number)
+    return (item.media_id, item.source)
+
+
+def _item_key(item, is_season):
+    if is_season:
+        return (str(item["media_id"]), item["source"], item.get("season_number"))
+    return (str(item["media_id"]), item["source"])
+
+
 def enrich_items_with_user_data(request, items, section_name):
     """Enrich a list of items with user tracking data."""
     if not items:
@@ -100,31 +112,36 @@ def enrich_items_with_user_data(request, items, section_name):
     )
     BasicMedia.objects.annotate_max_progress(media_queryset, media_type)
 
-    # Create a lookup dictionary for fast matching (newest instance wins)
+    # Create a lookup dictionary for fast matching
+    # Priority: Completed > Dropped > active statuses
     active_statuses = {
         Status.IN_PROGRESS.value,
         Status.PLANNING.value,
         Status.PAUSED.value,
     }
+    is_season = media_type == MediaTypes.SEASON.value
     media_lookup = {}
     has_active_lookup = {}
     for media in media_queryset:
-        if media_type == MediaTypes.SEASON.value:
-            key = (media.item.media_id, media.item.source, media.item.season_number)
-        else:
-            key = (media.item.media_id, media.item.source)
-
-        media_lookup.setdefault(key, media)
+        key = _media_key(media.item, is_season)
+        existing = media_lookup.get(key)
+        is_completed = media.status == Status.COMPLETED.value
+        if (
+            existing is None
+            or (is_completed and existing.status != Status.COMPLETED.value)
+            or (
+                media.status not in active_statuses
+                and existing.status in active_statuses
+            )
+        ):
+            media_lookup[key] = media
         if media.status in active_statuses:
             has_active_lookup[key] = True
 
     # Enrich items with matched media
     enriched_items = []
     for item in items:
-        if media_type == MediaTypes.SEASON.value:
-            key = (str(item["media_id"]), item["source"], item.get("season_number"))
-        else:
-            key = (str(item["media_id"]), item["source"])
+        key = _item_key(item, is_season)
 
         media_item = media_lookup.get(key)
         if (

@@ -717,6 +717,81 @@ def quick_add(request):
 
 
 @require_POST
+def quick_archive(request):
+    """Add media as Completed via HTMX."""
+    media_id = request.POST["media_id"]
+    source = request.POST["source"]
+    media_type = request.POST["media_type"]
+
+    existing = (
+        BasicMedia.objects.filter_media(
+            request.user,
+            media_id,
+            media_type,
+            source,
+        )
+        .select_related("item")
+        .first()
+    )
+
+    if existing:
+        return render(
+            request,
+            "app/components/search_action.html",
+            {
+                "item": {
+                    "media_id": media_id,
+                    "source": source,
+                    "media_type": media_type,
+                    "title": existing.item.title,
+                },
+                "media": existing,
+            },
+        )
+
+    try:
+        item = Item.objects.get(
+            media_id=media_id,
+            source=source,
+            media_type=media_type,
+        )
+    except Item.DoesNotExist:
+        metadata = services.get_media_metadata(media_type, media_id, source)
+        item, _ = Item.objects.get_or_create(
+            media_id=media_id,
+            source=source,
+            media_type=media_type,
+            defaults={
+                "title": metadata["title"],
+                "english_title": metadata.get("english_title", ""),
+                "image": metadata["image"],
+                "synopsis": metadata.get("synopsis", ""),
+            },
+        )
+
+    model = apps.get_model(app_label="app", model_name=media_type)
+    instance = model.objects.create(
+        item=item,
+        user=request.user,
+        status=Status.COMPLETED.value,
+    )
+
+    return render(
+        request,
+        "app/components/search_action.html",
+        {
+            "item": {
+                "media_id": media_id,
+                "source": source,
+                "media_type": media_type,
+                "title": item.title,
+            },
+            "media": instance,
+        },
+    )
+
+
+@require_POST
 def quick_rewatch(request):
     """Create a new Planning instance for rewatch of a completed/dropped item."""
     media_id = request.POST["media_id"]
@@ -785,6 +860,21 @@ def quick_rewatch(request):
         response["HX-Refresh"] = "true"
         return response
 
+    completed_instance = (
+        BasicMedia.objects.filter_media(
+            request.user,
+            media_id,
+            media_type,
+            source,
+            season_number=season_number,
+        )
+        .filter(
+            status__in=[Status.COMPLETED.value, Status.DROPPED.value],
+        )
+        .select_related("item")
+        .first()
+    )
+
     return render(
         request,
         "app/components/search_action.html",
@@ -795,7 +885,8 @@ def quick_rewatch(request):
                 "media_type": media_type,
                 "title": item.title,
             },
-            "media": instance,
+            "media": completed_instance or instance,
+            "has_active": True,
         },
     )
 
@@ -924,6 +1015,33 @@ def backlog_save(request):
         logger.info("%s updated from backlog.", form.instance)
         rewatch_changed = media.is_rewatch != old_is_rewatch
 
+        rewatch_cancelled = (
+            old_is_rewatch
+            and not media.is_rewatch
+            and media.status == Status.PLANNING.value
+            and BasicMedia.objects.filter_media(
+                request.user,
+                media.item.media_id,
+                media_type,
+                media.item.source,
+            )
+            .filter(
+                status__in=[Status.COMPLETED.value, Status.DROPPED.value],
+            )
+            .exists()
+        )
+        if rewatch_cancelled:
+            media.delete()
+
+        if rewatch_cancelled or media.status == Status.DROPPED.value:
+            response = render(
+                request,
+                "app/components/backlog_dropped.html",
+            )
+            if rewatch_cancelled:
+                response["HX-Refresh"] = "true"
+            return response
+
         if source_context == "archive":
             if media.status == old_status:
                 media = BasicMedia.objects.get_media_prefetch(
@@ -955,12 +1073,6 @@ def backlog_save(request):
                     "archive_count": archive_count,
                     "status_choices": Status.choices,
                 },
-            )
-
-        if media.status == Status.DROPPED.value:
-            return render(
-                request,
-                "app/components/backlog_dropped.html",
             )
 
         if media.status != old_status or rewatch_changed:

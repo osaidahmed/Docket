@@ -15,16 +15,18 @@
           </div>
           {{ media.status }}
         </a>
-        <button hx-post="{% url 'quick_rewatch' %}"
-                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                hx-vals='{"media_id": "{{ item.media_id }}", "source": "{{ item.source }}", "media_type": "{{ item.media_type }}"}'
-                hx-swap="outerHTML"
-                hx-target="closest div"
-                class="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-500 transition-all duration-200 text-sm font-medium cursor-pointer"
-                title="Add rewatch to backlog">
-          {% include "app/icons/repeat.svg" with classes="w-4 h-4" %}
-          Rewatch
-        </button>
+        {% if item.media_type|has_repeat %}
+          <button hx-post="{% url 'quick_rewatch' %}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-vals='{"media_id": "{{ item.media_id }}", "source": "{{ item.source }}", "media_type": "{{ item.media_type }}"}'
+                  hx-swap="outerHTML"
+                  hx-target="closest div"
+                  class="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-500 transition-all duration-200 text-sm font-medium cursor-pointer"
+                  title="Add {{ item.media_type|repeat_label|lower }} to backlog">
+            {% include "app/icons/repeat.svg" with classes="w-4 h-4" %}
+            {{ item.media_type|repeat_label }}
+          </button>
+        {% endif %}
       </div>
     {% else %}
       <a href="{{ item|media_url }}"
@@ -55,12 +57,25 @@
     </a>
   {% endif %}
 {% else %}
-  <button hx-post="{% url 'quick_add' %}"
-          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-          hx-vals='{"media_id": "{{ item.media_id }}", "source": "{{ item.source }}", "media_type": "{{ item.media_type }}"}'
-          hx-swap="outerHTML"
-          class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-500 transition-all duration-200 text-sm font-medium cursor-pointer">
-    {% include "app/icons/plus.svg" with classes="w-4 h-4" %}
-    Add
-  </button>
+  <div class="flex items-center gap-1.5">
+    <button hx-post="{% url 'quick_add' %}"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-vals='{"media_id": "{{ item.media_id }}", "source": "{{ item.source }}", "media_type": "{{ item.media_type }}"}'
+            hx-swap="outerHTML"
+            hx-target="closest div"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+      {% include "app/icons/plus.svg" with classes="w-4 h-4" %}
+      Add
+    </button>
+    <button hx-post="{% url 'quick_archive' %}"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-vals='{"media_id": "{{ item.media_id }}", "source": "{{ item.source }}", "media_type": "{{ item.media_type }}"}'
+            hx-swap="outerHTML"
+            hx-target="closest div"
+            class="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-gray-300 rounded-full hover:bg-gray-600 hover:text-white transition-all duration-200 text-sm font-medium cursor-pointer"
+            title="Mark as {{ item.media_type|media_past_verb }}">
+      {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
+      {{ item.media_type|media_past_verb|capfirst }}
+    </button>
+  </div>
 {% endif %}

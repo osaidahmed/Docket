@@ -2,7 +2,7 @@
 
 <div id="backlog-card-{{ media.item.media_type }}-{{ media.id }}"
      class="bg-[#2a2f35] rounded-lg hover:bg-[#39404b] transition-colors duration-200"
-     x-data="{ editing: {% if show_edit %}true{% else %}false{% endif %} }">
+     x-data="{ editing: {% if show_edit %}true{% else %}false{% endif %}, confirmDrop: false }">
   <div class="flex items-start p-4 gap-4">
     <div class="shrink-0">
       <a href="{{ media.item|media_url }}">
@@ -224,25 +224,42 @@
             <label for="caught-up-{{ media.item.media_type }}-{{ media.id }}" class="text-sm text-gray-400">Caught Up</label>
           </div>
         {% endif %}
-        <div class="flex items-center gap-2">
-          <input type="checkbox" name="is_rewatch" id="is-rewatch-{{ media.item.media_type }}-{{ media.id }}"
-                 {% if media.is_rewatch %}checked{% endif %}
-                 class="w-4 h-4 rounded bg-[#39404b] border-gray-600 text-indigo-600 focus:ring-[#4a9eff] focus:ring-offset-0">
-          <label for="is-rewatch-{{ media.item.media_type }}-{{ media.id }}" class="text-sm text-gray-400">Rewatch</label>
-        </div>
+        {% if media.item.media_type|has_repeat %}
+          <div class="flex items-center gap-2">
+            <input type="checkbox" name="is_rewatch" id="is-rewatch-{{ media.item.media_type }}-{{ media.id }}"
+                   {% if media.is_rewatch %}checked{% endif %}
+                   class="w-4 h-4 rounded bg-[#39404b] border-gray-600 text-indigo-600 focus:ring-[#4a9eff] focus:ring-offset-0">
+            <label for="is-rewatch-{{ media.item.media_type }}-{{ media.id }}" class="text-sm text-gray-400">{{ media.item.media_type|repeat_label }}</label>
+          </div>
+        {% endif %}
       </div>
 
       <div class="flex justify-between mt-3">
-        <button hx-post="{% url 'quick_drop' %}"
-                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
-                hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
-                hx-swap="outerHTML"
-                hx-confirm="Drop this from your backlog?"
-                class="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md text-sm font-medium cursor-pointer transition-colors">
-          {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
-          Drop
-        </button>
+        <div x-show="!confirmDrop">
+          <button type="button"
+                  @click="confirmDrop = true"
+                  class="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md text-sm font-medium cursor-pointer transition-colors">
+            {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
+            Drop
+          </button>
+        </div>
+        <div x-show="confirmDrop" class="flex items-center gap-2">
+          <span class="text-sm text-gray-400">Drop this?</span>
+          <button type="button"
+                  @click="confirmDrop = false"
+                  class="px-3 py-1.5 text-gray-400 hover:text-white rounded-md text-sm font-medium cursor-pointer transition-colors">
+            Cancel
+          </button>
+          <button hx-post="{% url 'quick_drop' %}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                  hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
+                  hx-swap="outerHTML"
+                  class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white hover:bg-red-500 rounded-md text-sm font-medium cursor-pointer transition-colors">
+            {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
+            Drop
+          </button>
+        </div>
         <button type="submit"
                 class="px-4 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium cursor-pointer">
           Save

@@ -242,6 +242,20 @@ def status_background_color(status):
 
 
 @register.filter
+def repeat_label(media_type):
+    """Return the repeat verb for a media type (Rewatch, Reread, or Replay)."""
+    verb = config.get_verb(media_type, past_tense=False)
+    return f"Re{verb}"
+
+
+@register.filter
+def has_repeat(media_type):
+    """Return whether a media type supports repeat tracking."""
+    verb = config.get_verb(media_type, past_tense=False)
+    return verb != "play"
+
+
+@register.filter
 def natural_day(datetime, user):
     """Format date with natural language (Today, Tomorrow, etc.)."""
     today = timezone.localdate()

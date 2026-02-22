@@ -74,7 +74,7 @@
 
       {% if from_search %}
         <div class="relative">
-          {% include "app/components/search_action.html" with item=item media=media %}
+          {% include "app/components/search_action.html" with item=item media=media has_active=has_active %}
         </div>
       {% else %}
         <div class="relative flex items-center justify-center space-x-2.5">

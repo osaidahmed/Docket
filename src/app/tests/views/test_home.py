@@ -1078,6 +1078,13 @@ class HomeViewTests(TestCase):
         titles = _flatten_group_titles(response.context["groups"])
         self.assertNotIn("Movie To Drop", titles)
 
+    def test_drop_uses_inline_confirmation_not_browser_confirm(self):
+        """Test that drop button uses inline confirmation instead of hx-confirm."""
+        response = self.client.get(reverse("home"))
+        self.assertNotContains(response, "hx-confirm")
+        self.assertContains(response, "confirmDrop")
+        self.assertContains(response, "Drop this?")
+
     def test_next_event_info_displayed(self):
         """Test that next event info appears on ongoing backlog cards."""
         anime_item = Item.objects.get(media_id="1", source=Sources.MAL.value)
@@ -3131,15 +3138,15 @@ class EnrichmentTests(TestCase):
         ]
 
     @patch("app.providers.services.get_media_metadata")
-    def test_enrichment_newest_instance_wins(self, mock_metadata):
-        """Test that setdefault keeps newest instance (first in queryset)."""
+    def test_enrichment_prefers_completed_over_active(self, mock_metadata):
+        """Test that completed/dropped instances are preferred over active."""
         mock_metadata.return_value = {"max_progress": None}
-        Movie.objects.create(
+        completed = Movie.objects.create(
             item=self.item,
             user=self.user,
             status=Status.COMPLETED.value,
         )
-        planning = Movie.objects.create(
+        Movie.objects.create(
             item=self.item,
             user=self.user,
             status=Status.PLANNING.value,
@@ -3150,8 +3157,9 @@ class EnrichmentTests(TestCase):
         )
 
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["media"].id, planning.id)
-        self.assertEqual(results[0]["media"].status, Status.PLANNING.value)
+        self.assertEqual(results[0]["media"].id, completed.id)
+        self.assertEqual(results[0]["media"].status, Status.COMPLETED.value)
+        self.assertTrue(results[0]["has_active"])
 
     @patch("app.providers.services.get_media_metadata")
     def test_enrichment_has_active_true(self, mock_metadata):
@@ -3188,6 +3196,30 @@ class EnrichmentTests(TestCase):
             self._make_request(), self._search_items(), "search"
         )
 
+        self.assertFalse(results[0]["has_active"])
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_enrichment_prefers_completed_over_dropped(self, mock_metadata):
+        """After canceling a rewatch, enrichment shows Completed not Dropped."""
+        mock_metadata.return_value = {"max_progress": None}
+        completed = Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+        Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.DROPPED.value,
+        )
+
+        results = enrich_items_with_user_data(
+            self._make_request(), self._search_items(), "search"
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["media"].id, completed.id)
+        self.assertEqual(results[0]["media"].status, Status.COMPLETED.value)
         self.assertFalse(results[0]["has_active"])
 
 

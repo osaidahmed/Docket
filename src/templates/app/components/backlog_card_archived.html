@@ -38,14 +38,14 @@
       {% include "app/icons/edit-flat.svg" with classes="w-4 h-4" %}
     </button>
 
-    {% if media.item.media_type != "season" %}
+    {% if media.item.media_type|has_repeat and media.item.media_type != "season" %}
       <button hx-post="{% url 'quick_rewatch' %}"
               hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
               hx-vals='{"media_id": "{{ media.item.media_id }}", "source": "{{ media.item.source }}", "media_type": "{{ media.item.media_type }}", "source_context": "archive"}'
               hx-target="#archive-card-{{ media.item.media_type }}-{{ media.id }}"
               hx-swap="outerHTML"
               class="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors shrink-0 cursor-pointer"
-              title="Rewatch">
+              title="{{ media.item.media_type|repeat_label }}">
         {% include "app/icons/repeat.svg" with classes="w-4 h-4" %}
       </button>
     {% endif %}
@@ -155,12 +155,14 @@
                   class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">{{ media.notes|default:'' }}</textarea>
       </div>
 
-      <div class="mt-3 flex items-center gap-2">
-        <input type="checkbox" name="is_rewatch" id="is-rewatch-{{ media.item.media_type }}-{{ media.id }}"
-               {% if media.is_rewatch %}checked{% endif %}
-               class="w-4 h-4 rounded bg-[#39404b] border-gray-600 text-indigo-600 focus:ring-[#4a9eff] focus:ring-offset-0">
-        <label for="is-rewatch-{{ media.item.media_type }}-{{ media.id }}" class="text-sm text-gray-400">Rewatch</label>
-      </div>
+      {% if media.item.media_type|has_repeat %}
+        <div class="mt-3 flex items-center gap-2">
+          <input type="checkbox" name="is_rewatch" id="is-rewatch-{{ media.item.media_type }}-{{ media.id }}"
+                 {% if media.is_rewatch %}checked{% endif %}
+                 class="w-4 h-4 rounded bg-[#39404b] border-gray-600 text-indigo-600 focus:ring-[#4a9eff] focus:ring-offset-0">
+          <label for="is-rewatch-{{ media.item.media_type }}-{{ media.id }}" class="text-sm text-gray-400">{{ media.item.media_type|repeat_label }}</label>
+        </div>
+      {% endif %}
 
       <div class="flex justify-end mt-3">
         <button type="submit"
