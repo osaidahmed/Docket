@@ -53,6 +53,7 @@ urlpatterns = [
     path("media_save", views.media_save, name="media_save"),
     path("quick_add", views.quick_add, name="quick_add"),
     path("quick_complete", views.quick_complete, name="quick_complete"),
+    path("quick_rewatch", views.quick_rewatch, name="quick_rewatch"),
     path("backlog_save", views.backlog_save, name="backlog_save"),
     path("media_delete", views.media_delete, name="media_delete"),
     path("episode_save", views.episode_save, name="episode_save"),

@@ -637,6 +637,89 @@ def quick_add(request):
 
 
 @require_POST
+def quick_rewatch(request):
+    """Create a new Planning instance for rewatch of a completed/dropped item."""
+    media_id = request.POST["media_id"]
+    source = request.POST["source"]
+    media_type = request.POST["media_type"]
+    season_number = request.POST.get("season_number") or None
+    source_context = request.POST.get("source_context", "search")
+
+    active_statuses = [
+        Status.IN_PROGRESS.value,
+        Status.PLANNING.value,
+        Status.PAUSED.value,
+    ]
+
+    active_qs = (
+        BasicMedia.objects.filter_media(
+            request.user,
+            media_id,
+            media_type,
+            source,
+            season_number=season_number,
+        )
+        .filter(status__in=active_statuses)
+        .select_related("item")
+    )
+
+    existing_active = active_qs.first()
+    if existing_active:
+        return render(
+            request,
+            "app/components/search_action.html",
+            {
+                "item": {
+                    "media_id": media_id,
+                    "source": source,
+                    "media_type": media_type,
+                    "title": existing_active.item.title,
+                },
+                "media": existing_active,
+            },
+        )
+
+    item_kwargs = {
+        "media_id": media_id,
+        "source": source,
+        "media_type": media_type,
+    }
+    if season_number:
+        item_kwargs["season_number"] = season_number
+    item = Item.objects.get(**item_kwargs)
+
+    model = apps.get_model(app_label="app", model_name=media_type)
+    instance = model.objects.create(
+        item=item,
+        user=request.user,
+        status=Status.PLANNING.value,
+    )
+
+    if source_context == "archive":
+        response = render(
+            request,
+            "app/components/backlog_rewatch_confirmed.html",
+            {"media": instance},
+        )
+        response["HX-Refresh"] = "true"
+        return response
+
+    return render(
+        request,
+        "app/components/search_action.html",
+        {
+            "item": {
+                "media_id": media_id,
+                "source": source,
+                "media_type": media_type,
+                "title": item.title,
+            },
+            "media": instance,
+        },
+    )
+
+
+@require_POST
 def quick_complete(request):
     """Mark a backlog item as completed via HTMX."""
     media_type = request.POST["media_type"]
@@ -656,10 +739,19 @@ def quick_complete(request):
         instance_id,
     )
 
+    archive_count = sum(
+        apps.get_model(app_label="app", model_name=mt)
+        .objects.filter(user=request.user, status=Status.COMPLETED.value)
+        .values("item")
+        .distinct()
+        .count()
+        for mt in request.user.get_active_media_types()
+    )
+
     return render(
         request,
         "app/components/backlog_completed.html",
-        {"media": media},
+        {"media": media, "archive_count": archive_count},
     )
 
 

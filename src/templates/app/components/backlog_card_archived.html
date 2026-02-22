@@ -4,7 +4,7 @@
   <div class="shrink-0">
     <a href="{{ media.item|media_url }}">
       <img alt="{{ media }}"
-           class="lazyload w-12 aspect-2/3 object-cover rounded bg-[#3e454d]"
+           class="lazyload w-8 aspect-2/3 object-cover rounded bg-[#3e454d]"
            data-src="{{ media.item.image }}"
            src="{{ IMG_NONE }}">
     </a>
@@ -25,6 +25,17 @@
       {% endif %}
     </div>
   </div>
+  {% if media.item.media_type != "season" %}
+    <button hx-post="{% url 'quick_rewatch' %}"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-vals='{"media_id": "{{ media.item.media_id }}", "source": "{{ media.item.source }}", "media_type": "{{ media.item.media_type }}", "source_context": "archive"}'
+            hx-target="closest div"
+            hx-swap="outerHTML"
+            class="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors shrink-0 cursor-pointer"
+            title="Rewatch">
+      {% include "app/icons/repeat.svg" with classes="w-4 h-4" %}
+    </button>
+  {% endif %}
   {% if media.link %}
     <a href="{{ media.link }}"
        target="_blank"

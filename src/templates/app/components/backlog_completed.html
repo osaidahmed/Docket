@@ -7,8 +7,10 @@
   Completed
 </div>
 
-<div id="archive-list" hx-swap-oob="afterbegin">
+<div hx-swap-oob="afterbegin:#archive-list">
   {% include "app/components/backlog_card_archived.html" with media=media %}
 </div>
+
+<span id="archive-count" class="text-sm text-gray-500" hx-swap-oob="true">({{ archive_count }})</span>
 
 <p id="archive-empty" hx-swap-oob="delete"></p>

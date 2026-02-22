@@ -311,6 +311,45 @@ class QuickCompleteViewTests(TestCase):
         self.assertTemplateUsed(response, "app/components/backlog_card_archived.html")
         self.assertContains(response, "hx-swap-oob")
 
+    def test_quick_complete_updates_archive_count(self):
+        """Test that quick_complete response includes OOB archive count update."""
+        response = self.client.post(
+            reverse("quick_complete"),
+            {
+                "media_type": MediaTypes.ANIME.value,
+                "instance_id": str(self.anime.id),
+            },
+        )
+
+        content = response.content.decode()
+        self.assertIn('id="archive-count"', content)
+        self.assertIn("(1)", content)
+
+    def test_quick_complete_archive_count_deduplicates_rewatches(self):
+        """Test that rewatched media counts as 1 in archive, not per instance."""
+        # First instance: already completed
+        self.anime.status = Status.COMPLETED.value
+        self.anime.save()
+
+        # Rewatch: second instance of same item, now complete it
+        rewatch = Anime.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+        response = self.client.post(
+            reverse("quick_complete"),
+            {
+                "media_type": MediaTypes.ANIME.value,
+                "instance_id": str(rewatch.id),
+            },
+        )
+
+        content = response.content.decode()
+        # Two completed instances of same item should count as 1
+        self.assertIn("(1)", content)
+        self.assertNotIn("(2)", content)
+
     def test_quick_complete_requires_post(self):
         """Test that quick_complete rejects GET requests."""
         response = self.client.get(reverse("quick_complete"))
@@ -394,3 +433,120 @@ class BacklogSaveViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("form_errors", response.context)
         self.assertTrue(response.context["show_edit"])
+
+
+class QuickRewatchViewTests(TestCase):
+    """Test the quick_rewatch view."""
+
+    def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+        self.item = Item.objects.create(
+            media_id="238",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Test Movie",
+            image="http://example.com/image.jpg",
+        )
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_rewatch_creates_planning_instance(self, mock_metadata):
+        """Test that quick_rewatch creates a new Planning instance."""
+        mock_metadata.return_value = {"max_progress": None}
+        Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_rewatch"),
+            {
+                "media_id": "238",
+                "source": Sources.TMDB.value,
+                "media_type": MediaTypes.MOVIE.value,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        movies = Movie.objects.filter(item=self.item, user=self.user)
+        self.assertEqual(movies.count(), 2)
+        newest = movies.order_by("-created_at").first()
+        self.assertEqual(newest.status, Status.PLANNING.value)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_rewatch_returns_search_action(self, mock_metadata):
+        """Test that quick_rewatch returns search_action template."""
+        mock_metadata.return_value = {"max_progress": None}
+        Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_rewatch"),
+            {
+                "media_id": "238",
+                "source": Sources.TMDB.value,
+                "media_type": MediaTypes.MOVIE.value,
+            },
+        )
+
+        self.assertTemplateUsed(response, "app/components/search_action.html")
+
+    def test_quick_rewatch_prevents_duplicate_active(self):
+        """Test that quick_rewatch returns existing active instead of creating."""
+        Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_rewatch"),
+            {
+                "media_id": "238",
+                "source": Sources.TMDB.value,
+                "media_type": MediaTypes.MOVIE.value,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            Movie.objects.filter(item=self.item, user=self.user).count(),
+            1,
+        )
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_quick_rewatch_archive_context(self, mock_metadata):
+        """Test that source_context=archive returns confirmation template."""
+        mock_metadata.return_value = {"max_progress": None}
+        Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_rewatch"),
+            {
+                "media_id": "238",
+                "source": Sources.TMDB.value,
+                "media_type": MediaTypes.MOVIE.value,
+                "source_context": "archive",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response, "app/components/backlog_rewatch_confirmed.html"
+        )
+
+    def test_quick_rewatch_requires_post(self):
+        """Test that quick_rewatch rejects GET requests."""
+        response = self.client.get(reverse("quick_rewatch"))
+        self.assertEqual(response.status_code, 405)

@@ -100,15 +100,23 @@ def enrich_items_with_user_data(request, items, section_name):
     )
     BasicMedia.objects.annotate_max_progress(media_queryset, media_type)
 
-    # Create a lookup dictionary for fast matching
+    # Create a lookup dictionary for fast matching (newest instance wins)
+    active_statuses = {
+        Status.IN_PROGRESS.value,
+        Status.PLANNING.value,
+        Status.PAUSED.value,
+    }
     media_lookup = {}
+    has_active_lookup = {}
     for media in media_queryset:
         if media_type == MediaTypes.SEASON.value:
             key = (media.item.media_id, media.item.source, media.item.season_number)
         else:
             key = (media.item.media_id, media.item.source)
 
-        media_lookup[key] = media
+        media_lookup.setdefault(key, media)
+        if media.status in active_statuses:
+            has_active_lookup[key] = True
 
     # Enrich items with matched media
     enriched_items = []
@@ -130,6 +138,7 @@ def enrich_items_with_user_data(request, items, section_name):
         enriched_item = {
             "item": item,
             "media": media_item,
+            "has_active": has_active_lookup.get(key, False),
         }
         enriched_items.append(enriched_item)
 

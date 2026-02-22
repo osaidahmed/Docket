@@ -85,7 +85,7 @@
             class="flex items-center gap-2 text-lg font-semibold text-gray-300 hover:text-white transition-colors cursor-pointer mb-3">
       {% include "app/icons/circle-check.svg" with classes="w-5 h-5 text-emerald-400" %}
       Archive
-      <span class="text-sm text-gray-500">({{ archive|length }})</span>
+      <span id="archive-count" class="text-sm text-gray-500">({{ archive|length }})</span>
       <span :class="archiveOpen ? 'rotate-180' : ''" class="transition-transform">
         {% include "app/icons/chevron-down.svg" with classes="w-4 h-4" %}
       </span>

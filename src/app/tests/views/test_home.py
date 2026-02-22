@@ -1,10 +1,11 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from app.helpers import enrich_items_with_user_data
 from app.models import (
     TV,
     Anime,
@@ -315,3 +316,114 @@ class HomeViewTests(TestCase):
 
         archive_titles = [m.item.title for m in response.context["archive"]]
         self.assertNotIn("Dropped Movie", archive_titles)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_deduplicates_rewatches(self, mock_metadata):
+        """Test that rewatched media appears once in archive, not per instance."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="800",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Rewatched Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+
+        response = self.client.get(reverse("home"))
+        archive = response.context["archive"]
+        archive_titles = [m.item.title for m in archive]
+        self.assertEqual(archive_titles.count("Rewatched Movie"), 1)
+
+
+class EnrichmentTests(TestCase):
+    """Test the enrich_items_with_user_data helper."""
+
+    def setUp(self):
+        """Create a user and test data."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.factory = RequestFactory()
+
+        self.item = Item.objects.create(
+            media_id="238",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Test Movie",
+            image="http://example.com/image.jpg",
+        )
+
+    def _make_request(self):
+        request = self.factory.get("/")
+        request.user = self.user
+        return request
+
+    def _search_items(self):
+        return [
+            {
+                "media_id": "238",
+                "source": Sources.TMDB.value,
+                "media_type": MediaTypes.MOVIE.value,
+            },
+        ]
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_enrichment_newest_instance_wins(self, mock_metadata):
+        """Test that setdefault keeps newest instance (first in queryset)."""
+        mock_metadata.return_value = {"max_progress": None}
+        Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+        planning = Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        results = enrich_items_with_user_data(
+            self._make_request(), self._search_items(), "search"
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["media"].id, planning.id)
+        self.assertEqual(results[0]["media"].status, Status.PLANNING.value)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_enrichment_has_active_true(self, mock_metadata):
+        """Test that has_active is True when an active instance exists."""
+        mock_metadata.return_value = {"max_progress": None}
+        Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+        Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        results = enrich_items_with_user_data(
+            self._make_request(), self._search_items(), "search"
+        )
+
+        self.assertTrue(results[0]["has_active"])
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_enrichment_has_active_false(self, mock_metadata):
+        """Test that has_active is False with only completed instances."""
+        mock_metadata.return_value = {"max_progress": None}
+        Movie.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+
+        results = enrich_items_with_user_data(
+            self._make_request(), self._search_items(), "search"
+        )
+
+        self.assertFalse(results[0]["has_active"])
