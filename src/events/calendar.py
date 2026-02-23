@@ -6,9 +6,10 @@ import requests
 from django.core.cache import cache
 from django.db.models import Exists, OuterRef, Q, Subquery
 from django.utils import timezone
+from simple_history.utils import bulk_update_with_history
 
 from app import config
-from app.models import Item, MediaTypes, Sources
+from app.models import TV, Item, MediaTypes, Sources, Status
 from app.providers import comicvine, services, tmdb
 from events.models import Event, SentinelDatetime
 
@@ -27,6 +28,7 @@ def fetch_releases(user=None, items_to_process=None):
     events_bulk = process_items(items_to_process)
     items_updated = save_events(events_bulk)
     cleanup_invalid_events(events_bulk)
+    auto_move_completed_to_planning(events_bulk)
 
     return generate_final_message(items_to_process, items_updated)
 
@@ -129,6 +131,42 @@ def generate_final_message(items_to_process, items_updated):
     return (
         f"Processed {len(items_to_process)} items:\n{processed_details}\n\n"
         f"No releases have been updated."
+    )
+
+
+def auto_move_completed_to_planning(events_bulk):
+    """Auto-move Completed TV shows to Planning when new future events appear."""
+    current_time = timezone.now()
+
+    media_ids_with_future = set()
+    for event in events_bulk:
+        if (
+            event.item.media_type == MediaTypes.SEASON.value
+            and event.datetime > current_time
+        ):
+            media_ids_with_future.add(event.item.media_id)
+
+    if not media_ids_with_future:
+        return
+
+    completed_tvs = list(
+        TV.objects.filter(
+            item__media_id__in=media_ids_with_future,
+            status=Status.COMPLETED.value,
+        )
+    )
+
+    if not completed_tvs:
+        return
+
+    for tv in completed_tvs:
+        tv.status = Status.PLANNING.value
+
+    bulk_update_with_history(completed_tvs, TV, fields=["status"])
+    logger.info(
+        "Auto-moved %d Completed TV shows to Planning: %s",
+        len(completed_tvs),
+        ", ".join(str(tv) for tv in completed_tvs),
     )
 
 

@@ -320,3 +320,94 @@ class TVStatusTests(TestCase):
 
         season1 = Season.objects.get(pk=self.season1.pk)
         self.assertEqual(season1.status, original_season1_status)
+
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_completed_ongoing_show_only_completes_aired_seasons(
+        self, mock_get_metadata
+    ):
+        """Test completing an ongoing show only completes aired seasons."""
+        mock_metadata = {
+            "max_progress": 30,
+            "next_episode_season": 3,
+            "related": {
+                "seasons": [
+                    {"season_number": 1, "image": "img1.jpg"},
+                    {"season_number": 2, "image": "img2.jpg"},
+                    {"season_number": 3, "image": "img3.jpg"},
+                ],
+            },
+            "season/1": {
+                "image": "http://example.com/image.jpg",
+                "season_number": 1,
+                "episodes": [{"episode_number": 1}] * 10,
+            },
+            "season/2": {
+                "image": "http://example.com/image.jpg",
+                "season_number": 2,
+                "episodes": [{"episode_number": 1}] * 10,
+            },
+        }
+        mock_get_metadata.return_value = mock_metadata
+
+        self.tv.status = Status.COMPLETED.value
+        self.tv.save()
+
+        self.tv.refresh_from_db()
+        # Show is ongoing, so TV should be redirected to IN_PROGRESS + caught_up
+        self.assertEqual(self.tv.status, Status.IN_PROGRESS.value)
+        self.assertTrue(self.tv.caught_up)
+
+        # Only seasons 1 and 2 should be completed (season 3 is unaired)
+        self.assertEqual(
+            self.tv.seasons.filter(status=Status.COMPLETED.value).count(),
+            2,
+        )
+        # Season 3 should NOT have been created
+        self.assertFalse(
+            self.tv.seasons.filter(item__season_number=3).exists(),
+        )
+
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_completed_finished_show_completes_all_seasons(self, mock_get_metadata):
+        """Test completing a finished show (no next_episode_season) completes all."""
+        mock_metadata = {
+            "max_progress": 30,
+            "next_episode_season": None,
+            "related": {
+                "seasons": [
+                    {"season_number": 1, "image": "img1.jpg"},
+                    {"season_number": 2, "image": "img2.jpg"},
+                    {"season_number": 3, "image": "img3.jpg"},
+                ],
+            },
+            "season/1": {
+                "image": "http://example.com/image.jpg",
+                "season_number": 1,
+                "episodes": [{"episode_number": 1}] * 10,
+            },
+            "season/2": {
+                "image": "http://example.com/image.jpg",
+                "season_number": 2,
+                "episodes": [{"episode_number": 1}] * 10,
+            },
+            "season/3": {
+                "image": "http://example.com/image.jpg",
+                "season_number": 3,
+                "episodes": [{"episode_number": 1}] * 10,
+            },
+        }
+        mock_get_metadata.return_value = mock_metadata
+
+        self.tv.status = Status.COMPLETED.value
+        self.tv.save()
+
+        self.tv.refresh_from_db()
+        # Show is finished, so TV should stay COMPLETED
+        self.assertEqual(self.tv.status, Status.COMPLETED.value)
+
+        # All 3 seasons should be completed
+        self.assertEqual(self.tv.seasons.count(), 3)
+        self.assertEqual(
+            self.tv.seasons.filter(status=Status.COMPLETED.value).count(),
+            3,
+        )

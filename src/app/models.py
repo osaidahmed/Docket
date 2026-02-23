@@ -1077,7 +1077,11 @@ class TV(Media):
 
         if self.tracker.has_changed("status"):
             if self.status == Status.COMPLETED.value:
-                self._completed()
+                is_ongoing = self._completed()
+                if is_ongoing:
+                    self.status = Status.IN_PROGRESS.value
+                    self.caught_up = True
+                    bulk_update_with_history([self], TV, fields=["status", "caught_up"])
 
             elif self.status == Status.DROPPED.value:
                 self._mark_in_progress_seasons_as_dropped()
@@ -1155,16 +1159,20 @@ class TV(Media):
         return max(dates) if dates else None
 
     def _completed(self):
-        """Create remaining seasons and episodes for a TV show."""
+        """Create remaining seasons and episodes for a TV show.
+
+        Returns True if the show is ongoing (has unaired seasons).
+        """
         tv_metadata = providers.services.get_media_metadata(
             self.item.media_type,
             self.item.media_id,
             self.item.source,
         )
         max_progress = tv_metadata["max_progress"]
+        next_episode_season = tv_metadata.get("next_episode_season")
 
         if not max_progress or self.progress > max_progress:
-            return
+            return next_episode_season is not None
 
         seasons_to_create = []
         seasons_to_update = []
@@ -1174,6 +1182,10 @@ class TV(Media):
             season["season_number"]
             for season in tv_metadata["related"]["seasons"]
             if season["season_number"] != 0
+            and (
+                next_episode_season is None
+                or season["season_number"] < next_episode_season
+            )
         ]
         tv_with_seasons_metadata = providers.services.get_media_metadata(
             "tv_with_seasons",
@@ -1227,6 +1239,8 @@ class TV(Media):
                 season_instance.get_remaining_eps(season_metadata),
             )
         bulk_create_with_history(episodes_to_create, Episode)
+
+        return next_episode_season is not None
 
     def _mark_in_progress_seasons_as_dropped(self):
         """Mark all in-progress seasons as dropped."""
@@ -1349,6 +1363,13 @@ class Season(Media):
                         episodes_to_create,
                         Episode,
                     )
+
+                # Auto-advance to next season
+                if self.related_tv.status not in (
+                    Status.COMPLETED.value,
+                    Status.DROPPED.value,
+                ):
+                    self.related_tv._start_next_available_season()
 
             elif (
                 self.status == Status.DROPPED.value
@@ -1675,13 +1696,13 @@ class Episode(models.Model):
             [season_number],
         )
         season_metadata = tv_with_seasons_metadata[f"season/{season_number}"]
-        max_progress = len(season_metadata["episodes"])
+        max_progress = season_metadata["max_progress"]
 
         # clear prefetch cache to get the updated episodes
         self.related_season.refresh_from_db()
 
         season_just_completed = False
-        if self.item.episode_number == max_progress:
+        if max_progress and self.item.episode_number == max_progress:
             self.related_season.status = Status.COMPLETED.value
             bulk_update_with_history(
                 [self.related_season],
@@ -1702,8 +1723,12 @@ class Episode(models.Model):
             last_season = tv_with_seasons_metadata["related"]["seasons"][-1][
                 "season_number"
             ]
-            # mark the TV show as completed if it's the last season
-            if season_number == last_season:
+            next_episode_season = tv_with_seasons_metadata.get(
+                "next_episode_season",
+            )
+            # mark the TV show as completed only if it's the last season
+            # and the show is not ongoing
+            if season_number == last_season and next_episode_season is None:
                 self.related_season.related_tv.status = Status.COMPLETED.value
                 bulk_update_with_history(
                     [self.related_season.related_tv],
@@ -1729,6 +1754,28 @@ class Anime(Media):
     """Model for anime."""
 
     tracker = FieldTracker()
+
+    def process_status(self):
+        """Prevent completion of ongoing/upcoming anime."""
+        if self.status == Status.COMPLETED.value:
+            metadata = providers.services.get_media_metadata(
+                self.item.media_type,
+                self.item.media_id,
+                self.item.source,
+            )
+
+            is_ongoing = metadata.get("is_ongoing")
+            if is_ongoing is None:
+                detail_status = metadata.get("details", {}).get("status", "")
+                is_ongoing = detail_status in ("Airing", "Upcoming")
+
+            if is_ongoing:
+                self.status = Status.IN_PROGRESS.value
+                self.caught_up = True
+            elif metadata["max_progress"]:
+                self.progress = metadata["max_progress"]
+
+        self.item.fetch_releases(delay=True)
 
 
 class Movie(Media):

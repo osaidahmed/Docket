@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime
 
 import requests
 from django.conf import settings
@@ -562,11 +563,16 @@ def process_season(response):
     )
     total_runtime = get_readable_duration(total_runtime) if total_runtime else None
 
+    today_str = datetime.now(tz=UTC).date().isoformat()
+    aired_episodes = [
+        ep for ep in episodes if ep.get("air_date") and ep["air_date"] <= today_str
+    ]
+
     return {
         "source": Sources.TMDB.value,
         "media_type": MediaTypes.SEASON.value,
         "season_title": response["name"],
-        "max_progress": episodes[-1]["episode_number"] if episodes else 0,
+        "max_progress": aired_episodes[-1]["episode_number"] if aired_episodes else 0,
         "image": get_image_url(response["poster_path"]),
         "season_number": response["season_number"],
         "synopsis": get_synopsis(response["overview"]),

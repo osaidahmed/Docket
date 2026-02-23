@@ -286,6 +286,9 @@ class SeasonStatusTests(TestCase):
                 {"episode_number": 3, "image": "img3.jpg"},
             ],
             "image": "season_img.jpg",
+            "related": {
+                "seasons": [{"season_number": 1, "image": "img1.jpg"}],
+            },
         }
         mock_get_metadata.return_value = mock_metadata
 
@@ -334,6 +337,9 @@ class SeasonStatusTests(TestCase):
                 {"episode_number": 1, "image": "img1.jpg"},
             ],
             "image": "season_img.jpg",
+            "related": {
+                "seasons": [{"season_number": 1, "image": "img1.jpg"}],
+            },
         }
         mock_get_metadata.return_value = mock_metadata
 
@@ -514,6 +520,9 @@ class SeasonGetRemainingEpsQuickWatchDateTests(TestCase):
                 {"episode_number": 2, "image": "img2.jpg", "air_date": None},
             ],
             "image": "season_img.jpg",
+            "related": {
+                "seasons": [{"season_number": 1, "image": "img1.jpg"}],
+            },
         }
 
         self.season.status = Status.COMPLETED.value
@@ -523,6 +532,112 @@ class SeasonGetRemainingEpsQuickWatchDateTests(TestCase):
         self.assertEqual(episodes.count(), 2)
         for ep in episodes:
             self.assertIsNone(ep.end_date)
+
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_season_completion_auto_advances_next_season(self, mock_get_metadata):
+        """Test completing a season auto-starts the next season."""
+        mock_get_metadata.return_value = {
+            "episodes": [
+                {"episode_number": 1, "image": "img1.jpg", "air_date": None},
+            ],
+            "image": "season_img.jpg",
+            "related": {
+                "seasons": [
+                    {"season_number": 1, "image": "img1.jpg"},
+                    {"season_number": 2, "image": "img2.jpg"},
+                ],
+            },
+        }
+
+        # Set TV to IN_PROGRESS
+        tv = self.season.related_tv
+        tv.status = Status.IN_PROGRESS.value
+        tv.save()
+
+        # Create season 2
+        season2_item = Item.objects.create(
+            media_id="1668",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            title="Friends",
+            image="http://example.com/image.jpg",
+            season_number=2,
+        )
+        season2 = Season.objects.create(
+            item=season2_item,
+            user=self.user,
+            related_tv=tv,
+            status=Status.PLANNING.value,
+        )
+
+        self.season.status = Status.COMPLETED.value
+        self.season.save()
+
+        season2.refresh_from_db()
+        self.assertEqual(season2.status, Status.IN_PROGRESS.value)
+
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_season_completion_no_advance_if_tv_dropped(self, mock_get_metadata):
+        """Test completing a season does NOT auto-advance if TV is dropped."""
+        mock_get_metadata.return_value = {
+            "episodes": [
+                {"episode_number": 1, "image": "img1.jpg", "air_date": None},
+            ],
+            "image": "season_img.jpg",
+        }
+
+        # Set TV to DROPPED
+        tv = self.season.related_tv
+        tv.status = Status.DROPPED.value
+        tv.save()
+
+        # Create season 2
+        season2_item = Item.objects.create(
+            media_id="1668",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            title="Friends",
+            image="http://example.com/image.jpg",
+            season_number=2,
+        )
+        season2 = Season.objects.create(
+            item=season2_item,
+            user=self.user,
+            related_tv=tv,
+            status=Status.PLANNING.value,
+        )
+
+        self.season.status = Status.COMPLETED.value
+        self.season.save()
+
+        season2.refresh_from_db()
+        self.assertEqual(season2.status, Status.PLANNING.value)
+
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_season_completion_no_phantom_season(self, mock_get_metadata):
+        """Test completing the final season does NOT create a phantom season."""
+        mock_get_metadata.return_value = {
+            "episodes": [
+                {"episode_number": 1, "image": "img1.jpg", "air_date": None},
+            ],
+            "image": "season_img.jpg",
+            "related": {
+                "seasons": [
+                    {"season_number": 1, "image": "img1.jpg"},
+                ],
+            },
+        }
+
+        # Set TV to IN_PROGRESS
+        tv = self.season.related_tv
+        tv.status = Status.IN_PROGRESS.value
+        tv.save()
+
+        self.season.status = Status.COMPLETED.value
+        self.season.save()
+
+        # Only season 1 should exist
+        self.assertEqual(tv.seasons.count(), 1)
 
     @patch("app.models.providers.services.get_media_metadata")
     def test_season_completion_with_release_date(self, mock_get_metadata):
@@ -544,6 +659,9 @@ class SeasonGetRemainingEpsQuickWatchDateTests(TestCase):
                 },
             ],
             "image": "season_img.jpg",
+            "related": {
+                "seasons": [{"season_number": 1, "image": "img1.jpg"}],
+            },
         }
 
         self.season.status = Status.COMPLETED.value

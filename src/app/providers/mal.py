@@ -234,6 +234,11 @@ def anime(media_id):
 
         num_episodes = get_number_of_episodes(response)
 
+        is_ongoing = response.get("status") in (
+            "currently_airing",
+            "not_yet_aired",
+        )
+
         data = {
             "media_id": media_id,
             "source": Sources.MAL.value,
@@ -242,6 +247,7 @@ def anime(media_id):
             "title": response["title"],
             "english_title": get_english_title(response),
             "max_progress": num_episodes,
+            "is_ongoing": is_ongoing,
             "image": get_image_url(response),
             "synopsis": get_synopsis(response),
             "genres": get_genres(response),

@@ -23,6 +23,7 @@ from app.models import (
 from app.providers import services
 from events.calendar import (
     anilist_date_parser,
+    auto_move_completed_to_planning,
     date_parser,
     fetch_releases,
     get_anime_schedule_bulk,
@@ -980,3 +981,87 @@ class ReloadCalendarTaskTests(TestCase):
 
         # Verify no event was added
         self.assertEqual(len(events_bulk), 0)
+
+
+class AutoMoveCompletedToPlanningTests(TestCase):
+    """Test auto-moving Completed TV shows to Planning on new future events."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+
+        self.tv_item = Item.objects.create(
+            media_id="500",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.TV.value,
+            title="Test TV Show",
+            image="http://example.com/tv.jpg",
+        )
+        # Use save_base to bypass custom TV.save() logic
+        self.tv = TV(
+            item=self.tv_item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+        TV.save_base(self.tv)
+
+        self.season_item = Item.objects.create(
+            media_id="500",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            title="Test TV Show",
+            image="http://example.com/season.jpg",
+            season_number=2,
+        )
+
+    def test_completed_tv_moves_to_planning_on_future_events(self):
+        """Test Completed TV show moves to Planning when future events exist."""
+        future_date = timezone.now() + timezone.timedelta(days=30)
+        events_bulk = [
+            Event(
+                item=self.season_item,
+                content_number=1,
+                datetime=future_date,
+            ),
+        ]
+
+        auto_move_completed_to_planning(events_bulk)
+
+        self.tv.refresh_from_db()
+        self.assertEqual(self.tv.status, Status.PLANNING.value)
+
+    def test_in_progress_tv_not_affected(self):
+        """Test In Progress TV show is not moved."""
+        self.tv.status = Status.IN_PROGRESS.value
+        self.tv.save()
+
+        future_date = timezone.now() + timezone.timedelta(days=30)
+        events_bulk = [
+            Event(
+                item=self.season_item,
+                content_number=1,
+                datetime=future_date,
+            ),
+        ]
+
+        auto_move_completed_to_planning(events_bulk)
+
+        self.tv.refresh_from_db()
+        self.assertEqual(self.tv.status, Status.IN_PROGRESS.value)
+
+    def test_no_move_without_future_events(self):
+        """Test Completed TV show stays Completed without future events."""
+        past_date = timezone.now() - timezone.timedelta(days=30)
+        events_bulk = [
+            Event(
+                item=self.season_item,
+                content_number=1,
+                datetime=past_date,
+            ),
+        ]
+
+        auto_move_completed_to_planning(events_bulk)
+
+        self.tv.refresh_from_db()
+        self.assertEqual(self.tv.status, Status.COMPLETED.value)

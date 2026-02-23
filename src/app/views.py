@@ -574,6 +574,26 @@ def track_modal(
 
     form = get_form_class(media_type)(instance=media, initial=initial_data)
 
+    if media_type in (MediaTypes.ANIME.value, MediaTypes.TV.value):
+        metadata = services.get_media_metadata(
+            media_type,
+            media_id,
+            source,
+            [season_number],
+        )
+        detail_status = metadata.get("details", {}).get("status", "")
+        is_ongoing = (
+            metadata.get("is_ongoing")
+            or (metadata.get("next_episode_season") is not None)
+            or detail_status in ("Airing", "Upcoming")
+        )
+        if is_ongoing:
+            form.fields["status"].choices = [
+                c
+                for c in form.fields["status"].choices
+                if c[0] != Status.COMPLETED.value
+            ]
+
     return render(
         request,
         "app/components/fill_track.html",

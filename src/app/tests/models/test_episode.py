@@ -118,6 +118,7 @@ class EpisodeStatusTests(TestCase):
         mock_metadata = {
             "season/1": {
                 "episodes": [{"episode_number": 1}, {"episode_number": 2}],
+                "max_progress": 2,
             },
             "related": {
                 "seasons": [{"season_number": 1}],
@@ -143,6 +144,7 @@ class EpisodeStatusTests(TestCase):
         mock_metadata = {
             "season/1": {
                 "episodes": [{"episode_number": 1}],
+                "max_progress": 1,
             },
             "related": {
                 "seasons": [{"season_number": 1}],
@@ -172,6 +174,7 @@ class EpisodeStatusTests(TestCase):
                     {"episode_number": 2},
                     {"episode_number": 3},
                 ],
+                "max_progress": 3,
             },
             "related": {
                 "seasons": [{"season_number": 1}, {"season_number": 2}],
@@ -210,6 +213,7 @@ class EpisodeStatusTests(TestCase):
         mock_metadata = {
             "season/1": {
                 "episodes": [{"episode_number": 1}],
+                "max_progress": 1,
             },
             "related": {
                 "seasons": [{"season_number": 1}],  # Only one season
@@ -232,6 +236,7 @@ class EpisodeStatusTests(TestCase):
         mock_metadata = {
             "season/1": {
                 "episodes": [{"episode_number": 1}],
+                "max_progress": 1,
             },
             "related": {
                 "seasons": [{"season_number": 1}, {"season_number": 2}],  # Two seasons
@@ -247,3 +252,28 @@ class EpisodeStatusTests(TestCase):
 
         self.tv.refresh_from_db()
         self.assertEqual(self.tv.status, Status.PLANNING.value)
+
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_last_season_ongoing_show_does_not_complete_tv(self, mock_get_metadata):
+        """Test last season completion on ongoing show doesn't complete TV."""
+        mock_metadata = {
+            "season/1": {
+                "episodes": [{"episode_number": 1}],
+                "max_progress": 1,
+            },
+            "related": {
+                "seasons": [{"season_number": 1}],
+            },
+            "next_episode_season": 1,
+        }
+        mock_get_metadata.return_value = mock_metadata
+
+        Episode.objects.create(
+            item=self.episode_item,
+            related_season=self.season,
+            end_date=timezone.now(),
+        )
+
+        self.tv.refresh_from_db()
+        # Ongoing show should NOT be marked as completed
+        self.assertNotEqual(self.tv.status, Status.COMPLETED.value)
