@@ -63,6 +63,9 @@ def explore_type(request, media_type):
         "current_category": category,
         "layout": layout,
         "extra_params": extra_params,
+        "is_upcoming": config.is_upcoming_category(
+            media_type, category, year, season_name
+        ),
     }
 
     if category == "seasonal" and media_type == MediaTypes.ANIME.value:

@@ -498,3 +498,110 @@ class ExploreSeasonalViewTests(TestCase):
         response = self.client.get(self.anime_url + "?category=airing")
 
         self.assertNotIn("show_season_picker", response.context)
+
+
+class ExploreUpcomingTests(TestCase):
+    """Test that upcoming categories hide the archive/completion button."""
+
+    def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    def _mock_results(self, media_type, source):
+        return {
+            "page": 1,
+            "total_results": 1,
+            "total_pages": 1,
+            "results": [
+                {
+                    "media_id": "999",
+                    "title": "Upcoming Item",
+                    "media_type": media_type,
+                    "source": source,
+                    "image": "http://example.com/image.jpg",
+                    "synopsis": "",
+                },
+            ],
+        }
+
+    @patch("app.providers.services.browse")
+    def test_upcoming_anime_hides_archive_button(self, mock_browse):
+        """Upcoming anime category should not show the archive/watched button."""
+        mock_browse.return_value = self._mock_results(
+            MediaTypes.ANIME.value, Sources.MAL.value
+        )
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            + "?category=upcoming",
+        )
+        self.assertTrue(response.context["is_upcoming"])
+        self.assertNotContains(response, "quick_archive")
+
+    @patch("app.providers.services.browse")
+    def test_anticipated_games_hides_archive_button(self, mock_browse):
+        """Anticipated games category should not show the archive/played button."""
+        mock_browse.return_value = self._mock_results(
+            MediaTypes.GAME.value, Sources.IGDB.value
+        )
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.GAME.value})
+            + "?category=anticipated",
+        )
+        self.assertTrue(response.context["is_upcoming"])
+        self.assertNotContains(response, "quick_archive")
+
+    @patch("app.providers.services.browse")
+    def test_airing_anime_shows_archive_button(self, mock_browse):
+        """Airing anime category should show the archive/watched button."""
+        mock_browse.return_value = self._mock_results(
+            MediaTypes.ANIME.value, Sources.MAL.value
+        )
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            + "?category=airing",
+        )
+        self.assertFalse(response.context["is_upcoming"])
+        self.assertContains(response, "quick_archive")
+
+    @patch("app.config.get_current_anime_season", return_value=(2026, "winter"))
+    @patch("app.providers.services.browse")
+    def test_seasonal_future_hides_archive_button(self, mock_browse, _mock_season):
+        """A future season should hide the archive button."""
+        mock_browse.return_value = self._mock_results(
+            MediaTypes.ANIME.value, Sources.MAL.value
+        )
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            + "?category=seasonal&year=2027&season=spring",
+        )
+        self.assertTrue(response.context["is_upcoming"])
+        self.assertNotContains(response, "quick_archive")
+
+    @patch("app.config.get_current_anime_season", return_value=(2026, "winter"))
+    @patch("app.providers.services.browse")
+    def test_seasonal_current_shows_archive_button(self, mock_browse, _mock_season):
+        """The current season should show the archive button."""
+        mock_browse.return_value = self._mock_results(
+            MediaTypes.ANIME.value, Sources.MAL.value
+        )
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            + "?category=seasonal&year=2026&season=winter",
+        )
+        self.assertFalse(response.context["is_upcoming"])
+        self.assertContains(response, "quick_archive")
+
+    @patch("app.providers.services.browse")
+    def test_tv_trending_shows_archive_button(self, mock_browse):
+        """Non-anime/game types should always show the archive button."""
+        mock_browse.return_value = self._mock_results(
+            MediaTypes.TV.value, Sources.TMDB.value
+        )
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.TV.value})
+            + "?category=trending",
+        )
+        self.assertFalse(response.context["is_upcoming"])
+        self.assertContains(response, "quick_archive")

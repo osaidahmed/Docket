@@ -322,6 +322,13 @@ MONTH_TO_SEASON = {
     12: "fall",
 }
 
+SEASON_START_MONTH = {
+    "winter": 1,
+    "spring": 4,
+    "summer": 7,
+    "fall": 10,
+}
+
 
 def get_current_anime_season():
     """Return the current (year, season) tuple for seasonal anime."""
@@ -329,6 +336,27 @@ def get_current_anime_season():
 
     now = timezone.now()
     return now.year, MONTH_TO_SEASON[now.month]
+
+
+def is_upcoming_category(media_type, category, year=None, season_name=None):
+    """Return whether the explore category represents upcoming/unreleased media."""
+    if category in ("upcoming", "anticipated"):
+        return True
+    if (
+        category == "seasonal"
+        and media_type == MediaTypes.ANIME.value
+        and year is not None
+        and season_name is not None
+    ):
+        from datetime import date  # noqa: PLC0415
+
+        from django.utils import timezone  # noqa: PLC0415
+
+        start_month = SEASON_START_MONTH.get(season_name)
+        if start_month:
+            season_start = date(int(year), start_month, 1)
+            return timezone.now().date() < season_start
+    return False
 
 
 def get_explore_categories(media_type):

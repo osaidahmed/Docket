@@ -67,15 +67,17 @@
       {% include "app/icons/plus.svg" with classes="w-4 h-4" %}
       Add
     </button>
-    <button hx-post="{% url 'quick_archive' %}"
-            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-            hx-vals='{"media_id": "{{ item.media_id }}", "source": "{{ item.source }}", "media_type": "{{ item.media_type }}"}'
-            hx-swap="outerHTML"
-            hx-target="closest div"
-            class="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-gray-300 rounded-full hover:bg-gray-600 hover:text-white transition-all duration-200 text-sm font-medium cursor-pointer"
-            title="Mark as {{ item.media_type|media_past_verb }}">
-      {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
-      {{ item.media_type|media_past_verb|capfirst }}
-    </button>
+    {% if not is_upcoming %}
+      <button hx-post="{% url 'quick_archive' %}"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              hx-vals='{"media_id": "{{ item.media_id }}", "source": "{{ item.source }}", "media_type": "{{ item.media_type }}"}'
+              hx-swap="outerHTML"
+              hx-target="closest div"
+              class="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-gray-300 rounded-full hover:bg-gray-600 hover:text-white transition-all duration-200 text-sm font-medium cursor-pointer"
+              title="Mark as {{ item.media_type|media_past_verb }}">
+        {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
+        {{ item.media_type|media_past_verb|capfirst }}
+      </button>
+    {% endif %}
   </div>
 {% endif %}
