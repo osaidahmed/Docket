@@ -618,3 +618,30 @@ class ServicesTests(TestCase):
         """Test search_all with no enabled types returns empty list."""
         result = services.search_all("test", [])
         self.assertEqual(result, [])
+
+    @patch("app.providers.services.search")
+    def test_search_all_respects_custom_order(self, mock_search):
+        """Test search_all returns results in the order of enabled_types input."""
+        mock_search.side_effect = lambda mt, _q, _page, source=None: {
+            "results": [
+                {
+                    "media_id": "1",
+                    "title": f"Test {mt}",
+                    "media_type": mt,
+                    "source": source or "test",
+                    "image": "http://example.com/img.jpg",
+                    "synopsis": "",
+                },
+            ],
+        }
+
+        custom_order = [
+            MediaTypes.GAME.value,
+            MediaTypes.ANIME.value,
+            MediaTypes.BOOK.value,
+        ]
+
+        result = services.search_all("test", custom_order)
+
+        result_types = [g["media_type"] for g in result]
+        self.assertEqual(result_types, custom_order)

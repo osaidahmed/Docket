@@ -19,6 +19,12 @@ preserve_blank_lines = true
 ignore = "H006,H021"
 indent = 2
 
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.test_settings"
+pythonpath = ["src"]
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+
 [tool.coverage.run]
+source = ["src"]
 concurrency = ["multiprocessing"]
 omit = ["*/migrations/*", "*/tests/*", "*/__init__.py", "*/admin.py"]

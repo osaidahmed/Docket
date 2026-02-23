@@ -435,10 +435,128 @@ class SearchSuggestServiceTests(TestCase):
         result = services.search_suggest_api("   ", self._all_types_enabled())
         self.assertEqual(result, [])
 
+    @patch("app.providers.igdb.search")
+    def test_game_results_in_suggest(self, mock_igdb):
+        """Game results appear in suggestions when game type is enabled."""
+        mock_igdb.return_value = {
+            "page": 1,
+            "total_results": 1,
+            "total_pages": 1,
+            "results": [
+                {
+                    "media_id": 1000,
+                    "source": Sources.IGDB.value,
+                    "media_type": MediaTypes.GAME.value,
+                    "title": "Elden Ring",
+                    "image": "http://example.com/elden.jpg",
+                    "synopsis": "",
+                },
+            ],
+        }
+
+        results = services.search_suggest_api("Elden", [MediaTypes.GAME.value])
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["media_type"], MediaTypes.GAME.value)
+        self.assertEqual(results[0]["source"], Sources.IGDB.value)
+
+    @patch("app.providers.comicvine.search")
+    def test_comic_results_in_suggest(self, mock_cv):
+        """Comic results appear in suggestions when comic type is enabled."""
+        mock_cv.return_value = {
+            "page": 1,
+            "total_results": 1,
+            "total_pages": 1,
+            "results": [
+                {
+                    "media_id": 2000,
+                    "source": Sources.COMICVINE.value,
+                    "media_type": MediaTypes.COMIC.value,
+                    "title": "Batman",
+                    "image": "http://example.com/batman.jpg",
+                    "synopsis": "",
+                },
+            ],
+        }
+
+        results = services.search_suggest_api("Batman", [MediaTypes.COMIC.value])
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["media_type"], MediaTypes.COMIC.value)
+        self.assertEqual(results[0]["source"], Sources.COMICVINE.value)
+
     @patch("app.providers.mal.search")
     @patch("app.providers.tmdb.search_multi")
-    def test_slow_provider_returns_partial_results(self, mock_tmdb, mock_mal):
-        """A slow provider times out; fast provider results still returned."""
+    def test_results_sorted_by_type_preference(self, mock_tmdb, mock_mal):
+        """Results are sorted by enabled_types order, not by provider speed."""
+        mock_tmdb.return_value = [
+            {
+                "media_id": 100,
+                "source": Sources.TMDB.value,
+                "media_type": "movie",
+                "title": "Movie A",
+                "image": "http://example.com/m.jpg",
+            },
+            {
+                "media_id": 101,
+                "source": Sources.TMDB.value,
+                "media_type": "tv",
+                "title": "TV Show A",
+                "image": "http://example.com/tv.jpg",
+            },
+        ]
+        mock_mal.side_effect = [
+            {
+                "page": 1,
+                "total_results": 1,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "media_id": 20,
+                        "source": Sources.MAL.value,
+                        "media_type": MediaTypes.ANIME.value,
+                        "title": "Anime A",
+                        "image": "http://example.com/a.jpg",
+                        "synopsis": "",
+                    },
+                ],
+            },
+            {
+                "page": 1,
+                "total_results": 1,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "media_id": 30,
+                        "source": Sources.MAL.value,
+                        "media_type": MediaTypes.MANGA.value,
+                        "title": "Manga A",
+                        "image": "http://example.com/mg.jpg",
+                        "synopsis": "",
+                    },
+                ],
+            },
+        ]
+
+        # Anime first in enabled_types — anime results should come first
+        enabled = [
+            MediaTypes.ANIME.value,
+            MediaTypes.MANGA.value,
+            MediaTypes.TV.value,
+            MediaTypes.MOVIE.value,
+        ]
+        results = services.search_suggest_api("Test", enabled)
+
+        result_types = [r["media_type"] for r in results]
+        self.assertEqual(
+            result_types,
+            [MediaTypes.ANIME.value, MediaTypes.MANGA.value, "tv", "movie"],
+        )
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_timeout_bounds_slow_providers(self, mock_tmdb, mock_mal):
+        """Slow providers are abandoned at the timeout boundary."""
 
         def slow_tmdb(_query, _limit=5):
             time.sleep(services.SUGGEST_API_TIMEOUT + 3)

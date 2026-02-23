@@ -65,10 +65,12 @@
 
     {% if groups %}
       {% for group in groups %}
-        {% if current_type_filter == "all" %}
+        {% if current_type_filter == "all" or group.media_type == "not_yet_airing" %}
           <div class="flex items-center gap-2 mt-6 mb-3">
             {% if group.media_type == "rewatch" %}
               {% include "app/icons/repeat.svg" with classes="w-5 h-5 text-gray-400" %}
+            {% elif group.media_type == "not_yet_airing" %}
+              {% include "app/icons/calendar.svg" with classes="w-5 h-5 text-gray-400" %}
             {% else %}
               {% icon group.media_type is_active=False extra_classes="w-5 h-5" %}
             {% endif %}

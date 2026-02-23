@@ -61,6 +61,8 @@ def get_backlog(user, sort_by, media_type_filter=None):
     if media_type_filter is None:
         groups = _extract_rewatches(groups, backlog_statuses, sort_by)
 
+    groups = _extract_not_yet_airing(groups, backlog_statuses)
+
     archive_all.sort(
         key=lambda m: (
             m.end_date is None,
@@ -102,6 +104,48 @@ def _extract_rewatches(groups, backlog_statuses, sort_by):
                     "media_type": "rewatch",
                     "label": "Rewatches",
                     "status_groups": rewatch_status_groups,
+                }
+            )
+
+    return groups
+
+
+def _extract_not_yet_airing(groups, backlog_statuses):
+    """Separate not-yet-airing TV/Anime items into a dedicated group."""
+    nya_items = []
+    for group in groups:
+        if group["media_type"] not in (
+            MediaTypes.TV.value,
+            MediaTypes.ANIME.value,
+        ):
+            continue
+        for sg in group["status_groups"]:
+            nya = [m for m in sg["items"] if getattr(m, "not_yet_airing", False)]
+            sg["items"] = [
+                m for m in sg["items"] if not getattr(m, "not_yet_airing", False)
+            ]
+            nya_items.extend(nya)
+        group["status_groups"] = [sg for sg in group["status_groups"] if sg["items"]]
+    groups = [g for g in groups if g["status_groups"]]
+
+    if nya_items:
+        nya_status_groups = []
+        for status_val in backlog_statuses:
+            items = [m for m in nya_items if m.status == status_val]
+            if items:
+                items.sort(
+                    key=lambda m: (
+                        m.next_event is None,
+                        m.next_event.datetime if m.next_event else None,
+                    )
+                )
+                nya_status_groups.append({"status": status_val, "items": items})
+        if nya_status_groups:
+            groups.append(
+                {
+                    "media_type": "not_yet_airing",
+                    "label": "Not Yet Airing",
+                    "status_groups": nya_status_groups,
                 }
             )
 
@@ -153,6 +197,14 @@ def annotate_next_event(media_list):
         )
 
         media.next_event = future_events[0] if future_events else None
+        non_min_events = [e for e in all_events if not e.is_min_datetime]
+        media.not_yet_airing = bool(all_events) and (
+            (
+                bool(non_min_events)
+                and all(e.datetime > current_time for e in non_min_events)
+            )
+            or (not non_min_events and media.progress == 0)
+        )
         media.is_ongoing = any(e.is_min_datetime for e in all_events) or (
             not all_events
             and media.max_progress is None

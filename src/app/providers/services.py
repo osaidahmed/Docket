@@ -1,6 +1,6 @@
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed, wait
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from defusedxml import ElementTree
@@ -322,32 +322,19 @@ def browse(media_type, category, page, year=None, season=None):
 UNIFIED_SEARCH_MAX_PER_TYPE = 3
 UNIFIED_SEARCH_TIMEOUT = 5  # seconds per future
 
-# Static display order matching user's primary interests
-UNIFIED_SEARCH_ORDER = [
-    MediaTypes.ANIME.value,
-    MediaTypes.MANGA.value,
-    MediaTypes.TV.value,
-    MediaTypes.MOVIE.value,
-    MediaTypes.GAME.value,
-    MediaTypes.BOOK.value,
-    MediaTypes.COMIC.value,
-    MediaTypes.BOARDGAME.value,
-]
-
 
 def search_all(query, enabled_types):
     """Search all enabled media types in parallel.
 
     Returns [{"media_type": str, "results": list}, ...] ordered by
-    UNIFIED_SEARCH_ORDER, empty types omitted.
+    enabled_types, empty types omitted.
     """
     from app import config  # noqa: PLC0415
 
     searchable = [
         mt
-        for mt in UNIFIED_SEARCH_ORDER
-        if mt in enabled_types
-        and mt in config.MEDIA_TYPE_CONFIG
+        for mt in enabled_types
+        if mt in config.MEDIA_TYPE_CONFIG
         and "sample_query" in config.MEDIA_TYPE_CONFIG[mt]
     ]
 
@@ -376,7 +363,7 @@ def search_all(query, enabled_types):
 
     return [
         {"media_type": mt, "results": grouped[mt]}
-        for mt in UNIFIED_SEARCH_ORDER
+        for mt in enabled_types
         if mt in grouped
     ]
 
@@ -389,30 +376,66 @@ def _build_suggest_tasks(query, enabled_types, limit):
     """Build the list of provider tasks for search suggestions."""
     tasks = []
 
+    # TMDB multi covers both TV and Movie in one call
     if MediaTypes.TV.value in enabled_types or MediaTypes.MOVIE.value in enabled_types:
         tasks.append(("tmdb_multi", lambda: tmdb.search_multi(query, limit)))
 
-    if MediaTypes.ANIME.value in enabled_types:
-        tasks.append(
-            (
-                "mal_anime",
-                lambda: mal.search(MediaTypes.ANIME.value, query, 1)["results"][:limit],
-            )
-        )
+    # Map each remaining media type to its default provider search
+    provider_map = {
+        MediaTypes.ANIME.value: (
+            "mal_anime",
+            lambda: mal.search(MediaTypes.ANIME.value, query, 1)["results"][:limit],
+        ),
+        MediaTypes.MANGA.value: (
+            "mal_manga",
+            lambda: mal.search(MediaTypes.MANGA.value, query, 1)["results"][:limit],
+        ),
+        MediaTypes.GAME.value: (
+            "igdb_game",
+            lambda: igdb.search(query, 1)["results"][:limit],
+        ),
+        MediaTypes.BOOK.value: (
+            "hardcover_book",
+            lambda: hardcover.search(query, 1)["results"][:limit],
+        ),
+        MediaTypes.COMIC.value: (
+            "comicvine_comic",
+            lambda: comicvine.search(query, 1)["results"][:limit],
+        ),
+        MediaTypes.BOARDGAME.value: (
+            "bgg_boardgame",
+            lambda: bgg.search(query, 1)["results"][:limit],
+        ),
+    }
 
-    if MediaTypes.MANGA.value in enabled_types:
-        tasks.append(
-            (
-                "mal_manga",
-                lambda: mal.search(MediaTypes.MANGA.value, query, 1)["results"][:limit],
-            )
-        )
+    for mt in enabled_types:
+        if mt in (MediaTypes.TV.value, MediaTypes.MOVIE.value):
+            continue  # handled by tmdb_multi
+        if mt in provider_map:
+            tasks.append(provider_map[mt])
 
     return tasks
 
 
+def _collect_suggest_results(future, name, seen_keys, all_results):
+    """Collect deduplicated results from a single completed suggest future."""
+    try:
+        results = future.result()
+        for item in results:
+            key = (str(item["media_id"]), item["source"])
+            if key not in seen_keys:
+                seen_keys.add(key)
+                all_results.append(item)
+    except Exception:
+        logger.exception("Suggest API failed for %s", name)
+
+
 def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_LIMIT):
-    """Search fast API providers for suggestions, combining results in parallel."""
+    """Search API providers for suggestions, combining results in parallel.
+
+    Uses as_completed so fast providers are processed immediately. Results
+    are sorted by enabled_types preference order before returning.
+    """
     if not query or not query.strip():
         return []
 
@@ -425,28 +448,20 @@ def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_
 
     all_results = []
     seen_keys = set(local_keys)
+    type_order = {mt: i for i, mt in enumerate(enabled_types)}
 
     executor = ThreadPoolExecutor(max_workers=len(tasks))
     try:
         futures = {executor.submit(fn): name for name, fn in tasks}
-        done, not_done = wait(futures, timeout=SUGGEST_API_TIMEOUT)
 
-        for future in done:
-            name = futures[future]
-            try:
-                results = future.result()
-                for item in results:
-                    key = (str(item["media_id"]), item["source"])
-                    if key not in seen_keys:
-                        seen_keys.add(key)
-                        all_results.append(item)
-            except Exception:
-                logger.exception("Suggest API failed for %s", name)
-
-        for future in not_done:
-            future.cancel()
-            logger.warning("Suggest API timed out for %s", futures[future])
+        for future in as_completed(futures, timeout=SUGGEST_API_TIMEOUT):
+            _collect_suggest_results(future, futures[future], seen_keys, all_results)
+    except TimeoutError:
+        pass
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
 
+    all_results.sort(
+        key=lambda item: type_order.get(item["media_type"], len(type_order))
+    )
     return all_results[:limit]

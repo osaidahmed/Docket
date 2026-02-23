@@ -2113,6 +2113,263 @@ class RewatchSectionTests(TestCase):
         self.assertIn("Back To Type Movie", type_titles)
 
 
+class NotYetAiringTests(TestCase):
+    """Test the 'Not Yet Airing' backlog section."""
+
+    def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    def _create_anime_with_future_events(self, media_id, title, days_ahead=30):
+        item = Item.objects.create(
+            media_id=media_id,
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title=title,
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=1,
+            datetime=timezone.now() + timedelta(days=days_ahead),
+        )
+        return item
+
+    def test_not_yet_airing_in_dedicated_section_all_mode(self):
+        """Not-yet-airing anime appears in a dedicated group, not in type groups."""
+        item = self._create_anime_with_future_events("6000", "Future Anime")
+        Anime.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+
+        type_titles = []
+        nya_titles = []
+        for group in groups:
+            for sg in group["status_groups"]:
+                for m in sg["items"]:
+                    if group["media_type"] == "not_yet_airing":
+                        nya_titles.append(m.item.title)
+                    else:
+                        type_titles.append(m.item.title)
+
+        self.assertIn("Future Anime", nya_titles)
+        self.assertNotIn("Future Anime", type_titles)
+
+    def test_not_yet_airing_separated_in_type_filter(self):
+        """Not-yet-airing items get their own group even when filtering by type."""
+        item = self._create_anime_with_future_events("6001", "Filtered Future Anime")
+        Anime.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
+
+        response = self.client.get(reverse("home") + "?type=anime")
+        groups = response.context["groups"]
+
+        media_types = {g["media_type"] for g in groups}
+        self.assertIn("not_yet_airing", media_types)
+
+    def test_not_yet_airing_only_tv_anime(self):
+        """Movies with future events are NOT extracted to Not Yet Airing."""
+        item = Item.objects.create(
+            media_id="6002",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Future Movie",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=None,
+            datetime=timezone.now() + timedelta(days=30),
+        )
+        Movie.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+
+        media_types = {g["media_type"] for g in groups}
+        self.assertNotIn("not_yet_airing", media_types)
+
+        titles = _flatten_group_titles(groups)
+        self.assertIn("Future Movie", titles)
+
+    def test_not_yet_airing_mixed_events_stays_in_group(self):
+        """Anime with past AND future events stays in regular group."""
+        item = Item.objects.create(
+            media_id="6003",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Airing Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=1,
+            datetime=timezone.now() - timedelta(days=7),
+        )
+        Event.objects.create(
+            item=item,
+            content_number=2,
+            datetime=timezone.now() + timedelta(days=7),
+        )
+        Anime.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+
+        media_types = {g["media_type"] for g in groups}
+        self.assertNotIn("not_yet_airing", media_types)
+
+        titles = _flatten_group_titles(groups)
+        self.assertIn("Airing Anime", titles)
+
+    def test_not_yet_airing_sorted_by_release_date(self):
+        """Items in Not Yet Airing are sorted by earliest release date."""
+        item_far = self._create_anime_with_future_events(
+            "6004", "Far Future Anime", days_ahead=90
+        )
+        Anime.objects.create(
+            item=item_far, user=self.user, status=Status.PLANNING.value
+        )
+
+        item_near = self._create_anime_with_future_events(
+            "6005", "Near Future Anime", days_ahead=10
+        )
+        Anime.objects.create(
+            item=item_near, user=self.user, status=Status.PLANNING.value
+        )
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+
+        nya_group = [g for g in groups if g["media_type"] == "not_yet_airing"]
+        self.assertEqual(len(nya_group), 1)
+
+        titles = []
+        for sg in nya_group[0]["status_groups"]:
+            titles.extend(m.item.title for m in sg["items"])
+
+        self.assertEqual(titles, ["Near Future Anime", "Far Future Anime"])
+
+    def test_no_not_yet_airing_section_when_empty(self):
+        """No Not Yet Airing group when no items meet criteria."""
+        item = Item.objects.create(
+            media_id="6006",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Normal Anime",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+        media_types = {g["media_type"] for g in groups}
+        self.assertNotIn("not_yet_airing", media_types)
+        self.assertNotContains(response, "Not Yet Airing")
+
+    def test_not_yet_airing_unknown_date_min_datetime(self):
+        """Anime with only datetime.min events and zero progress is not-yet-airing."""
+        item = Item.objects.create(
+            media_id="6007",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Upcoming Unknown Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=None,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+        Anime.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value, progress=0
+        )
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+
+        nya_titles = []
+        type_titles = []
+        for group in groups:
+            for sg in group["status_groups"]:
+                for m in sg["items"]:
+                    if group["media_type"] == "not_yet_airing":
+                        nya_titles.append(m.item.title)
+                    else:
+                        type_titles.append(m.item.title)
+
+        self.assertIn("Upcoming Unknown Anime", nya_titles)
+        self.assertNotIn("Upcoming Unknown Anime", type_titles)
+
+    def test_not_yet_airing_future_plus_min_datetime(self):
+        """Anime with future real dates + datetime.min events is not-yet-airing."""
+        item = Item.objects.create(
+            media_id="6009",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Partial Schedule Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=1,
+            datetime=timezone.now() + timedelta(days=30),
+        )
+        Event.objects.create(
+            item=item,
+            content_number=12,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+        Anime.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value, progress=0
+        )
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+
+        nya_titles = []
+        type_titles = []
+        for group in groups:
+            for sg in group["status_groups"]:
+                for m in sg["items"]:
+                    if group["media_type"] == "not_yet_airing":
+                        nya_titles.append(m.item.title)
+                    else:
+                        type_titles.append(m.item.title)
+
+        self.assertIn("Partial Schedule Anime", nya_titles)
+        self.assertNotIn("Partial Schedule Anime", type_titles)
+
+    def test_min_datetime_with_progress_stays_in_group(self):
+        """Anime with datetime.min events but progress > 0 stays in regular group."""
+        item = Item.objects.create(
+            media_id="6008",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Started Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=None,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+        Anime.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value, progress=3
+        )
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+
+        media_types = {g["media_type"] for g in groups}
+        self.assertNotIn("not_yet_airing", media_types)
+
+        titles = _flatten_group_titles(groups)
+        self.assertIn("Started Anime", titles)
+
+
 class HomeViewConsistencyTests(TestCase):
     """Test that HTMX partial responses match full page reloads."""
 
