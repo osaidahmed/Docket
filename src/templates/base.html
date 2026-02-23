@@ -92,12 +92,17 @@
                 </a>
               </li>
 
+              {% url 'explore' as explore_url %}
               {% get_sidebar_media_types user as sidebar_media_types %}
               {% for item in sidebar_media_types %}
                 <li>
                   <a href="{% url 'medialist' media_type=item.media_type %}"
-                     class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if media_type == item.media_type %}text-white bg-[#2c3136]{% else %}text-gray-400 hover:text-white hover:bg-[#23272b]{% endif %}">
-                    {% icon item.media_type is_active=media_type|str_equals:item.media_type %}
+                     class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if media_type == item.media_type and not request.path|startswith:explore_url %}text-white bg-[#2c3136]{% else %}text-gray-400 hover:text-white hover:bg-[#23272b]{% endif %}">
+                    {% if request.path|startswith:explore_url %}
+                      {% icon item.media_type is_active=False %}
+                    {% else %}
+                      {% icon item.media_type is_active=media_type|str_equals:item.media_type %}
+                    {% endif %}
                     <span>{{ item.display_name }}</span>
                   </a>
                 </li>
@@ -121,7 +126,6 @@
                   </a>
                 </li>
 
-                {% url 'explore' as explore_url %}
                 <li>
                   <a href="{{ explore_url }}"
                      class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if request.path|startswith:explore_url %}text-white bg-[#2c3136]{% else %}text-gray-400 hover:text-white hover:bg-[#23272b]{% endif %}">

@@ -1,3 +1,4 @@
+import re
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -319,6 +320,32 @@ class ExploreTypeViewTests(TestCase):
             reverse("explore_type", kwargs={"media_type": MediaTypes.TV.value}),
         )
         self.assertEqual(response.status_code, 405)
+
+    @patch("app.providers.services.browse")
+    def test_explore_type_sidebar_only_highlights_explore(self, mock_browse):
+        """Regression: explore_type should highlight only the Explore sidebar item."""
+        mock_browse.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.TV.value}),
+        )
+
+        content = response.content.decode()
+        medialist_url = reverse("medialist", kwargs={"media_type": MediaTypes.TV.value})
+        explore_url = reverse("explore")
+
+        # Find all highlighted sidebar links (anchor tags with bg-[#2c3136])
+        highlighted_links = re.findall(
+            r'<a\s+href="([^"]+)"[^>]*bg-\[#2c3136\][^>]*>', content
+        )
+
+        self.assertNotIn(medialist_url, highlighted_links)
+        self.assertIn(explore_url, highlighted_links)
 
 
 class ExploreSeasonalViewTests(TestCase):
