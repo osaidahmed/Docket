@@ -115,6 +115,31 @@ class HomeViewTests(TestCase):
         self.assertIn("Test Anime", titles)
         self.assertIn("Planning Movie", titles)
 
+    def test_xdata_attributes_no_newlines_in_js_strings(self):
+        """Rendered x-data attributes must not contain newlines inside JS strings."""
+        import re
+
+        response = self.client.get(reverse("home"))
+        html = response.content.decode()
+
+        xdata_pattern = re.compile(r'x-data="([^"]*)"', re.DOTALL)
+        for match in xdata_pattern.finditer(html):
+            expr = match.group(1)
+            in_string = False
+            quote_char = None
+            for char in expr:
+                if in_string:
+                    if char == quote_char:
+                        in_string = False
+                    elif char == "\n":
+                        self.fail(
+                            f"Newline inside JS string literal in x-data: "
+                            f"...{expr[max(0, expr.index(quote_char)-20):expr.index(quote_char)+40]}..."
+                        )
+                elif char in ("'", '"'):
+                    in_string = True
+                    quote_char = char
+
     def test_home_view_with_sort(self):
         """Test the home view with sorting parameter."""
         response = self.client.get(reverse("home") + "?sort=completion")

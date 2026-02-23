@@ -138,7 +138,6 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "debug_toolbar.middleware.DebugToolbarMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -152,14 +151,25 @@ MIDDLEWARE = [
     "app.middleware.ProviderAPIErrorMiddleware",
 ]
 
+if DEBUG:
+    MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [BASE_DIR / "templates"],
-        "APP_DIRS": True,
         "OPTIONS": {
+            "loaders": [
+                (
+                    "django.template.loaders.cached.Loader",
+                    [
+                        "django.template.loaders.filesystem.Loader",
+                        "django.template.loaders.app_directories.Loader",
+                    ],
+                ),
+            ],
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
@@ -168,7 +178,6 @@ TEMPLATES = [
                 "django.template.context_processors.media",
                 "app.context_processors.export_vars",
                 "app.context_processors.media_enums",
-                "django.template.context_processors.request",
             ],
         },
     },
@@ -235,6 +244,8 @@ CACHES = {
         },
     },
 }
+
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 
 # not using Memcached, ignore CacheKeyWarning
 # https://docs.djangoproject.com/en/stable/topics/cache/#cache-key-warnings
@@ -510,7 +521,7 @@ if REDIS_PREFIX:
 
 CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 CELERY_WORKER_CONCURRENCY = 1
-CELERY_WORKER_MAX_TASKS_PER_CHILD = 1
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
 CELERY_BEAT_SYNC_EVERY = 1
 
 CELERY_TASK_TRACK_STARTED = True

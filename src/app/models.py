@@ -238,7 +238,9 @@ class MediaManager(models.Manager):
         model = apps.get_model(app_label="app", model_name=media_type)
         queryset = model.objects.filter(user=user.id)
 
-        if status_filter != users.models.MediaStatusChoices.ALL:
+        if isinstance(status_filter, list):
+            queryset = queryset.filter(status__in=status_filter)
+        elif status_filter != users.models.MediaStatusChoices.ALL:
             queryset = queryset.filter(status=status_filter)
 
         if search:
@@ -473,11 +475,13 @@ class MediaManager(models.Manager):
         groups = []
         archive_all = []
 
+        wanted_statuses = [*backlog_statuses, Status.COMPLETED.value]
+
         for media_type in media_types:
             media_list = self.get_media_list(
                 user=user,
                 media_type=media_type,
-                status_filter=users.models.MediaStatusChoices.ALL,
+                status_filter=wanted_statuses,
                 sort_filter=None,
             )
             backlog_items = [m for m in media_list if m.status in backlog_statuses]

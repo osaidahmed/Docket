@@ -196,6 +196,35 @@ class MediaManagerTests(TestCase):
 
         self.assertEqual(len(media_list), 1)
 
+    def test_get_media_list_with_list_status_filter(self):
+        """Test get_media_list accepts a list of statuses."""
+        manager = MediaManager()
+
+        # Book is PLANNING, should not appear in IN_PROGRESS + COMPLETED
+        planning_item = Item.objects.create(
+            media_id="999",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Planning Anime",
+            image="http://example.com/planning.jpg",
+        )
+        Anime.objects.create(
+            item=planning_item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        media_list = manager.get_media_list(
+            user=self.user,
+            media_type=MediaTypes.ANIME.value,
+            status_filter=[Status.IN_PROGRESS.value, Status.COMPLETED.value],
+            sort_filter=None,
+        )
+
+        statuses = {m.status for m in media_list}
+        self.assertIn(Status.IN_PROGRESS.value, statuses)
+        self.assertNotIn(Status.PLANNING.value, statuses)
+
     def test_get_media_list_with_search(self):
         """Test the get_media_list method with search parameter."""
         manager = MediaManager()
