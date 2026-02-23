@@ -75,6 +75,12 @@ MEDIA_TYPE_CONFIG = {
         "svg_icon": """
             <rect width="20" height="15" x="2" y="7" rx="2" ry="2"/>
             <polyline points="17 2 12 7 7 2"/>""",
+        "explore_categories": [
+            {"slug": "trending", "label": "Trending"},
+            {"slug": "popular", "label": "Popular"},
+            {"slug": "top_rated", "label": "Top Rated"},
+            {"slug": "on_the_air", "label": "Airing Now"},
+        ],
     },
     MediaTypes.SEASON.value: {
         "sources": [Sources.TMDB],
@@ -117,6 +123,12 @@ MEDIA_TYPE_CONFIG = {
             <path d="M17 7.5h4"/>
             <path d="M17 16.5h4"/>""",
         "date_key": "release_date",
+        "explore_categories": [
+            {"slug": "trending", "label": "Trending"},
+            {"slug": "popular", "label": "Popular"},
+            {"slug": "top_rated", "label": "Top Rated"},
+            {"slug": "now_playing", "label": "Now Playing"},
+        ],
     },
     MediaTypes.ANIME.value: {
         "sources": [Sources.MAL],
@@ -131,6 +143,14 @@ MEDIA_TYPE_CONFIG = {
             <polygon points="10 8 16 12 10 16 10 8"/>""",
         "unit": ("E", "Episode"),
         "date_key": "end_date",
+        "plural_label": "Anime",
+        "explore_categories": [
+            {"slug": "all", "label": "Top Rated"},
+            {"slug": "airing", "label": "Currently Airing"},
+            {"slug": "upcoming", "label": "Upcoming"},
+            {"slug": "bypopularity", "label": "Most Popular"},
+            {"slug": "seasonal", "label": "Seasonal"},
+        ],
     },
     MediaTypes.MANGA.value: {
         "sources": [Sources.MAL, Sources.MANGAUPDATES],
@@ -149,6 +169,13 @@ MEDIA_TYPE_CONFIG = {
             <path d="M16 17H8"/>""",
         "date_key": "end_date",
         "unit": ("#", "Chapter"),
+        "plural_label": "Manga",
+        "explore_categories": [
+            {"slug": "all", "label": "Top Rated"},
+            {"slug": "bypopularity", "label": "Most Popular"},
+            {"slug": "manga", "label": "Top Manga"},
+            {"slug": "novels", "label": "Top Novels"},
+        ],
     },
     MediaTypes.GAME.value: {
         "sources": [Sources.IGDB],
@@ -171,6 +198,14 @@ MEDIA_TYPE_CONFIG = {
             3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4
             4 0 0 0 17.32 5z"/>""",
         "date_key": "release_date",
+        "supports_repeat": False,
+        "supports_caught_up": False,
+        "explore_categories": [
+            {"slug": "popular", "label": "Popular"},
+            {"slug": "top_rated", "label": "Top Rated"},
+            {"slug": "recent", "label": "Recently Released"},
+            {"slug": "anticipated", "label": "Most Anticipated"},
+        ],
     },
     MediaTypes.BOOK.value: {
         "sources": [Sources.HARDCOVER, Sources.OPENLIBRARY],
@@ -217,6 +252,8 @@ MEDIA_TYPE_CONFIG = {
             <path d="M8 16v-2"/>""",
         "unit": ("#", "Play"),
         "date_key": "year",
+        "supports_repeat": False,
+        "supports_caught_up": False,
     },
 }
 
@@ -247,41 +284,6 @@ STATUS_CONFIG = {
         "stats_color": COLORS["red"]["hex"],
         "background_color": COLORS["red"]["background"],
     },
-}
-
-
-EXPLORE_CATEGORIES = {
-    MediaTypes.TV.value: [
-        {"slug": "trending", "label": "Trending"},
-        {"slug": "popular", "label": "Popular"},
-        {"slug": "top_rated", "label": "Top Rated"},
-        {"slug": "on_the_air", "label": "Airing Now"},
-    ],
-    MediaTypes.MOVIE.value: [
-        {"slug": "trending", "label": "Trending"},
-        {"slug": "popular", "label": "Popular"},
-        {"slug": "top_rated", "label": "Top Rated"},
-        {"slug": "now_playing", "label": "Now Playing"},
-    ],
-    MediaTypes.ANIME.value: [
-        {"slug": "all", "label": "Top Rated"},
-        {"slug": "airing", "label": "Currently Airing"},
-        {"slug": "upcoming", "label": "Upcoming"},
-        {"slug": "bypopularity", "label": "Most Popular"},
-        {"slug": "seasonal", "label": "Seasonal"},
-    ],
-    MediaTypes.MANGA.value: [
-        {"slug": "all", "label": "Top Rated"},
-        {"slug": "bypopularity", "label": "Most Popular"},
-        {"slug": "manga", "label": "Top Manga"},
-        {"slug": "novels", "label": "Top Novels"},
-    ],
-    MediaTypes.GAME.value: [
-        {"slug": "popular", "label": "Popular"},
-        {"slug": "top_rated", "label": "Top Rated"},
-        {"slug": "recent", "label": "Recently Released"},
-        {"slug": "anticipated", "label": "Most Anticipated"},
-    ],
 }
 
 
@@ -319,12 +321,13 @@ def get_current_anime_season():
 
 def get_explore_categories(media_type):
     """Return the browse categories for a media type, or None if not explorable."""
-    return EXPLORE_CATEGORIES.get(media_type)
+    cfg = get_config(media_type)
+    return cfg.get("explore_categories") if cfg else None
 
 
 def get_explorable_types():
     """Return media type values that support explore/browse."""
-    return list(EXPLORE_CATEGORIES.keys())
+    return [mt for mt, cfg in MEDIA_TYPE_CONFIG.items() if "explore_categories" in cfg]
 
 
 def get_searchable_types():
@@ -409,6 +412,24 @@ def get_unit(media_type, short):
     """Get the unit of measurement (e.g., episode, chapter)."""
     unit = get_property(media_type, "unit")
     return unit[0] if short else unit[1] if unit else None
+
+
+def get_plural_label(media_type):
+    """Get the plural label, falling back to singular + 's'."""
+    cfg = get_config(media_type)
+    return cfg.get("plural_label", f"{MediaTypes(media_type).label}s")
+
+
+def supports_repeat(media_type):
+    """Return whether the media type supports repeat/rewatch tracking."""
+    cfg = get_config(media_type)
+    return cfg.get("supports_repeat", True)
+
+
+def supports_caught_up(media_type):
+    """Return whether the media type supports caught-up tracking."""
+    cfg = get_config(media_type)
+    return cfg.get("supports_caught_up", True)
 
 
 def get_status_config(status):

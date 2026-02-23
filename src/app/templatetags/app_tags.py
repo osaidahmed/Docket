@@ -134,13 +134,7 @@ def media_type_readable(media_type):
 @register.filter
 def media_type_readable_plural(media_type):
     """Return the readable media type in plural form."""
-    singular = MediaTypes(media_type).label
-
-    # Special cases that don't change in plural form
-    if singular.lower() in [MediaTypes.ANIME.value, MediaTypes.MANGA.value]:
-        return singular
-
-    return f"{singular}s"
+    return config.get_plural_label(media_type)
 
 
 @register.filter
@@ -164,8 +158,7 @@ def media_past_verb(media_type):
 @register.filter
 def has_caught_up(media_type):
     """Return True if the media type supports the caught-up concept."""
-    verb = config.get_verb(media_type, past_tense=False)
-    return verb in ("watch", "read")
+    return config.supports_caught_up(media_type)
 
 
 @register.filter
@@ -251,8 +244,7 @@ def repeat_label(media_type):
 @register.filter
 def has_repeat(media_type):
     """Return whether a media type supports repeat tracking."""
-    verb = config.get_verb(media_type, past_tense=False)
-    return verb != "play"
+    return config.supports_repeat(media_type)
 
 
 @register.filter

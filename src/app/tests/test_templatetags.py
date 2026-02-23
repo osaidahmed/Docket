@@ -4,6 +4,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from app import config
 from app.models import Item, MediaTypes, Sources
 from app.templatetags import app_tags
 
@@ -390,3 +391,56 @@ class AppTagsTests(TestCase):
         self.assertTrue(app_tags.show_media_score(1, mock_user_hide))
         self.assertFalse(app_tags.show_media_score(0, mock_user_hide))
         self.assertFalse(app_tags.show_media_score(None, mock_user_hide))
+
+
+class ConfigTests(TestCase):
+    """Test config getter functions."""
+
+    def test_get_plural_label(self):
+        """Test plural labels for all media types."""
+        self.assertEqual(config.get_plural_label("anime"), "Anime")
+        self.assertEqual(config.get_plural_label("manga"), "Manga")
+        self.assertEqual(config.get_plural_label("tv"), "TV Shows")
+        self.assertEqual(config.get_plural_label("movie"), "Movies")
+        self.assertEqual(config.get_plural_label("game"), "Games")
+        self.assertEqual(config.get_plural_label("book"), "Books")
+
+    def test_supports_repeat(self):
+        """Test repeat support flags."""
+        self.assertFalse(config.supports_repeat("game"))
+        self.assertFalse(config.supports_repeat("boardgame"))
+        self.assertTrue(config.supports_repeat("tv"))
+        self.assertTrue(config.supports_repeat("anime"))
+        self.assertTrue(config.supports_repeat("manga"))
+        self.assertTrue(config.supports_repeat("movie"))
+        self.assertTrue(config.supports_repeat("book"))
+        self.assertTrue(config.supports_repeat("comic"))
+
+    def test_supports_caught_up(self):
+        """Test caught-up support flags."""
+        self.assertFalse(config.supports_caught_up("game"))
+        self.assertFalse(config.supports_caught_up("boardgame"))
+        self.assertTrue(config.supports_caught_up("tv"))
+        self.assertTrue(config.supports_caught_up("anime"))
+        self.assertTrue(config.supports_caught_up("manga"))
+        self.assertTrue(config.supports_caught_up("movie"))
+        self.assertTrue(config.supports_caught_up("book"))
+        self.assertTrue(config.supports_caught_up("comic"))
+
+    def test_get_explore_categories(self):
+        """Test explore categories are returned from MEDIA_TYPE_CONFIG."""
+        for mt in ["tv", "movie", "anime", "manga", "game"]:
+            categories = config.get_explore_categories(mt)
+            self.assertIsNotNone(categories, f"{mt} should have explore categories")
+            self.assertGreater(len(categories), 0)
+
+        for mt in ["season", "episode", "book", "comic", "boardgame"]:
+            self.assertIsNone(config.get_explore_categories(mt))
+
+    def test_get_explorable_types(self):
+        """Test explorable types list."""
+        explorable = config.get_explorable_types()
+        self.assertEqual(
+            sorted(explorable),
+            sorted(["tv", "movie", "anime", "manga", "game"]),
+        )
