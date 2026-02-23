@@ -1,0 +1,219 @@
+from django.apps import apps
+from django.db.models import F, Window
+from django.db.models.functions import RowNumber
+from django.utils import timezone
+
+import users
+from app.models import BasicMedia, MediaTypes, Status
+
+
+def get_backlog(user, sort_by, media_type_filter=None):
+    """Get grouped backlog items and archive."""
+    backlog_statuses = [
+        Status.IN_PROGRESS.value,
+        Status.PLANNING.value,
+        Status.PAUSED.value,
+    ]
+
+    media_types = _get_media_types_to_process(user, media_type_filter)
+
+    groups = []
+    archive_all = []
+
+    wanted_statuses = [*backlog_statuses, Status.COMPLETED.value]
+
+    for media_type in media_types:
+        media_list = BasicMedia.objects.get_media_list(
+            user=user,
+            media_type=media_type,
+            status_filter=wanted_statuses,
+            sort_filter=None,
+        )
+        backlog_items = [m for m in media_list if m.status in backlog_statuses]
+        completed_items = [m for m in media_list if m.status == Status.COMPLETED.value]
+
+        if backlog_items:
+            BasicMedia.objects.annotate_max_progress(backlog_items, media_type)
+            annotate_next_event(backlog_items)
+
+            status_groups = []
+            for status_val in backlog_statuses:
+                items = [m for m in backlog_items if m.status == status_val]
+                if items:
+                    status_groups.append(
+                        {
+                            "status": status_val,
+                            "items": _sort_in_progress_media(items, sort_by),
+                        }
+                    )
+
+            if status_groups:
+                groups.append(
+                    {
+                        "media_type": media_type,
+                        "label": MediaTypes(media_type).label,
+                        "status_groups": status_groups,
+                    }
+                )
+
+        archive_all.extend(completed_items)
+
+    if media_type_filter is None:
+        groups = _extract_rewatches(groups, backlog_statuses, sort_by)
+
+    archive_all.sort(
+        key=lambda m: (
+            m.end_date is None,
+            -(m.end_date.timestamp() if m.end_date else 0),
+        ),
+    )
+    return {
+        "groups": groups,
+        "archive": archive_all[:20],
+        "archive_count": len(archive_all),
+    }
+
+
+def _extract_rewatches(groups, backlog_statuses, sort_by):
+    """Separate is_rewatch items into a dedicated Rewatches group."""
+    rewatch_items = []
+    for group in groups:
+        for sg in group["status_groups"]:
+            rewatches = [m for m in sg["items"] if m.is_rewatch]
+            sg["items"] = [m for m in sg["items"] if not m.is_rewatch]
+            rewatch_items.extend(rewatches)
+        group["status_groups"] = [sg for sg in group["status_groups"] if sg["items"]]
+    groups = [g for g in groups if g["status_groups"]]
+
+    if rewatch_items:
+        rewatch_status_groups = []
+        for status_val in backlog_statuses:
+            items = [m for m in rewatch_items if m.status == status_val]
+            if items:
+                rewatch_status_groups.append(
+                    {
+                        "status": status_val,
+                        "items": _sort_in_progress_media(items, sort_by),
+                    }
+                )
+        if rewatch_status_groups:
+            groups.append(
+                {
+                    "media_type": "rewatch",
+                    "label": "Rewatches",
+                    "status_groups": rewatch_status_groups,
+                }
+            )
+
+    return groups
+
+
+def count_archive(user):
+    """Count archive items using the same dedup as get_backlog."""
+    count = 0
+    for media_type in user.get_active_media_types():
+        model = apps.get_model(app_label="app", model_name=media_type)
+        statuses = (
+            model.objects.filter(user=user)
+            .annotate(
+                row_number=Window(
+                    expression=RowNumber(),
+                    partition_by=[F("item")],
+                    order_by=F("created_at").desc(),
+                )
+            )
+            .filter(row_number=1)
+            .values_list("status", flat=True)
+        )
+        count += sum(1 for s in statuses if s == Status.COMPLETED.value)
+    return count
+
+
+def _get_media_types_to_process(user, specific_media_type):
+    """Determine which media types to process based on user settings."""
+    if specific_media_type == MediaTypes.TV.value:
+        return [MediaTypes.TV.value, MediaTypes.SEASON.value]
+
+    if specific_media_type:
+        return [specific_media_type]
+
+    return user.get_active_media_types()
+
+
+def annotate_next_event(media_list):
+    """Annotate next_event and is_ongoing for media items."""
+    current_time = timezone.now()
+
+    for media in media_list:
+        all_events = getattr(media.item, "prefetched_events", [])
+
+        future_events = sorted(
+            [e for e in all_events if e.datetime > current_time],
+            key=lambda e: e.datetime,
+        )
+
+        media.next_event = future_events[0] if future_events else None
+        media.is_ongoing = any(e.is_min_datetime for e in all_events) or (
+            not all_events
+            and media.max_progress is None
+            and media.item.media_type
+            in (MediaTypes.MANGA.value, MediaTypes.ANIME.value)
+        )
+
+        if (
+            media.next_event
+            and media.next_event.content_number is not None
+            and media.progress is not None
+        ):
+            media.is_caught_up = media.caught_up or (
+                media.progress >= media.next_event.content_number - 1
+            )
+        elif (
+            media.is_ongoing
+            and media.max_progress is not None
+            and media.progress is not None
+        ):
+            media.is_caught_up = media.caught_up or media.progress >= media.max_progress
+        else:
+            media.is_caught_up = media.caught_up
+
+
+def _sort_in_progress_media(media_list, sort_by):
+    """Sort in-progress media based on the sort criteria."""
+    primary_sort_functions = {
+        users.models.HomeSortChoices.UPCOMING: lambda x: (
+            x.next_event is None,
+            x.next_event.datetime if x.next_event else None,
+        ),
+        users.models.HomeSortChoices.RECENT: lambda x: (
+            -timezone.datetime.timestamp(
+                x.progressed_at if x.progressed_at is not None else x.created_at,
+            )
+        ),
+        users.models.HomeSortChoices.COMPLETION: lambda x: (
+            x.max_progress is None,
+            -(
+                x.progress / x.max_progress * 100
+                if x.max_progress and x.max_progress > 0
+                else 0
+            ),
+        ),
+        users.models.HomeSortChoices.EPISODES_LEFT: lambda x: (
+            x.max_progress is None,
+            (x.max_progress - x.progress if x.max_progress else 0),
+        ),
+        users.models.HomeSortChoices.TITLE: lambda x: x.item.title.lower(),
+    }
+
+    primary_sort_function = primary_sort_functions[sort_by]
+
+    return sorted(
+        media_list,
+        key=lambda x: (
+            primary_sort_function(x),
+            -timezone.datetime.timestamp(
+                x.progressed_at if x.progressed_at is not None else x.created_at,
+            ),
+            x.item.title.lower(),
+        ),
+    )

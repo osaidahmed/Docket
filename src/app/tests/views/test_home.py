@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
@@ -117,8 +118,6 @@ class HomeViewTests(TestCase):
 
     def test_xdata_attributes_no_newlines_in_js_strings(self):
         """Rendered x-data attributes must not contain newlines inside JS strings."""
-        import re
-
         response = self.client.get(reverse("home"))
         html = response.content.decode()
 
@@ -132,9 +131,11 @@ class HomeViewTests(TestCase):
                     if char == quote_char:
                         in_string = False
                     elif char == "\n":
+                        start = max(0, expr.index(quote_char) - 20)
+                        end = expr.index(quote_char) + 40
                         self.fail(
-                            f"Newline inside JS string literal in x-data: "
-                            f"...{expr[max(0, expr.index(quote_char)-20):expr.index(quote_char)+40]}..."
+                            "Newline inside JS string in x-data: "
+                            f"...{expr[start:end]}..."
                         )
                 elif char in ("'", '"'):
                     in_string = True
@@ -1110,6 +1111,167 @@ class HomeViewTests(TestCase):
         self.assertContains(response, "confirmDrop")
         self.assertContains(response, "Drop this?")
 
+    def test_quick_start_planning_to_in_progress(self):
+        """Test that quick_status_transition moves Planning to In Progress."""
+        item = Item.objects.create(
+            media_id="501",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Movie To Start",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_status_transition"),
+            {
+                "media_type": "movie",
+                "instance_id": movie.id,
+                "target_status": "In progress",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["HX-Refresh"], "true")
+        movie.refresh_from_db()
+        self.assertEqual(movie.status, Status.IN_PROGRESS.value)
+        self.assertIsNotNone(movie.start_date)
+
+    def test_quick_plan_paused_to_planning(self):
+        """Test that quick_status_transition moves Paused to Planning."""
+        item = Item.objects.create(
+            media_id="502",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Movie To Plan",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.PAUSED.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_status_transition"),
+            {
+                "media_type": "movie",
+                "instance_id": movie.id,
+                "target_status": "Planning",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["HX-Refresh"], "true")
+        movie.refresh_from_db()
+        self.assertEqual(movie.status, Status.PLANNING.value)
+
+    def test_quick_status_transition_invalid_source_status(self):
+        """Test that In Progress items cannot use quick_status_transition."""
+        item = Item.objects.create(
+            media_id="503",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="In Progress Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_status_transition"),
+            {
+                "media_type": "movie",
+                "instance_id": movie.id,
+                "target_status": "Planning",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        movie.refresh_from_db()
+        self.assertEqual(movie.status, Status.IN_PROGRESS.value)
+
+    def test_quick_status_transition_wrong_target(self):
+        """Test that Planning cannot transition to Completed."""
+        item = Item.objects.create(
+            media_id="504",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Planning Movie Wrong Target",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_status_transition"),
+            {
+                "media_type": "movie",
+                "instance_id": movie.id,
+                "target_status": "Completed",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        movie.refresh_from_db()
+        self.assertEqual(movie.status, Status.PLANNING.value)
+
+    def test_start_button_on_planning_card(self):
+        """Test that Planning cards show the Start button."""
+        Item.objects.create(
+            media_id="505",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Planning Card Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=Item.objects.get(media_id="505"),
+            user=self.user,
+            status=Status.PLANNING.value,
+        )
+
+        response = self.client.get(reverse("home"))
+        content = response.content.decode()
+        self.assertIn("Start", content)
+        self.assertIn("quick_status_transition", content)
+
+    def test_plan_button_on_paused_card(self):
+        """Test that Paused cards show the Plan button."""
+        Item.objects.create(
+            media_id="506",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Paused Card Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=Item.objects.get(media_id="506"),
+            user=self.user,
+            status=Status.PAUSED.value,
+        )
+
+        response = self.client.get(reverse("home"))
+        content = response.content.decode()
+        self.assertIn("Plan", content)
+        self.assertIn("quick_status_transition", content)
+
+    def test_no_transition_button_on_in_progress_card(self):
+        """Test that In Progress cards don't show Start or Plan buttons."""
+        response = self.client.get(reverse("home"))
+        content = response.content.decode()
+        self.assertNotIn("quick_status_transition", content)
+
     def test_next_event_info_displayed(self):
         """Test that next event info appears on ongoing backlog cards."""
         anime_item = Item.objects.get(media_id="1", source=Sources.MAL.value)
@@ -2080,6 +2242,97 @@ class HomeViewConsistencyTests(TestCase):
         archive_titles = [m.item.title for m in page.context["archive"]]
         self.assertNotIn("Drop Me Fully", backlog_titles)
         self.assertNotIn("Drop Me Fully", archive_titles)
+
+    # --- quick_status_transition consistency ---
+
+    def test_quick_start_item_moves_to_in_progress_on_reload(self):
+        """Started item appears in In Progress group on reload."""
+        item = Item.objects.create(
+            media_id="1050",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Start Me",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        self.client.post(
+            reverse("quick_status_transition"),
+            {
+                "media_type": "movie",
+                "instance_id": movie.id,
+                "target_status": "In progress",
+            },
+        )
+
+        page = self.client.get(reverse("home"))
+        groups = page.context["groups"]
+        for group in groups:
+            for sg in group["status_groups"]:
+                titles = [m.item.title for m in sg["items"]]
+                if "Start Me" in titles:
+                    self.assertEqual(sg["status"], Status.IN_PROGRESS.value)
+                    return
+        self.fail("'Start Me' not found in any backlog group")
+
+    def test_quick_plan_item_moves_to_planning_on_reload(self):
+        """Planned item appears in Planning group on reload."""
+        item = Item.objects.create(
+            media_id="1051",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Plan Me",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PAUSED.value
+        )
+
+        self.client.post(
+            reverse("quick_status_transition"),
+            {
+                "media_type": "movie",
+                "instance_id": movie.id,
+                "target_status": "Planning",
+            },
+        )
+
+        page = self.client.get(reverse("home"))
+        groups = page.context["groups"]
+        for group in groups:
+            for sg in group["status_groups"]:
+                titles = [m.item.title for m in sg["items"]]
+                if "Plan Me" in titles:
+                    self.assertEqual(sg["status"], Status.PLANNING.value)
+                    return
+        self.fail("'Plan Me' not found in any backlog group")
+
+    def test_quick_start_sets_start_date_on_reload(self):
+        """Started item has start_date set on reload."""
+        item = Item.objects.create(
+            media_id="1052",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Start Date Check",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        self.client.post(
+            reverse("quick_status_transition"),
+            {
+                "media_type": "movie",
+                "instance_id": movie.id,
+                "target_status": "In progress",
+            },
+        )
+
+        movie.refresh_from_db()
+        self.assertIsNotNone(movie.start_date)
 
     # --- quick_catch_up consistency ---
 

@@ -63,6 +63,11 @@ urlpatterns = [
     path("quick_drop", views.quick_drop, name="quick_drop"),
     path("quick_catch_up", views.quick_catch_up, name="quick_catch_up"),
     path("quick_rewatch", views.quick_rewatch, name="quick_rewatch"),
+    path(
+        "quick_status_transition",
+        views.quick_status_transition,
+        name="quick_status_transition",
+    ),
     path("backlog_save", views.backlog_save, name="backlog_save"),
     path("media_delete", views.media_delete, name="media_delete"),
     path("episode_save", views.episode_save, name="episode_save"),

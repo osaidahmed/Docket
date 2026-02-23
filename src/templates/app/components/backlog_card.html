@@ -114,6 +114,28 @@
                 Done
               </button>
             {% endif %}
+
+          {% elif media.status == Status.PLANNING.value %}
+            <button hx-post="{% url 'quick_status_transition' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "In progress"}'
+                    hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
+                    hx-swap="outerHTML"
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+              {% include "app/icons/states/in-progress.svg" with classes="w-4 h-4" %}
+              Start
+            </button>
+
+          {% elif media.status == Status.PAUSED.value %}
+            <button hx-post="{% url 'quick_status_transition' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "Planning"}'
+                    hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
+                    hx-swap="outerHTML"
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 text-white rounded-full hover:bg-sky-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+              {% include "app/icons/states/planning.svg" with classes="w-4 h-4" %}
+              Plan
+            </button>
           {% endif %}
         </div>
       </div>

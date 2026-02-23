@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import UTC, timedelta
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -7,8 +7,9 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from app.models import TV, Anime, Item, Manga, MediaTypes, Season, Sources, Status
-from events.models import Event
+from events.models import Event, SentinelDatetime
 from events.notifications import (
+    check_user_season_tracking,
     format_notification,
     get_all_user_tracking_data,
     get_tv_tracking_data,
@@ -1148,3 +1149,171 @@ class NotificationTests(TestCase):
 
         # Verify the result message
         self.assertEqual(result, "Daily digest sent for 5 releases")
+
+    def test_format_notification_sentinel_time(self):
+        """Test that sentinel times don't show a time string."""
+        sentinel_event = Event.objects.create(
+            item=self.anime_item,
+            content_number=99,
+            datetime=timezone.datetime(
+                2025,
+                6,
+                15,
+                SentinelDatetime.HOUR,
+                SentinelDatetime.MINUTE,
+                SentinelDatetime.SECOND,
+                SentinelDatetime.MICROSECOND,
+                tzinfo=UTC,
+            ),
+            notification_sent=False,
+        )
+
+        notification_text = format_notification(releases=[sentinel_event])
+        # Sentinel events should not include a time in parentheses
+        self.assertNotIn("(", notification_text)
+        self.assertIn("Test Anime", notification_text)
+
+    def test_format_notification_empty_releases(self):
+        """Test format_notification with an empty releases list."""
+        notification_text = format_notification(releases=[])
+        self.assertIn("Enjoy your media!", notification_text)
+        self.assertNotIn("ANIME", notification_text)
+
+    def test_check_user_season_tracking_active_tv(self):
+        """Test check_user_season_tracking with an active TV show."""
+        tv_lookup = {}
+        season_lookup = {}
+
+        tv_show = TV.objects.get(item=self.tv_show_item, user=self.user1)
+        tv_lookup[(self.user1.id, self.tv_show_item.media_id)] = tv_show
+
+        result = check_user_season_tracking(
+            self.user1.id, self.season1_item, tv_lookup, season_lookup
+        )
+        self.assertTrue(result)
+
+    def test_check_user_season_tracking_no_tv_show(self):
+        """Test check_user_season_tracking when user has no TV show."""
+        result = check_user_season_tracking(self.user1.id, self.season1_item, {}, {})
+        self.assertIsNone(result)
+
+    def test_check_user_season_tracking_dropped_tv(self):
+        """Test check_user_season_tracking with a dropped TV show."""
+        tv_show = TV.objects.get(item=self.tv_show_item, user=self.user1)
+        tv_show.status = Status.DROPPED.value
+        tv_show.save()
+
+        tv_lookup = {
+            (self.user1.id, self.tv_show_item.media_id): tv_show,
+        }
+
+        result = check_user_season_tracking(
+            self.user1.id, self.season1_item, tv_lookup, {}
+        )
+        self.assertIsNone(result)
+
+    def test_check_user_season_tracking_dropped_earlier_season(self):
+        """Test that dropping season 2 blocks season 2+ but not season 1."""
+        tv_show = TV.objects.get(item=self.tv_show_item, user=self.user2)
+        tv_lookup = {
+            (self.user2.id, self.tv_show_item.media_id): tv_show,
+        }
+
+        dropped_season = Season.objects.get(item=self.season2_item, user=self.user2)
+        season_lookup = {
+            (self.user2.id, self.tv_show_item.media_id): [dropped_season],
+        }
+
+        # Season 1 should still be tracked (before the dropped season)
+        result = check_user_season_tracking(
+            self.user2.id, self.season1_item, tv_lookup, season_lookup
+        )
+        self.assertTrue(result)
+
+        # Season 2 should NOT be tracked (is the dropped season)
+        result = check_user_season_tracking(
+            self.user2.id, self.season2_item, tv_lookup, season_lookup
+        )
+        self.assertFalse(result)
+
+        # Season 3 should NOT be tracked (after the dropped season)
+        result = check_user_season_tracking(
+            self.user2.id, self.season3_item, tv_lookup, season_lookup
+        )
+        self.assertFalse(result)
+
+    def test_is_user_tracking_item_dropped(self):
+        """Test that dropped items are not considered actively tracked."""
+        anime = Anime.objects.get(item=self.anime_item, user=self.user1)
+        anime.status = Status.DROPPED.value
+        anime.save()
+
+        tracking_data = {
+            (self.user1.id, self.anime_item.id): anime,
+        }
+
+        result = is_user_tracking_item(self.user1, self.anime_item, tracking_data)
+        self.assertFalse(result)
+
+    def test_is_user_tracking_item_completed(self):
+        """Test that completed items are still considered actively tracked."""
+        anime = Anime.objects.get(item=self.anime_item, user=self.user1)
+        anime.status = Status.COMPLETED.value
+        anime.save()
+
+        tracking_data = {
+            (self.user1.id, self.anime_item.id): anime,
+        }
+
+        result = is_user_tracking_item(self.user1, self.anime_item, tracking_data)
+        self.assertTrue(result)
+
+    def test_is_user_tracking_item_not_tracked(self):
+        """Test that an untracked item returns False."""
+        untracked_item = Item.objects.create(
+            media_id="999",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Untracked Anime",
+            image="http://example.com/untracked.jpg",
+        )
+
+        result = is_user_tracking_item(self.user1, untracked_item, {})
+        self.assertFalse(result)
+
+    def test_get_user_releases_disabled_media_type(self):
+        """Test that disabled media types are excluded from user releases."""
+        self.user1.anime_enabled = False
+        self.user1.save()
+
+        users = (
+            get_user_model()
+            .objects.filter(id=self.user1.id)
+            .prefetch_related("notification_excluded_items")
+        )
+
+        # Remove manga exclusion so we can isolate the media type filter
+        self.user1.notification_excluded_items.clear()
+
+        target_events = {
+            (
+                self.anime_event.item.id,
+                self.anime_event.content_number,
+            ): self.anime_event,
+            (
+                self.manga_event.item.id,
+                self.manga_event.content_number,
+            ): self.manga_event,
+        }
+
+        user_releases = get_user_releases(users, target_events)
+
+        if self.user1.id in user_releases:
+            user1_events = user_releases[self.user1.id]
+            anime_found = any(e.id == self.anime_event.id for e in user1_events)
+            self.assertFalse(anime_found)
+        # Manga should still be included
+        manga_found = any(
+            e.id == self.manga_event.id for e in user_releases.get(self.user1.id, [])
+        )
+        self.assertTrue(manga_found)

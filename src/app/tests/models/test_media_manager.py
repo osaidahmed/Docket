@@ -21,6 +21,7 @@ from app.models import (
     Sources,
     Status,
 )
+from app.services import backlog
 from events.models import Event
 from users.models import MediaStatusChoices
 
@@ -488,16 +489,14 @@ class MediaManagerTests(TestCase):
         self.assertEqual(media_list.last(), anime2)
 
     def test_get_media_types_to_process(self):
-        """Test the _get_media_types_to_process method."""
-        manager = MediaManager()
-
-        media_types = manager._get_media_types_to_process(
+        """Test the _get_media_types_to_process function."""
+        media_types = backlog._get_media_types_to_process(
             self.user,
             MediaTypes.ANIME.value,
         )
         self.assertEqual(media_types, [MediaTypes.ANIME.value])
 
-        media_types = manager._get_media_types_to_process(
+        media_types = backlog._get_media_types_to_process(
             self.user,
             MediaTypes.TV.value,
         )
@@ -506,7 +505,7 @@ class MediaManagerTests(TestCase):
             [MediaTypes.TV.value, MediaTypes.SEASON.value],
         )
 
-        media_types = manager._get_media_types_to_process(self.user, None)
+        media_types = backlog._get_media_types_to_process(self.user, None)
 
         self.assertIn(MediaTypes.TV.value, media_types)
         self.assertIn(MediaTypes.ANIME.value, media_types)
@@ -520,15 +519,13 @@ class MediaManagerTests(TestCase):
         self.user.manga_enabled = False
         self.user.save()
 
-        media_types = manager._get_media_types_to_process(self.user, None)
+        media_types = backlog._get_media_types_to_process(self.user, None)
         self.assertNotIn(MediaTypes.ANIME.value, media_types)
         self.assertNotIn(MediaTypes.MANGA.value, media_types)
         self.assertIn(MediaTypes.MOVIE.value, media_types)
 
     def test_annotate_next_event(self):
-        """Test the _annotate_next_event method."""
-        manager = MediaManager()
-
+        """Test the annotate_next_event function."""
         queryset = Anime.objects.filter(user=self.user.id).select_related("item")
         anime_list = list(queryset)
 
@@ -536,8 +533,7 @@ class MediaManagerTests(TestCase):
         for anime in anime_list:
             anime.item.prefetched_events = list(Event.objects.filter(item=anime.item))
 
-        # Annotate next_event
-        manager._annotate_next_event(anime_list)
+        backlog.annotate_next_event(anime_list)
 
         self.assertIsNotNone(anime_list[0].next_event)
         self.assertEqual(anime_list[0].next_event.item, self.anime_item)
@@ -574,15 +570,12 @@ class MediaManagerTests(TestCase):
         for anime in anime_list:
             anime.item.prefetched_events = list(Event.objects.filter(item=anime.item))
 
-        # Annotate next_event
-        manager._annotate_next_event(anime_list)
+        backlog.annotate_next_event(anime_list)
 
         self.assertIsNone(anime_list[0].next_event)
 
     def test_sort_in_progress_media(self):
-        """Test the _sort_in_progress_media method."""
-        manager = MediaManager()
-
+        """Test the _sort_in_progress_media function."""
         anime_list = []
 
         # Anime with next event and high completion
@@ -637,23 +630,23 @@ class MediaManagerTests(TestCase):
         )
         anime_list.append(anime3)
 
-        sorted_list = manager._sort_in_progress_media(anime_list, "upcoming")
+        sorted_list = backlog._sort_in_progress_media(anime_list, "upcoming")
         # Items with next_event should come first, sorted by datetime
         self.assertEqual(sorted_list, [anime1, anime3, anime2])
 
-        sorted_list = manager._sort_in_progress_media(anime_list, "title")
+        sorted_list = backlog._sort_in_progress_media(anime_list, "title")
         self.assertEqual(
             sorted_list,
             sorted(anime_list, key=lambda x: x.item.title.lower()),
         )
 
-        sorted_list = manager._sort_in_progress_media(anime_list, "completion")
+        sorted_list = backlog._sort_in_progress_media(anime_list, "completion")
         self.assertEqual(sorted_list, [anime1, anime3, anime2])
 
-        sorted_list = manager._sort_in_progress_media(anime_list, "episodes_left")
+        sorted_list = backlog._sort_in_progress_media(anime_list, "episodes_left")
         self.assertEqual(sorted_list, [anime1, anime3, anime2])
 
-        sorted_list = manager._sort_in_progress_media(anime_list, sort_by="recent")
+        sorted_list = backlog._sort_in_progress_media(anime_list, sort_by="recent")
         self.assertEqual(sorted_list, [anime3, anime2, anime1])
 
     def test_annotate_max_progress(self):
@@ -701,79 +694,6 @@ class MediaManagerTests(TestCase):
 
         manager._annotate_tv_released_episodes(tv_list, timezone.now())
         self.assertEqual(tv_list[0].max_progress, 10)
-
-    def test_get_in_progress(self):
-        """Test the get_in_progress method."""
-        manager = MediaManager()
-
-        Event.objects.create(
-            item=self.anime_item,
-            content_number=20,
-            datetime=timezone.now() - timedelta(days=20),
-            notification_sent=True,
-        )
-
-        in_progress = manager.get_in_progress(
-            user=self.user,
-            sort_by="title",
-            items_limit=10,
-        )
-
-        self.assertIn(MediaTypes.ANIME.value, in_progress)
-        self.assertEqual(len(in_progress[MediaTypes.ANIME.value]["items"]), 1)
-        self.assertEqual(in_progress[MediaTypes.ANIME.value]["total"], 1)
-
-        in_progress = manager.get_in_progress(
-            user=self.user,
-            sort_by="title",
-            items_limit=5,
-        )
-
-        self.assertIn(MediaTypes.ANIME.value, in_progress)
-        self.assertIn(MediaTypes.GAME.value, in_progress)
-        self.assertIn(MediaTypes.MANGA.value, in_progress)
-        self.assertNotIn(MediaTypes.MOVIE.value, in_progress)  # Completed
-        self.assertNotIn(MediaTypes.BOOK.value, in_progress)  # Planned
-
-        for i in range(10):
-            anime_item = Item.objects.create(
-                media_id=f"100{i}",
-                source=Sources.MAL.value,
-                media_type=MediaTypes.ANIME.value,
-                title=f"Test Anime {i}",
-                image=f"http://example.com/anime{i}.jpg",
-            )
-
-            Anime.objects.create(
-                item=anime_item,
-                user=self.user,
-                status=Status.IN_PROGRESS.value,
-            )
-
-        in_progress = manager.get_in_progress(
-            user=self.user,
-            sort_by="title",
-            items_limit=5,
-        )
-
-        self.assertEqual(len(in_progress[MediaTypes.ANIME.value]["items"]), 5)
-        self.assertEqual(
-            in_progress[MediaTypes.ANIME.value]["total"],
-            11,
-        )  # 1 original + 10 new
-
-        in_progress = manager.get_in_progress(
-            user=self.user,
-            sort_by="title",
-            items_limit=5,
-            specific_media_type=MediaTypes.ANIME.value,
-        )
-
-        self.assertEqual(
-            len(in_progress[MediaTypes.ANIME.value]["items"]),
-            6,
-        )  # 11 total - 5 offset
-        self.assertEqual(in_progress[MediaTypes.ANIME.value]["total"], 11)
 
     def test_get_media(self):
         """Test the get_media method."""
