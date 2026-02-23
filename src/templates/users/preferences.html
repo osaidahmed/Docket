@@ -7,18 +7,47 @@
 {% endblock title %}
 
 {% block settings_content %}
-  <div class="bg-[#2a2f35] rounded-lg p-6">
+  <div class="bg-card rounded-lg p-6">
     <div class="flex items-center mb-4">
-      {% include "app/icons/vertical-sliders.svg" with classes="w-6 h-6 text-indigo-400 mr-3" %}
+      {% include "app/icons/vertical-sliders.svg" with classes="w-6 h-6 text-accent-soft mr-3" %}
       <h2 class="text-xl font-semibold">Preferences</h2>
     </div>
     <p class="text-gray-400 mb-5 text-sm">Customize the look and behavior of the application.</p>
     <form method="post">
       {% csrf_token %}
 
+      {# Color Scheme #}
+      <div class="mb-5"
+           x-data="{
+             selected: '{{ request.user.color_scheme|default:'charcoal' }}',
+             pick(scheme) {
+               this.selected = scheme;
+               document.documentElement.setAttribute('data-theme', scheme);
+             }
+           }">
+        <div class="flex items-center text-gray-200 mb-3">
+          {% include "app/icons/palette.svg" with classes="w-5 h-5 mr-2" %}
+          <span class="text-sm font-medium">Color Scheme</span>
+        </div>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-3">
+          {% for value, label in color_scheme_choices %}
+            <button type="button"
+                    @click="pick('{{ value }}')"
+                    :class="selected === '{{ value }}'
+                      ? 'ring-2 ring-accent-soft'
+                      : 'border border-line'"
+                    class="flex flex-col items-center gap-2 p-3 rounded-lg transition-all duration-200 cursor-pointer">
+              <div class="w-full h-8 rounded-md theme-swatch-{{ value }}"></div>
+              <span class="text-xs text-gray-300">{{ label }}</span>
+            </button>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="color_scheme" :value="selected">
+      </div>
+
       {# Media Card Overlay #}
       <div class="mb-5">
-        <div class="flex items-center justify-between p-3 bg-[#39404b] rounded-md">
+        <div class="flex items-center justify-between p-3 bg-input rounded-md">
           <div class="flex-1">
             <div class="flex items-center text-gray-200 mb-1">
               {% include "app/icons/image.svg" with classes="w-5 h-5 mr-2" %}
@@ -34,7 +63,7 @@
                    type="checkbox"
                    name="clickable_media_cards"
                    {% if user.clickable_media_cards %}checked{% endif %}>
-            <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-indigo-600">
+            <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-accent">
             </div>
           </label>
         </div>
@@ -42,7 +71,7 @@
 
       {# Quick Watch Date #}
       <div class="mb-5">
-        <div class="flex items-center justify-between p-3 bg-[#39404b] rounded-md">
+        <div class="flex items-center justify-between p-3 bg-input rounded-md">
           <div class="flex-1">
             <div class="flex items-center text-gray-200 mb-1">
               {% include "app/icons/clock.svg" with classes="w-5 h-5 mr-2" %}
@@ -53,7 +82,7 @@
             </p>
           </div>
           <select name="quick_watch_date"
-                  class="ml-4 p-2 bg-[#39404b] rounded-md text-white text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                  class="ml-4 p-2 bg-input rounded-md text-white text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent-soft">
             {% for choice in quick_watch_date_choices %}
               <option value="{{ choice.0 }}"
                       {% if user.quick_watch_date == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
@@ -64,7 +93,7 @@
 
       {# Progress bar #}
       <div class="mb-5">
-        <div class="flex items-center justify-between p-3 bg-[#39404b] rounded-md">
+        <div class="flex items-center justify-between p-3 bg-input rounded-md">
           <div class="flex-1">
             <div class="flex items-center text-gray-200 mb-1">
               {% include "app/icons/minus.svg" with classes="w-5 h-5 mr-2" %}
@@ -79,7 +108,7 @@
                    type="checkbox"
                    name="progress_bar"
                    {% if user.progress_bar %}checked{% endif %}>
-            <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-indigo-600">
+            <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-accent">
             </div>
           </label>
         </div>
@@ -87,7 +116,7 @@
 
       {# Hide Completed Recommendations #}
       <div class="mb-5">
-        <div class="flex items-center justify-between p-3 bg-[#39404b] rounded-md">
+        <div class="flex items-center justify-between p-3 bg-input rounded-md">
           <div class="flex-1">
             <div class="flex items-center text-gray-200 mb-1">
               {% include "app/icons/circle-check.svg" with classes="w-5 h-5 mr-2" %}
@@ -102,7 +131,7 @@
                    type="checkbox"
                    name="hide_completed_recommendations"
                    {% if user.hide_completed_recommendations %}checked{% endif %}>
-            <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-indigo-600">
+            <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-accent">
             </div>
           </label>
         </div>
@@ -110,7 +139,7 @@
 
       {# Hide Zero Ratings #}
       <div class="mb-5">
-        <div class="flex items-center justify-between p-3 bg-[#39404b] rounded-md">
+        <div class="flex items-center justify-between p-3 bg-input rounded-md">
           <div class="flex-1">
             <div class="flex items-center text-gray-200 mb-1">
               {% include "app/icons/star.svg" with classes="w-5 h-5 mr-2" %}
@@ -123,7 +152,7 @@
                    type="checkbox"
                    name="hide_zero_rating"
                    {% if user.hide_zero_rating %}checked{% endif %}>
-            <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-indigo-600">
+            <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-accent">
             </div>
           </label>
         </div>
@@ -131,7 +160,7 @@
 
       {# Date Format #}
       <div class="mb-5">
-        <div class="flex items-center justify-between p-3 bg-[#39404b] rounded-md">
+        <div class="flex items-center justify-between p-3 bg-input rounded-md">
           <div class="flex-1">
             <div class="flex items-center text-gray-200 mb-1">
               {% include "app/icons/calendar.svg" with classes="w-5 h-5 mr-2" %}
@@ -140,7 +169,7 @@
             <p class="text-xs text-gray-400 ml-7">Choose how dates are displayed throughout the application.</p>
           </div>
           <select name="date_format"
-                  class="ml-4 p-2 bg-[#39404b] rounded-md text-white text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                  class="ml-4 p-2 bg-input rounded-md text-white text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent-soft">
             {% for choice in date_format_choices %}
               <option value="{{ choice.0 }}"
                       {% if user.date_format == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
@@ -151,7 +180,7 @@
 
       {# Time Format #}
       <div class="mb-5">
-        <div class="flex items-center justify-between p-3 bg-[#39404b] rounded-md">
+        <div class="flex items-center justify-between p-3 bg-input rounded-md">
           <div class="flex-1">
             <div class="flex items-center text-gray-200 mb-1">
               {% include "app/icons/clock.svg" with classes="w-5 h-5 mr-2" %}
@@ -160,7 +189,7 @@
             <p class="text-xs text-gray-400 ml-7">Choose between 12-hour or 24-hour clock display.</p>
           </div>
           <select name="time_format"
-                  class="ml-4 p-2 bg-[#39404b] rounded-md text-white text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                  class="ml-4 p-2 bg-input rounded-md text-white text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent-soft">
             {% for choice in time_format_choices %}
               <option value="{{ choice.0 }}"
                       {% if user.time_format == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
@@ -192,7 +221,7 @@
              }
            }">
         <div class="flex items-center mb-4">
-          {% include "app/icons/four-square.svg" with classes="w-5 h-5 text-indigo-400 mr-2" %}
+          {% include "app/icons/four-square.svg" with classes="w-5 h-5 text-accent-soft mr-2" %}
           <h3 class="text-lg font-semibold">Media Types</h3>
         </div>
         <p class="text-gray-400 mb-4 text-sm">
@@ -203,7 +232,7 @@
         <div x-ref="list" class="space-y-2">
           {% for media_type in media_types %}
             <div data-media-type="{{ media_type }}"
-                 class="flex items-center justify-between p-3 bg-[#39404b] rounded-md">
+                 class="flex items-center justify-between p-3 bg-input rounded-md">
               <div class="flex items-center text-gray-400">
                 {% icon media_type is_active=False %}
                 <span class="text-gray-200 text-sm ml-2">{{ media_type|media_type_readable_plural }}</span>
@@ -229,7 +258,7 @@
                            value="{{ media_type }}"
                            {% if user|get_attr:enabled_field %}checked{% endif %}>
                   {% endwith %}
-                  <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-indigo-600">
+                  <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-accent">
                   </div>
                 </label>
               </div>
@@ -241,7 +270,7 @@
 
       <div class="mt-5 pt-4 border-gray-600">
         <button type="submit"
-                class="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm cursor-pointer">
+                class="flex items-center px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover transition-colors text-sm cursor-pointer">
           {% include "app/icons/save.svg" with classes="w-4 h-4 mr-2" %}
           Save Preferences
         </button>

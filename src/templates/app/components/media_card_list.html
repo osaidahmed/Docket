@@ -1,11 +1,11 @@
 {% load app_tags %}
 
-<div class="bg-[#2a2f35] rounded-lg hover:bg-[#39404b] transition-colors duration-200">
+<div class="bg-card rounded-lg hover:bg-input transition-colors duration-200">
   <div class="flex items-center p-4 gap-4">
     <div class="shrink-0 relative">
       <a href="{{ item|media_url }}">
         <img alt="{{ title }}"
-             class="lazyload w-20 h-30 object-cover rounded shadow-md bg-[#3e454d]"
+             class="lazyload w-20 h-30 object-cover rounded shadow-md bg-input"
              data-src="{{ item.image }}"
              src="{{ IMG_NONE }}">
       </a>
@@ -16,7 +16,7 @@
         <div class="flex-1 min-w-0">
           <h3 class="text-lg font-semibold text-white mb-1 line-clamp-2">
             <a href="{{ item|media_url }}"
-               class="hover:text-indigo-400 transition-colors">{{ title }}</a>
+               class="hover:text-accent-soft transition-colors">{{ title }}</a>
           </h3>
           {% if item.english_title %}
             <p class="text-sm text-gray-400 mb-1">{{ item.english_title }}</p>

@@ -1,11 +1,11 @@
 {% load app_tags %}
 
-<div class="{% if secondary_color %}bg-[#39404b]{% else %}bg-[#2a2f35]{% endif %} rounded-lg overflow-hidden shadow-lg relative {% if active %}ring-[1.5px] ring-slate-400{% endif %}"
+<div class="{% if secondary_color %}bg-input{% else %}bg-card{% endif %} rounded-lg overflow-hidden shadow-lg relative {% if active %}ring-[1.5px] ring-slate-400{% endif %}"
      x-data="{% if not from_search %}{ trackOpen: false, listsOpen: false, historyOpen: false }{% else %}{}{% endif %}">
   <div class="relative">
     <a href="{{ item|media_url }}">
       <img alt="{{ title }}"
-           class="lazyload w-full {% if from_grid %}aspect-2/3{% else %}h-48{% endif %} bg-[#3e454d] {% if item.image != IMG_NONE %}object-cover{% endif %}"
+           class="lazyload w-full {% if from_grid %}aspect-2/3{% else %}h-48{% endif %} bg-input {% if item.image != IMG_NONE %}object-cover{% endif %}"
            data-src="{{ item.image }}"
            src="{{ IMG_NONE }}">
     </a>
@@ -80,7 +80,7 @@
         <div class="relative flex items-center justify-center space-x-2.5">
           {% if item.media_type == MediaTypes.EPISODE.value %}
             <button @click="trackOpen = true"
-                    class="p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full hover:scale-110 hover:shadow-[0_0_15px_rgba(99,102,241,0.5)] transition-all duration-200 cursor-pointer">
+                    class="p-2.5 bg-accent hover:bg-accent-hover text-white rounded-full hover:scale-110 hover:shadow-[0_0_15px_rgba(99,102,241,0.5)] transition-all duration-200 cursor-pointer">
               {% if media %}
                 {% include "app/icons/eye.svg" with classes="w-4 h-4" %}
               {% else %}
@@ -88,7 +88,7 @@
               {% endif %}
             </button>
           {% else %}
-            <button class="p-2.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-500 hover:scale-110 hover:shadow-[0_0_15px_rgba(99,102,241,0.5)] transition-all duration-200 cursor-pointer"
+            <button class="p-2.5 bg-accent text-white rounded-full hover:bg-accent-hover hover:scale-110 hover:shadow-[0_0_15px_rgba(99,102,241,0.5)] transition-all duration-200 cursor-pointer"
                     title="Add to tracker"
                     hx-get="{% media_view_url 'track_modal' item %}"
                     hx-vals='{"return_url": "{{ request.get_full_path|urlencode }}", "instance_id": "{{ media.id }}"}'
@@ -119,7 +119,7 @@
 
   <div class="p-3">
     <a href="{{ item|media_url }}"
-       class="text-sm font-semibold text-white hover:text-indigo-400 transition duration-300 line-clamp-1"
+       class="text-sm font-semibold text-white hover:text-accent-soft transition duration-300 line-clamp-1"
        title="{{ title }}">{{ title }}</a>
     {% if item.english_title %}
       <p class="text-xs text-gray-400 line-clamp-1 mt-0.5"

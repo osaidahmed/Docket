@@ -10,10 +10,10 @@
     <h2 class="text-2xl font-bold">Explore {{ media_type|media_type_readable_plural }}</h2>
     <div class="flex rounded-md overflow-hidden border border-gray-700">
       <a href="?category={{ current_category }}&layout=grid{{ extra_params }}"
-         {% if layout == 'grid' %} class="p-2 cursor-pointer bg-indigo-600 text-white flex items-center" {% else %} class="p-2 cursor-pointer bg-[#39404b] hover:bg-[#454d5a] flex items-center" {% endif %}
+         {% if layout == 'grid' %} class="p-2 cursor-pointer bg-accent text-white flex items-center" {% else %} class="p-2 cursor-pointer bg-input hover:bg-highlight flex items-center" {% endif %}
          title="Grid View">{% include "app/icons/four-square.svg" with classes="w-5 h-5" %}</a>
       <a href="?category={{ current_category }}&layout=list{{ extra_params }}"
-         {% if layout == 'list' %} class="p-2 cursor-pointer bg-indigo-600 text-white flex items-center" {% else %} class="p-2 cursor-pointer bg-[#39404b] hover:bg-[#454d5a] flex items-center" {% endif %}
+         {% if layout == 'list' %} class="p-2 cursor-pointer bg-accent text-white flex items-center" {% else %} class="p-2 cursor-pointer bg-input hover:bg-highlight flex items-center" {% endif %}
          title="List View">{% include "app/icons/list.svg" with classes="w-5 h-5" %}</a>
     </div>
   </div>

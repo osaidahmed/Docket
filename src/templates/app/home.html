@@ -16,8 +16,8 @@
         {% endfor %}
       </div>
     {% else %}
-      <div class="flex flex-col items-center justify-center py-32 px-4 bg-[#2a2f35] rounded-lg">
-        <div class="bg-[#39404b] rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+      <div class="flex flex-col items-center justify-center py-32 px-4 bg-card rounded-lg">
+        <div class="bg-input rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
           {% include "app/icons/circle-check.svg" with classes="w-8 h-8 text-gray-400" %}
         </div>
         <h3 class="text-xl font-semibold mb-2">No completed items yet</h3>
@@ -30,7 +30,7 @@
       <div class="relative" x-data="{ open: false }">
         <button @click="open = !open"
                 @click.outside="open = false"
-                class="flex items-center gap-2 px-4 py-2 bg-[#39404b] hover:bg-[#454d5a] rounded-md transition-colors cursor-pointer">
+                class="flex items-center gap-2 px-4 py-2 bg-input hover:bg-highlight rounded-md transition-colors cursor-pointer">
           {% include "app/icons/arrows-up-down.svg" with classes="w-4 h-4" %}
           <span class="text-sm font-medium">{{ current_sort|no_underscore|title }}</span>
           {% include "app/icons/chevron-down.svg" with classes="w-4 h-4 text-gray-400" %}
@@ -42,10 +42,10 @@
              x-transition:leave="transition ease-in duration-75"
              x-transition:leave-start="transform opacity-100 scale-100"
              x-transition:leave-end="transform opacity-0 scale-95"
-             class="absolute right-0 mt-2 py-1 w-48 bg-[#39404b] rounded-md shadow-lg overflow-hidden z-10 border border-gray-700">
+             class="absolute right-0 mt-2 py-1 w-48 bg-input rounded-md shadow-lg overflow-hidden z-10 border border-gray-700">
           {% for value, label in sort_choices %}
             <a href="{% url 'home' %}?sort={{ value }}{% if current_type_filter != 'all' %}&type={{ current_type_filter }}{% endif %}"
-               class="block w-full px-4 py-2 text-left text-sm transition-colors {% if current_sort == value %}bg-indigo-600 text-white font-medium{% else %}text-gray-300 hover:bg-[#454d5a] hover:text-white{% endif %}">
+               class="block w-full px-4 py-2 text-left text-sm transition-colors {% if current_sort == value %}bg-accent text-white font-medium{% else %}text-gray-300 hover:bg-highlight hover:text-white{% endif %}">
               {{ label }}
             </a>
           {% endfor %}
@@ -57,7 +57,7 @@
       {% for chip in type_filter_choices %}
         <a href="{% url 'home' %}?sort={{ current_sort }}{% if chip.value != 'all' %}&type={{ chip.value }}{% endif %}"
            class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors
-                  {% if current_type_filter == chip.value %}bg-indigo-600 text-white{% else %}bg-[#39404b] text-gray-300 hover:bg-[#454d5a]{% endif %}">
+                  {% if current_type_filter == chip.value %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
           {{ chip.label }}
         </a>
       {% endfor %}
@@ -92,15 +92,15 @@
         {% endfor %}
       {% endfor %}
     {% else %}
-      <div class="flex flex-col items-center justify-center py-32 px-4 bg-[#2a2f35] rounded-lg">
-        <div class="bg-[#39404b] rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+      <div class="flex flex-col items-center justify-center py-32 px-4 bg-card rounded-lg">
+        <div class="bg-input rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
           {% include "app/icons/pulse.svg" with classes="w-8 h-8 text-gray-400" %}
         </div>
         <h3 class="text-xl font-semibold mb-2">No items in your backlog</h3>
         <p class="text-gray-400 text-center max-w-md mb-4">Search for media and tap Add to start building your backlog.</p>
         <div class="pt-4">
           <a href="{% url 'explore' %}"
-             class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">Browse Media</a>
+             class="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover transition-colors">Browse Media</a>
         </div>
       </div>
     {% endif %}

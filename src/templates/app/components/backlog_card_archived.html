@@ -1,13 +1,13 @@
 {% load app_tags %}
 
 <div id="archive-card-{{ media.item.media_type }}-{{ media.id }}"
-     class="bg-[#2a2f35]/60 rounded-lg"
+     class="bg-card/60 rounded-lg"
      x-data="{ editing: {% if show_edit %}true{% else %}false{% endif %} }">
   <div class="p-3 flex items-center gap-3">
     <div class="shrink-0">
       <a href="{{ media.item|media_url }}">
         <img alt="{{ media }}"
-             class="lazyload w-8 aspect-2/3 object-cover rounded bg-[#3e454d]"
+             class="lazyload w-8 aspect-2/3 object-cover rounded bg-input"
              data-src="{{ media.item.image }}"
              src="{{ IMG_NONE }}">
       </a>
@@ -15,7 +15,7 @@
     <div class="flex-1 min-w-0">
       <h4 class="text-sm font-medium text-gray-300 line-clamp-1">
         <a href="{{ media.item|media_url }}"
-           class="hover:text-indigo-400 transition-colors">{{ media }}</a>
+           class="hover:text-accent-soft transition-colors">{{ media }}</a>
       </h4>
       {% if media.item.english_title %}
         <p class="text-xs text-gray-500 line-clamp-1">{{ media.item.english_title }}</p>
@@ -33,7 +33,7 @@
     </div>
 
     <button @click="editing = !editing"
-            class="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors shrink-0 cursor-pointer"
+            class="p-1.5 text-gray-500 hover:text-accent-soft transition-colors shrink-0 cursor-pointer"
             title="Edit">
       {% include "app/icons/edit-flat.svg" with classes="w-4 h-4" %}
     </button>
@@ -44,7 +44,7 @@
               hx-vals='{"media_id": "{{ media.item.media_id }}", "source": "{{ media.item.source }}", "media_type": "{{ media.item.media_type }}", "source_context": "archive"}'
               hx-target="#archive-card-{{ media.item.media_type }}-{{ media.id }}"
               hx-swap="outerHTML"
-              class="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors shrink-0 cursor-pointer"
+              class="p-1.5 text-gray-500 hover:text-accent-soft transition-colors shrink-0 cursor-pointer"
               title="{{ media.item.media_type|repeat_label }}">
         {% include "app/icons/repeat.svg" with classes="w-4 h-4" %}
       </button>
@@ -53,7 +53,7 @@
       <a href="{{ media.link }}"
          target="_blank"
          rel="noopener noreferrer"
-         class="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors shrink-0">
+         class="p-1.5 text-gray-500 hover:text-accent-soft transition-colors shrink-0">
         {% include "app/icons/external-link.svg" with classes="w-4 h-4" %}
       </a>
     {% endif %}
@@ -87,7 +87,7 @@
           <input type="number" name="score" min="0" max="10" step="0.1"
                  value="{{ media.score|default_if_none:'' }}"
                  placeholder="0-10"
-                 class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                 class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
         </div>
 
         {% if media.item.media_type != "movie" %}
@@ -97,11 +97,11 @@
               <input type="text" name="progress"
                      value="{{ media.formatted_progress }}"
                      placeholder="hh:mm"
-                     class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">
+                     class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             {% else %}
               <input type="number" name="progress" min="0"
                      value="{{ media.progress }}"
-                     class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                     class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
             {% endif %}
           </div>
         {% endif %}
@@ -110,7 +110,7 @@
           <label class="block text-xs font-medium text-gray-400 mb-1">Status</label>
           <div class="relative">
             <select name="status"
-                    class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff] appearance-none">
+                    class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent appearance-none">
               {% for value, label in status_choices %}
                 <option value="{{ value }}"
                         {% if media.status == value %}selected{% endif %}>{{ label }}</option>
@@ -128,7 +128,7 @@
                  name="start_date"
                  value="{% if media.start_date %}{{ media.start_date|date:'Y-m-d\TH:i' }}{% endif %}"
                  onfocus="this.showPicker?.()"
-                 class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">
+                 class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
         </div>
 
         <div>
@@ -137,7 +137,7 @@
                  name="end_date"
                  value="{% if media.end_date %}{{ media.end_date|date:'Y-m-d\TH:i' }}{% endif %}"
                  onfocus="this.showPicker?.()"
-                 class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">
+                 class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
         </div>
 
         <div>
@@ -145,28 +145,28 @@
           <input type="url" name="link"
                  value="{{ media.link|default:'' }}"
                  placeholder="https://..."
-                 class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">
+                 class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
         </div>
       </div>
 
       <div class="mt-3">
         <label class="block text-xs font-medium text-gray-400 mb-1">Notes</label>
         <textarea name="notes" rows="2" placeholder="Add any notes..."
-                  class="w-full p-2 bg-[#39404b] rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a9eff]">{{ media.notes|default:'' }}</textarea>
+                  class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent">{{ media.notes|default:'' }}</textarea>
       </div>
 
       {% if media.item.media_type|has_repeat %}
         <div class="mt-3 flex items-center gap-2">
           <input type="checkbox" name="is_rewatch" id="is-rewatch-{{ media.item.media_type }}-{{ media.id }}"
                  {% if media.is_rewatch %}checked{% endif %}
-                 class="w-4 h-4 rounded bg-[#39404b] border-gray-600 text-indigo-600 focus:ring-[#4a9eff] focus:ring-offset-0">
+                 class="w-4 h-4 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0">
           <label for="is-rewatch-{{ media.item.media_type }}-{{ media.id }}" class="text-sm text-gray-400">{{ media.item.media_type|repeat_label }}</label>
         </div>
       {% endif %}
 
       <div class="flex justify-end mt-3">
         <button type="submit"
-                class="px-4 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium cursor-pointer">
+                class="px-4 py-1.5 bg-accent text-white rounded-md hover:bg-accent-hover text-sm font-medium cursor-pointer">
           Save
         </button>
       </div>

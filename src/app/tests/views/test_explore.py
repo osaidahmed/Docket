@@ -339,9 +339,9 @@ class ExploreTypeViewTests(TestCase):
         medialist_url = reverse("medialist", kwargs={"media_type": MediaTypes.TV.value})
         explore_url = reverse("explore")
 
-        # Find all highlighted sidebar links (anchor tags with bg-[#2c3136])
+        # Find all highlighted sidebar links (anchor tags with bg-line)
         highlighted_links = re.findall(
-            r'<a\s+href="([^"]+)"[^>]*bg-\[#2c3136\][^>]*>', content
+            r'<a\s+href="([^"]+)"[^>]*bg-line[^>]*>', content
         )
 
         self.assertNotIn(medialist_url, highlighted_links)

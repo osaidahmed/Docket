@@ -288,6 +288,21 @@ class User(AbstractUser):
     # Media type ordering
     media_type_order = models.JSONField(default=list, blank=True)
 
+    # Color scheme
+    COLOR_SCHEME_CHOICES = [
+        ("charcoal", "Charcoal"),
+        ("ocean", "Ocean"),
+        ("twilight", "Twilight"),
+        ("forest", "Forest"),
+        ("ember", "Ember"),
+        ("sakura", "Sakura"),
+    ]
+    color_scheme = models.CharField(
+        max_length=20,
+        choices=COLOR_SCHEME_CHOICES,
+        default="charcoal",
+    )
+
     # UI preferences
     clickable_media_cards = models.BooleanField(
         default=False,

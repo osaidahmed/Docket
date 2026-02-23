@@ -233,6 +233,7 @@ def preferences(request):
                 "quick_watch_date_choices": QuickWatchDateChoices.choices,
                 "date_format_choices": DateFormatChoices.choices,
                 "time_format_choices": TimeFormatChoices.choices,
+                "color_scheme_choices": request.user.COLOR_SCHEME_CHOICES,
             },
         )
 
@@ -252,6 +253,10 @@ def preferences(request):
         "hide_completed_recommendations" in request.POST
     )
     request.user.hide_zero_rating = "hide_zero_rating" in request.POST
+    color_scheme = request.POST.get("color_scheme", "charcoal")
+    valid_schemes = {c[0] for c in request.user.COLOR_SCHEME_CHOICES}
+    if color_scheme in valid_schemes:
+        request.user.color_scheme = color_scheme
     request.user.date_format = request.POST.get(
         "date_format",
         DateFormatChoices.ISO,

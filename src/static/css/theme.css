@@ -1,0 +1,174 @@
+/* Theme color system — custom properties + utility classes */
+
+:root {
+  --color-page: #212529;
+  --color-nav: #1a1d20;
+  --color-card: #2a2f35;
+  --color-input: #39404b;
+  --color-muted: #343a40;
+  --color-highlight: #454d5a;
+  --color-line: #2c3136;
+  --color-inset: #272c31;
+  --color-accent: #4f46e5;
+  --color-accent-hover: #6366f1;
+  --color-accent-soft: #818cf8;
+}
+
+[data-theme="ocean"] {
+  --color-page: #171c24;
+  --color-nav: #131720;
+  --color-card: #1e2530;
+  --color-input: #2b3545;
+  --color-muted: #2a3648;
+  --color-highlight: #354459;
+  --color-line: #232d3a;
+  --color-inset: #151a22;
+  --color-accent: #0d9488;
+  --color-accent-hover: #14b8a6;
+  --color-accent-soft: #2dd4bf;
+}
+
+[data-theme="twilight"] {
+  --color-page: #1c1926;
+  --color-nav: #171421;
+  --color-card: #262233;
+  --color-input: #352f48;
+  --color-muted: #2e2844;
+  --color-highlight: #433b5d;
+  --color-line: #2c2640;
+  --color-inset: #191523;
+  --color-accent: #7c3aed;
+  --color-accent-hover: #8b5cf6;
+  --color-accent-soft: #a78bfa;
+}
+
+[data-theme="forest"] {
+  --color-page: #181f1b;
+  --color-nav: #131a16;
+  --color-card: #212b24;
+  --color-input: #2e3d33;
+  --color-muted: #28362c;
+  --color-highlight: #3a4d40;
+  --color-line: #253129;
+  --color-inset: #161d19;
+  --color-accent: #059669;
+  --color-accent-hover: #10b981;
+  --color-accent-soft: #34d399;
+}
+
+[data-theme="ember"] {
+  --color-page: #211e19;
+  --color-nav: #1c1914;
+  --color-card: #2d2822;
+  --color-input: #413930;
+  --color-muted: #38312a;
+  --color-highlight: #534a3e;
+  --color-line: #352e26;
+  --color-inset: #1d1a15;
+  --color-accent: #d97706;
+  --color-accent-hover: #f59e0b;
+  --color-accent-soft: #fbbf24;
+}
+
+[data-theme="sakura"] {
+  --color-page: #211921;
+  --color-nav: #1c141c;
+  --color-card: #2d222d;
+  --color-input: #413041;
+  --color-muted: #382a38;
+  --color-highlight: #544054;
+  --color-line: #352636;
+  --color-inset: #1d151d;
+  --color-accent: #e11d48;
+  --color-accent-hover: #f43f5e;
+  --color-accent-soft: #fb7185;
+}
+
+/* ── Background utilities ── */
+.bg-page { background-color: var(--color-page); }
+.bg-nav { background-color: var(--color-nav); }
+.bg-card { background-color: var(--color-card); }
+.bg-input { background-color: var(--color-input); }
+.bg-muted { background-color: var(--color-muted); }
+.bg-highlight { background-color: var(--color-highlight); }
+.bg-line { background-color: var(--color-line); }
+.bg-inset { background-color: var(--color-inset); }
+.bg-accent { background-color: var(--color-accent); }
+.bg-accent-hover { background-color: var(--color-accent-hover); }
+.bg-accent-soft { background-color: var(--color-accent-soft); }
+
+.bg-accent\/20 { background-color: color-mix(in srgb, var(--color-accent) 20%, transparent); }
+.bg-accent\/95 { background-color: color-mix(in srgb, var(--color-accent) 95%, transparent); }
+.bg-accent-hover\/10 { background-color: color-mix(in srgb, var(--color-accent-hover) 10%, transparent); }
+.bg-accent-hover\/50 { background-color: color-mix(in srgb, var(--color-accent-hover) 50%, transparent); }
+.bg-card\/60 { background-color: color-mix(in srgb, var(--color-card) 60%, transparent); }
+
+/* ── Text utilities ── */
+.text-accent { color: var(--color-accent); }
+.text-accent-hover { color: var(--color-accent-hover); }
+.text-accent-soft { color: var(--color-accent-soft); }
+
+/* ── Border utilities ── */
+.border-line { border-color: var(--color-line); }
+.border-card { border-color: var(--color-card); }
+.border-accent { border-color: var(--color-accent); }
+.border-accent-hover { border-color: var(--color-accent-hover); }
+
+/* ── Ring utilities ── */
+.ring-accent { --tw-ring-color: var(--color-accent); }
+.ring-accent-hover { --tw-ring-color: var(--color-accent-hover); }
+.ring-accent-soft { --tw-ring-color: var(--color-accent-soft); }
+.ring-line { --tw-ring-color: var(--color-line); }
+
+/* ── Hover variants ── */
+.hover\:bg-nav:hover { background-color: var(--color-nav); }
+.hover\:bg-card:hover { background-color: var(--color-card); }
+.hover\:bg-input:hover { background-color: var(--color-input); }
+.hover\:bg-muted:hover { background-color: var(--color-muted); }
+.hover\:bg-highlight:hover { background-color: var(--color-highlight); }
+.hover\:bg-accent:hover { background-color: var(--color-accent); }
+.hover\:bg-accent-hover:hover { background-color: var(--color-accent-hover); }
+.hover\:text-accent-hover:hover { color: var(--color-accent-hover); }
+.hover\:text-accent-soft:hover { color: var(--color-accent-soft); }
+.hover\:ring-accent-hover:hover { --tw-ring-color: var(--color-accent-hover); }
+
+/* ── Focus variants ── */
+.focus\:ring-accent:focus { --tw-ring-color: var(--color-accent); }
+.focus\:ring-accent-hover:focus { --tw-ring-color: var(--color-accent-hover); }
+.focus\:ring-accent-soft:focus { --tw-ring-color: var(--color-accent-soft); }
+.focus\:border-accent-hover:focus { border-color: var(--color-accent-hover); }
+
+/* ── Select2 overrides (compiled from @apply in input.css with hardcoded values) ── */
+.select2-container--tailwindcss-4.select2-container--open .select2-dropdown {
+  background-color: var(--color-input);
+}
+.select2-container--tailwindcss-4.select2-container--open .select2-dropdown:focus-within {
+  border-color: var(--color-accent-hover);
+}
+.select2-container--tailwindcss-4 .select2-results__option--highlighted {
+  background-color: var(--color-highlight);
+}
+.select2-container--tailwindcss-4 .select2-selection--multiple {
+  background-color: var(--color-input);
+}
+.select2-container--tailwindcss-4 .select2-selection--multiple .select2-selection__choice {
+  background-color: var(--color-highlight);
+  border-color: color-mix(in srgb, var(--color-accent-hover) 20%, transparent);
+}
+.select2-container--tailwindcss-4.select2-container--focus .select2-selection--multiple {
+  --tw-ring-color: var(--color-accent-soft);
+}
+
+/* ── Toast override ── */
+.toast-info {
+  background-color: color-mix(in srgb, var(--color-accent) 95%, transparent);
+  border-color: var(--color-accent);
+}
+
+/* ── Theme picker swatches ── */
+.theme-swatch-charcoal { background: linear-gradient(135deg, #2a2f35 60%, #4f46e5 60%); }
+.theme-swatch-ocean { background: linear-gradient(135deg, #1e2530 60%, #0d9488 60%); }
+.theme-swatch-twilight { background: linear-gradient(135deg, #262233 60%, #7c3aed 60%); }
+.theme-swatch-forest { background: linear-gradient(135deg, #212b24 60%, #059669 60%); }
+.theme-swatch-ember { background: linear-gradient(135deg, #2d2822 60%, #d97706 60%); }
+.theme-swatch-sakura { background: linear-gradient(135deg, #2d222d 60%, #e11d48 60%); }

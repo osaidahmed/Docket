@@ -19,7 +19,7 @@
             {{ group.media_type|media_type_readable_plural }}
           </h3>
           <a href="{% url 'search' %}?q={{ query|urlencode }}&media_type={{ group.media_type }}&layout={{ layout }}"
-             class="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
+             class="text-sm text-accent-soft hover:text-accent-soft transition-colors">
             See all {{ group.media_type|media_type_readable_plural|lower }} results
           </a>
         </div>
@@ -32,8 +32,8 @@
       </div>
     {% endfor %}
   {% else %}
-    <div class="flex flex-col items-center justify-center py-32 px-4 bg-[#2a2f35] rounded-lg">
-      <div class="bg-[#39404b] rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+    <div class="flex flex-col items-center justify-center py-32 px-4 bg-card rounded-lg">
+      <div class="bg-input rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
         {% include "app/icons/magnifying-glass.svg" with classes="w-8 h-8 text-gray-400" %}
       </div>
       <h3 class="text-xl font-semibold mb-2">No results found</h3>
