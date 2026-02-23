@@ -21,8 +21,20 @@ from app.models import (
     Status,
 )
 from app.providers.mal import get_english_title
+from app.urls import urlpatterns
 from events.models import Event
 from users.models import HomeSortChoices
+
+TESTED_BACKLOG_ACTIONS = {
+    "quick_add",
+    "quick_archive",
+    "quick_complete",
+    "quick_drop",
+    "quick_catch_up",
+    "quick_rewatch",
+    "quick_status_transition",
+    "backlog_save",
+}
 
 
 def _flatten_group_titles(groups):
@@ -3632,3 +3644,24 @@ class GetEnglishTitleTests(TestCase):
             "alternative_titles": {},
         }
         self.assertEqual(get_english_title(response), "")
+
+
+class BacklogActionRegistryTests(TestCase):
+    """Ensure every backlog action endpoint has HX-Refresh policy tests."""
+
+    def test_all_backlog_actions_covered(self):  # noqa: D102
+        action_names = {
+            p.name
+            for p in urlpatterns
+            if hasattr(p, "name")
+            and p.name
+            and (p.name.startswith("quick_") or p.name.startswith("backlog_"))
+        }
+
+        untested = action_names - TESTED_BACKLOG_ACTIONS
+        self.assertEqual(
+            untested,
+            set(),
+            f"Action(s) {untested} need HX-Refresh policy tests. "
+            "Add coverage, then add the name to TESTED_BACKLOG_ACTIONS.",
+        )
