@@ -78,6 +78,32 @@ class ImportMAL(TestCase):
             datetime(2022, 12, 28, 19, 20, 54, tzinfo=UTC),
         )
 
+        # Rewatch instances should have is_rewatch=True
+        self.assertEqual(
+            Anime.objects.filter(
+                user=self.user,
+                item__title="Ama Gli Animali",
+                is_rewatch=True,
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            Anime.objects.filter(
+                user=self.user,
+                item__title="Ama Gli Animali",
+                is_rewatch=False,
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            Manga.objects.filter(
+                user=self.user,
+                item__title="One Punch-Man",
+                is_rewatch=True,
+            ).count(),
+            1,
+        )
+
     def test_user_not_found(self):
         """Test that an error is raised if the user is not found."""
         self.assertRaises(

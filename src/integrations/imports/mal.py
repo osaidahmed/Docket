@@ -191,6 +191,7 @@ class MyAnimeListImporter:
                     start_date=self._parse_mal_date(list_status.get("start_date")),
                     end_date=self._parse_mal_date(list_status.get("finish_date")),
                     notes=list_status["comments"],
+                    is_rewatch=True,
                 )
 
                 instance._history_date = updated_at

@@ -319,6 +319,7 @@ class AniListImporter:
                     start_date=self._get_date(content["startedAt"]),
                     end_date=None,
                     notes=content["notes"] or "",
+                    is_rewatch=True,
                 )
                 instance._history_date = updated_at
                 self.bulk_media[media_type].append(instance)

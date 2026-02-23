@@ -58,6 +58,16 @@ class ImportAniList(TestCase):
             datetime(2025, 6, 4, 10, 11, 17, tzinfo=UTC),
         )
 
+        # Rewatch instances should have is_rewatch=True
+        self.assertEqual(
+            Manga.objects.filter(
+                user=self.user,
+                item__title="One Punch-Man",
+                is_rewatch=True,
+            ).count(),
+            1,
+        )
+
     @patch("requests.Session.post")
     def test_import_anilist_private(self, mock_request):
         """Basic test importing anime and manga from AniList."""

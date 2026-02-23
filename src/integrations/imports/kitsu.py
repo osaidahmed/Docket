@@ -212,7 +212,7 @@ class KitsuImporter:
             repeats_count = 1
 
         if repeats_count >= 1:
-            for _ in range(attributes["reconsumeCount"]):
+            for _ in range(repeats_count):
                 instance = model(
                     item=item,
                     user=self.user,
@@ -222,6 +222,7 @@ class KitsuImporter:
                     start_date=attributes["startedAt"],
                     end_date=attributes["finishedAt"],
                     notes=attributes["notes"] or "",
+                    is_rewatch=True,
                 )
                 instance._history_date = updated_at
                 self.bulk_media[media_type].append(instance)

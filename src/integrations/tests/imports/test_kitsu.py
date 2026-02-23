@@ -71,6 +71,22 @@ class ImportKitsu(TestCase):
             datetime(2024, 4, 8, 16, 16, 59, 18000, tzinfo=UTC),
         )
 
+        # Rewatch instances should have is_rewatch=True
+        self.assertEqual(
+            Anime.objects.filter(
+                item__title="Test Anime 1",
+                is_rewatch=True,
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            Manga.objects.filter(
+                item__title="Test Manga 1",
+                is_rewatch=True,
+            ).count(),
+            1,
+        )
+
     def test_get_rating(self):
         """Test getting rating from Kitsu."""
         self.assertEqual(self.importer._get_rating(20), 10)
@@ -114,3 +130,55 @@ class ImportKitsu(TestCase):
         self.assertEqual(instance.progress, 26)
         self.assertEqual(instance.status, Status.COMPLETED.value)
         self.assertEqual(instance.notes, "Great series!")
+        self.assertTrue(instance.is_rewatch)
+
+    def test_reconsuming_with_zero_count(self):
+        """Test that reconsuming=True with reconsumeCount=0 creates a rewatch."""
+        entry = {
+            "id": "9999",
+            "type": "libraryEntries",
+            "attributes": {
+                "updatedAt": "2024-04-08T16:16:59.018Z",
+                "status": "current",
+                "progress": 5,
+                "reconsuming": True,
+                "reconsumeCount": 0,
+                "notes": "",
+                "ratingTwenty": 18,
+                "startedAt": "2023-08-01T00:00:00.000Z",
+                "finishedAt": None,
+            },
+            "relationships": {
+                "anime": {
+                    "data": {"type": "anime", "id": "1"},
+                },
+            },
+        }
+        media_lookup = {
+            item["id"]: item
+            for item in self.sample_anime_response["included"]
+            if item["type"] == "anime"
+        }
+        mapping_lookup = {
+            item["id"]: item
+            for item in self.sample_anime_response["included"]
+            if item["type"] == "mappings"
+        }
+
+        self.importer._process_entry(
+            entry,
+            MediaTypes.ANIME.value,
+            media_lookup,
+            mapping_lookup,
+        )
+
+        instances = self.importer.bulk_media[MediaTypes.ANIME.value]
+        self.assertEqual(len(instances), 2)
+
+        rewatch = instances[0]
+        self.assertTrue(rewatch.is_rewatch)
+        self.assertEqual(rewatch.status, Status.COMPLETED.value)
+
+        current = instances[1]
+        self.assertFalse(current.is_rewatch)
+        self.assertEqual(current.status, Status.IN_PROGRESS.value)
