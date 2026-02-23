@@ -90,6 +90,66 @@ def search(query, page):
     return data
 
 
+def browse(category, page):
+    """Browse trending books on OpenLibrary."""
+    cache_key = (
+        f"browse_{Sources.OPENLIBRARY.value}_{MediaTypes.BOOK.value}_{category}_{page}"
+    )
+    data = cache.get(cache_key)
+
+    if data is None:
+        offset = (page - 1) * settings.PER_PAGE
+        url = "https://openlibrary.org/trending/daily.json"
+        params = {
+            "limit": settings.PER_PAGE,
+            "offset": offset,
+        }
+
+        try:
+            response = services.api_request(
+                Sources.OPENLIBRARY.value,
+                "GET",
+                url,
+                params=params,
+            )
+        except requests.RequestException as e:
+            handle_error(e)
+
+        results = []
+        for work in response.get("works", []):
+            editions = work.get("editions", {}).get("docs", [])
+            if editions:
+                media_id = extract_openlibrary_id(editions[0].get("key", ""))
+            else:
+                media_id = work.get("cover_edition_key")
+
+            if not media_id:
+                continue
+
+            results.append(
+                {
+                    "media_id": media_id,
+                    "source": Sources.OPENLIBRARY.value,
+                    "media_type": MediaTypes.BOOK.value,
+                    "title": work.get("title", "Unknown"),
+                    "image": get_image_url(work),
+                    "synopsis": "",
+                }
+            )
+
+        if len(results) == settings.PER_PAGE:
+            total_results = max(offset + settings.PER_PAGE * 5, len(results))
+        else:
+            total_results = offset + len(results)
+
+        data = helpers.format_search_response(
+            page, settings.PER_PAGE, total_results, results
+        )
+        cache.set(cache_key, data)
+
+    return data
+
+
 def extract_openlibrary_id(path):
     """
     Extract the ID from an OpenLibrary path.

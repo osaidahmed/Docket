@@ -93,6 +93,65 @@ def search(query, page):
     return data
 
 
+def browse(category, page):
+    """Browse comics on ComicVine by category."""
+    cache_key = (
+        f"browse_{Sources.COMICVINE.value}_{MediaTypes.COMIC.value}_{category}_{page}"
+    )
+    data = cache.get(cache_key)
+
+    if data is None:
+        sort_map = {
+            "recent": "date_added:desc",
+            "updated": "date_last_updated:desc",
+        }
+
+        offset = (page - 1) * settings.PER_PAGE
+        params = {
+            "api_key": settings.COMICVINE_API,
+            "format": "json",
+            "field_list": "id,name,image,description",
+            "sort": sort_map[category],
+            "limit": settings.PER_PAGE,
+            "offset": offset,
+        }
+
+        try:
+            response = services.api_request(
+                Sources.COMICVINE.value,
+                "GET",
+                f"{base_url}/volumes/",
+                params=params,
+                headers=headers,
+            )
+        except requests.exceptions.HTTPError as error:
+            handle_error(error)
+
+        results = [
+            {
+                "media_id": str(item["id"]),
+                "source": Sources.COMICVINE.value,
+                "media_type": MediaTypes.COMIC.value,
+                "title": item["name"],
+                "image": get_image(item),
+                "synopsis": (
+                    BeautifulSoup(item.get("description") or "", "html.parser")
+                    .get_text(separator=" ")
+                    .strip()
+                ),
+            }
+            for item in response["results"]
+        ]
+
+        total_results = response["number_of_total_results"]
+        data = helpers.format_search_response(
+            page, settings.PER_PAGE, total_results, results
+        )
+        cache.set(cache_key, data)
+
+    return data
+
+
 def comic(media_id):
     """Return the metadata for the selected comic volume from Comic Vine."""
     cache_key = f"{Sources.COMICVINE.value}_{MediaTypes.COMIC.value}_{media_id}"

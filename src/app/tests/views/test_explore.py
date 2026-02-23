@@ -47,9 +47,8 @@ class ExploreViewTests(TestCase):
         response = self.client.get(reverse("explore"))
 
         types = [t["media_type"] for t in response.context["explorable_types"]]
-        self.assertNotIn(MediaTypes.BOOK.value, types)
-        self.assertNotIn(MediaTypes.COMIC.value, types)
-        self.assertNotIn(MediaTypes.BOARDGAME.value, types)
+        self.assertNotIn(MediaTypes.SEASON.value, types)
+        self.assertNotIn(MediaTypes.EPISODE.value, types)
 
     def test_explore_type_cards_include_categories(self):
         """Test that each explorable type card includes its categories."""
@@ -142,7 +141,7 @@ class ExploreTypeViewTests(TestCase):
     def test_explore_type_non_explorable_redirects(self):
         """Test that a non-explorable type redirects to the explore landing."""
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.BOOK.value}),
+            reverse("explore_type", kwargs={"media_type": MediaTypes.SEASON.value}),
         )
 
         self.assertEqual(response.status_code, 302)

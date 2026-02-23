@@ -220,6 +220,11 @@ MEDIA_TYPE_CONFIG = {
             2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>""",
         "date_key": "publish_date",
         "unit": ("P", "Page"),
+        "explore_categories": [
+            {"slug": "trending", "label": "Trending"},
+            {"slug": "popular", "label": "Popular"},
+            {"slug": "top_rated", "label": "Top Rated"},
+        ],
     },
     MediaTypes.COMIC.value: {
         "sources": [Sources.COMICVINE],
@@ -235,6 +240,10 @@ MEDIA_TYPE_CONFIG = {
             <path d="M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1
             5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z"/>""",
         "unit": ("#", "Issue"),
+        "explore_categories": [
+            {"slug": "recent", "label": "Recently Added"},
+            {"slug": "updated", "label": "Recently Updated"},
+        ],
     },
     MediaTypes.BOARDGAME.value: {
         "sources": [Sources.BGG],
@@ -254,6 +263,9 @@ MEDIA_TYPE_CONFIG = {
         "date_key": "year",
         "supports_repeat": False,
         "supports_caught_up": False,
+        "explore_categories": [
+            {"slug": "hot", "label": "Hot"},
+        ],
     },
 }
 

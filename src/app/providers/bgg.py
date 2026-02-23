@@ -154,6 +154,75 @@ def _fetch_details(game_ids):
         return details
 
 
+def browse(category, page):
+    """Browse hot board games on BGG."""
+    cache_key = (
+        f"browse_{Sources.BGG.value}_{MediaTypes.BOARDGAME.value}_{category}_{page}"
+    )
+    data = cache.get(cache_key)
+
+    if data is None:
+        hot_cache_key = f"browse_hot_{Sources.BGG.value}_{MediaTypes.BOARDGAME.value}"
+        all_results = cache.get(hot_cache_key)
+
+        if all_results is None:
+            try:
+                root = services.api_request(
+                    Sources.BGG.value,
+                    "GET",
+                    f"{base_url}/hot",
+                    params={"type": "boardgame"},
+                    headers={
+                        "Authorization": f"Bearer {settings.BGG_API_TOKEN}",
+                    },
+                    response_format="xml",
+                )
+            except requests.exceptions.HTTPError as error:
+                handle_error(error)
+
+            all_results = []
+            for item in root.findall(".//item"):
+                game_id = item.get("id")
+                name_elem = item.find("name")
+                if name_elem is not None and game_id:
+                    all_results.append(
+                        {
+                            "id": game_id,
+                            "name": name_elem.get("value", "Unknown"),
+                        }
+                    )
+
+            cache.set(hot_cache_key, all_results)
+
+        total_results = len(all_results)
+        start_idx = (page - 1) * RESULTS_PER_PAGE
+        end_idx = start_idx + RESULTS_PER_PAGE
+        page_results = all_results[start_idx:end_idx]
+
+        details = _fetch_details([r["id"] for r in page_results])
+
+        results = [
+            {
+                "media_id": r["id"],
+                "source": Sources.BGG.value,
+                "media_type": MediaTypes.BOARDGAME.value,
+                "title": r["name"],
+                "image": details.get(r["id"], {}).get("image", settings.IMG_NONE),
+                "synopsis": html_module.unescape(
+                    details.get(r["id"], {}).get("description", "")
+                ),
+            }
+            for r in page_results
+        ]
+
+        data = helpers.format_search_response(
+            page, RESULTS_PER_PAGE, total_results, results
+        )
+        cache.set(cache_key, data)
+
+    return data
+
+
 def boardgame(media_id):
     """Return the metadata for the selected board game from BGG."""
     cache_key = f"{Sources.BGG.value}_{MediaTypes.BOARDGAME.value}_{media_id}"

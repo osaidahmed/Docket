@@ -305,6 +305,13 @@ def browse(media_type, category, page, year=None, season=None):
             MediaTypes.MOVIE.value, category, page
         ),
         MediaTypes.GAME.value: lambda: igdb.browse(category, page),
+        MediaTypes.BOOK.value: lambda: (
+            openlibrary.browse(category, page)
+            if category == "trending"
+            else hardcover.browse(category, page)
+        ),
+        MediaTypes.COMIC.value: lambda: comicvine.browse(category, page),
+        MediaTypes.BOARDGAME.value: lambda: bgg.browse(category, page),
     }
     handler = browse_handlers.get(media_type)
     if handler is None:

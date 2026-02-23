@@ -219,6 +219,79 @@ def get_edition_details(edition_data):
     }
 
 
+def browse(category, page):
+    """Browse books on Hardcover by category."""
+    cache_key = (
+        f"browse_{Sources.HARDCOVER.value}_{MediaTypes.BOOK.value}_{category}_{page}"
+    )
+    data = cache.get(cache_key)
+
+    if data is None:
+        order_by_map = {
+            "popular": "{users_read_count: desc}",
+            "top_rated": "{rating: desc_nulls_last}",
+        }
+        order_by = order_by_map[category]
+        offset = (page - 1) * settings.PER_PAGE
+
+        browse_query = f"""
+        query BrowseBooks($limit: Int!, $offset: Int!) {{
+          books(
+            order_by: {order_by},
+            limit: $limit,
+            offset: $offset,
+            where: {{cached_image: {{_is_null: false}}}}
+          ) {{
+            id
+            title
+            cached_image(path: "url")
+            description
+          }}
+        }}
+        """
+
+        variables = {
+            "limit": settings.PER_PAGE,
+            "offset": offset,
+        }
+
+        try:
+            response = services.api_request(
+                Sources.HARDCOVER.value,
+                "POST",
+                base_url,
+                params={"query": browse_query, "variables": variables},
+                headers={"Authorization": settings.HARDCOVER_API},
+            )
+        except requests.exceptions.HTTPError as error:
+            handle_error(error)
+
+        books = response["data"]["books"]
+        results = [
+            {
+                "media_id": book_item["id"],
+                "source": Sources.HARDCOVER.value,
+                "media_type": MediaTypes.BOOK.value,
+                "title": book_item["title"],
+                "image": book_item.get("cached_image") or settings.IMG_NONE,
+                "synopsis": book_item.get("description") or "",
+            }
+            for book_item in books
+        ]
+
+        if len(results) == settings.PER_PAGE:
+            total_results = max(offset + settings.PER_PAGE * 5, len(results))
+        else:
+            total_results = offset + len(results)
+
+        data = helpers.format_search_response(
+            page, settings.PER_PAGE, total_results, results
+        )
+        cache.set(cache_key, data)
+
+    return data
+
+
 def get_image_url(response):
     """Get the cover image URL for a book."""
     if response.get("image") and response["image"].get("url"):

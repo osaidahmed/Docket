@@ -429,12 +429,21 @@ class ConfigTests(TestCase):
 
     def test_get_explore_categories(self):
         """Test explore categories are returned from MEDIA_TYPE_CONFIG."""
-        for mt in ["tv", "movie", "anime", "manga", "game"]:
+        for mt in [
+            "tv",
+            "movie",
+            "anime",
+            "manga",
+            "game",
+            "book",
+            "comic",
+            "boardgame",
+        ]:
             categories = config.get_explore_categories(mt)
             self.assertIsNotNone(categories, f"{mt} should have explore categories")
             self.assertGreater(len(categories), 0)
 
-        for mt in ["season", "episode", "book", "comic", "boardgame"]:
+        for mt in ["season", "episode"]:
             self.assertIsNone(config.get_explore_categories(mt))
 
     def test_get_explorable_types(self):
@@ -442,5 +451,16 @@ class ConfigTests(TestCase):
         explorable = config.get_explorable_types()
         self.assertEqual(
             sorted(explorable),
-            sorted(["tv", "movie", "anime", "manga", "game"]),
+            sorted(
+                [
+                    "tv",
+                    "movie",
+                    "anime",
+                    "manga",
+                    "game",
+                    "book",
+                    "comic",
+                    "boardgame",
+                ]
+            ),
         )
