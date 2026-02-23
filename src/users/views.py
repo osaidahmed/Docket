@@ -211,15 +211,25 @@ def test_notification(request):
 @require_http_methods(["GET", "POST"])
 def preferences(request):
     """Render the preferences settings page."""
-    media_types = MediaTypes.values
-    media_types.remove(MediaTypes.EPISODE.value)
+    all_types = [mt for mt in MediaTypes.values if mt != MediaTypes.EPISODE.value]
+    custom_order = request.user.media_type_order
+    if custom_order:
+        seen = set()
+        ordered = []
+        for mt in custom_order:
+            if mt in all_types and mt not in seen:
+                ordered.append(mt)
+                seen.add(mt)
+        ordered.extend(mt for mt in all_types if mt not in seen)
+    else:
+        ordered = all_types
 
     if request.method == "GET":
         return render(
             request,
             "users/preferences.html",
             {
-                "media_types": media_types,
+                "media_types": ordered,
                 "quick_watch_date_choices": QuickWatchDateChoices.choices,
                 "date_format_choices": DateFormatChoices.choices,
                 "time_format_choices": TimeFormatChoices.choices,
@@ -253,12 +263,21 @@ def preferences(request):
     media_types_checked = request.POST.getlist("media_types_checkboxes")
 
     # Update user preferences for each media type
-    for media_type in media_types:
+    for media_type in all_types:
         setattr(
             request.user,
             f"{media_type}_enabled",
             media_type in media_types_checked,
         )
+
+    # Save media type order
+    order_json = request.POST.get("media_type_order", "")
+    if order_json:
+        import contextlib  # noqa: PLC0415
+        import json  # noqa: PLC0415
+
+        with contextlib.suppress(json.JSONDecodeError, TypeError):
+            request.user.media_type_order = json.loads(order_json)
 
     # Save changes and redirect
     request.user.save()

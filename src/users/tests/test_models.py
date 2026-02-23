@@ -411,3 +411,128 @@ class UserResolveWatchDateTests(TestCase):
         result = self.user.resolve_watch_date(self.now, self.release_date)
 
         self.assertEqual(result, self.now)
+
+
+class UserMediaTypeOrderTests(TestCase):
+    """Tests for custom media type ordering."""
+
+    def setUp(self):  # noqa: D102
+        self.credentials = {"username": "ordertest", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+
+    def test_default_order_follows_enum(self):
+        """Empty media_type_order falls back to MediaTypes enum order."""
+        self.user.media_type_order = []
+        self.user.save()
+
+        result = self.user.get_enabled_media_types()
+
+        skip = {MediaTypes.EPISODE.value, MediaTypes.SEASON.value}
+        expected = [
+            mt
+            for mt in MediaTypes.values
+            if mt not in skip and getattr(self.user, f"{mt}_enabled", False)
+        ]
+        self.assertEqual(result, expected)
+
+    def test_custom_order_respected(self):
+        """Custom order is applied to enabled types."""
+        self.user.media_type_order = [
+            MediaTypes.GAME.value,
+            MediaTypes.TV.value,
+            MediaTypes.ANIME.value,
+        ]
+        self.user.save()
+
+        result = self.user.get_enabled_media_types()
+
+        self.assertEqual(result[0], MediaTypes.GAME.value)
+        self.assertEqual(result[1], MediaTypes.TV.value)
+        self.assertEqual(result[2], MediaTypes.ANIME.value)
+
+    def test_partial_order_appends_missing(self):
+        """Types not in custom order are appended in enum order."""
+        self.user.media_type_order = [MediaTypes.GAME.value]
+        self.user.save()
+
+        result = self.user.get_enabled_media_types()
+
+        self.assertEqual(result[0], MediaTypes.GAME.value)
+        self.assertGreater(len(result), 1)
+
+    def test_disabled_types_excluded_from_custom_order(self):
+        """Disabled types don't appear even if in custom order."""
+        self.user.game_enabled = False
+        self.user.media_type_order = [
+            MediaTypes.GAME.value,
+            MediaTypes.TV.value,
+        ]
+        self.user.save()
+
+        result = self.user.get_enabled_media_types()
+
+        self.assertNotIn(MediaTypes.GAME.value, result)
+
+    def test_episode_excluded_from_custom_order(self):
+        """Episode type is always excluded from enabled types."""
+        self.user.media_type_order = [MediaTypes.EPISODE.value, MediaTypes.TV.value]
+        self.user.save()
+
+        result = self.user.get_enabled_media_types()
+
+        self.assertNotIn(MediaTypes.EPISODE.value, result)
+
+    def test_active_types_season_after_tv(self):
+        """SEASON is inserted right after TV in get_active_media_types."""
+        self.user.media_type_order = [
+            MediaTypes.GAME.value,
+            MediaTypes.TV.value,
+            MediaTypes.ANIME.value,
+        ]
+        self.user.save()
+
+        result = self.user.get_active_media_types()
+
+        tv_idx = result.index(MediaTypes.TV.value)
+        season_idx = result.index(MediaTypes.SEASON.value)
+        self.assertEqual(season_idx, tv_idx + 1)
+
+
+class PreferencesViewOrderTests(TestCase):
+    """Tests for saving media_type_order via the preferences view."""
+
+    def setUp(self):  # noqa: D102
+        self.credentials = {"username": "preftest", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    def test_saves_media_type_order(self):
+        """POST with media_type_order JSON saves the order."""
+        import json  # noqa: PLC0415
+
+        from django.urls import reverse  # noqa: PLC0415
+
+        order = ["game", "tv", "anime", "manga", "movie", "book", "comic", "boardgame"]
+        self.client.post(
+            reverse("preferences"),
+            {
+                "media_types_checkboxes": order,
+                "media_type_order": json.dumps(order),
+            },
+        )
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.media_type_order, order)
+
+    def test_get_returns_ordered_media_types(self):
+        """GET preferences returns media types in custom order."""
+        from django.urls import reverse  # noqa: PLC0415
+
+        self.user.media_type_order = ["game", "tv", "anime"]
+        self.user.save()
+
+        response = self.client.get(reverse("preferences"))
+
+        media_types = response.context["media_types"]
+        self.assertEqual(media_types[0], "game")
+        self.assertEqual(media_types[1], "tv")
+        self.assertEqual(media_types[2], "anime")

@@ -53,15 +53,18 @@ usage() {
 usage: $0 [options] [category ...] [-- pytest-args]
 
 options:
-  --list   show available categories and exit
-  --cov    enable coverage collection
-  -h       show this help
+  --list       show available categories and exit
+  --cov        enable coverage collection
+  --no-reuse   recreate the test database from scratch
+  --serial     disable parallel execution (run on single core)
+  -h           show this help
 
 examples:
   $0                          run all tests
   $0 providers views          run providers and views tests
   $0 --cov app                run app tests with coverage
   $0 models -- -x --pdb       run model tests, stop on first failure
+  $0 --no-reuse               force fresh database
 
 categories:
 $(list_categories | sed 's/^/  /')
@@ -73,6 +76,8 @@ EOF
 categories=""
 pytest_extra=""
 use_coverage=false
+reuse_db=true
+parallel=true
 parsing_categories=true
 
 for arg in "$@"; do
@@ -89,6 +94,10 @@ for arg in "$@"; do
     usage
   elif [ "$arg" = "--cov" ]; then
     use_coverage=true
+  elif [ "$arg" = "--no-reuse" ]; then
+    reuse_db=false
+  elif [ "$arg" = "--serial" ]; then
+    parallel=false
   else
     resolved=$(resolve_category "$arg" 2>/dev/null) || {
       echo "error: unknown category '$arg'" >&2
@@ -106,13 +115,24 @@ else
   test_paths="$categories"
 fi
 
+# ── build flags ───────────────────────────────────────────────────
+pytest_flags="-v --tb=short --durations=10"
+
+if [ "$reuse_db" = true ]; then
+  pytest_flags="$pytest_flags --reuse-db"
+fi
+
+if [ "$parallel" = true ]; then
+  pytest_flags="$pytest_flags -n auto"
+fi
+
 # ── run ───────────────────────────────────────────────────────────
 cd "$ROOT_DIR"
 
 if [ "$use_coverage" = true ]; then
   echo "running tests with coverage..."
   # shellcheck disable=SC2086
-  coverage run -m pytest -v --tb=short --durations=10 $test_paths $pytest_extra
+  coverage run -m pytest $pytest_flags $test_paths $pytest_extra
   echo ""
   coverage report
   coverage html --quiet
@@ -120,5 +140,5 @@ if [ "$use_coverage" = true ]; then
   echo "html report: htmlcov/index.html"
 else
   # shellcheck disable=SC2086
-  python -m pytest -v --tb=short --durations=10 $test_paths $pytest_extra
+  python -m pytest $pytest_flags $test_paths $pytest_extra
 fi

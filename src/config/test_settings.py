@@ -17,5 +17,7 @@ CELERY_TASK_ALWAYS_EAGER = True
 
 TESTING = True
 
+PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
 # Steam API key for testing
 STEAM_API_KEY = "test_steam_api_key"

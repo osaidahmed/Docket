@@ -430,11 +430,38 @@ def _collect_suggest_results(future, name, seen_keys, all_results):
         logger.exception("Suggest API failed for %s", name)
 
 
+def _interleave_results(all_results, enabled_types, limit):
+    """Round-robin interleave results by media type in preference order."""
+    from collections import defaultdict  # noqa: PLC0415
+
+    grouped = defaultdict(list)
+    for item in all_results:
+        grouped[item["media_type"]].append(item)
+
+    type_order_list = [mt for mt in enabled_types if mt in grouped]
+    final = []
+    round_idx = 0
+    while len(final) < limit and type_order_list:
+        exhausted = []
+        for mt in type_order_list:
+            if round_idx < len(grouped[mt]):
+                final.append(grouped[mt][round_idx])
+                if len(final) >= limit:
+                    break
+            else:
+                exhausted.append(mt)
+        for mt in exhausted:
+            type_order_list.remove(mt)
+        round_idx += 1
+
+    return final[:limit]
+
+
 def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_LIMIT):
     """Search API providers for suggestions, combining results in parallel.
 
     Uses as_completed so fast providers are processed immediately. Results
-    are sorted by enabled_types preference order before returning.
+    are interleaved round-robin by media type preference for diversity.
     """
     if not query or not query.strip():
         return []
@@ -448,7 +475,6 @@ def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_
 
     all_results = []
     seen_keys = set(local_keys)
-    type_order = {mt: i for i, mt in enumerate(enabled_types)}
 
     executor = ThreadPoolExecutor(max_workers=len(tasks))
     try:
@@ -461,7 +487,4 @@ def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
 
-    all_results.sort(
-        key=lambda item: type_order.get(item["media_type"], len(type_order))
-    )
-    return all_results[:limit]
+    return _interleave_results(all_results, enabled_types, limit)

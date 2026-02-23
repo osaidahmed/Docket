@@ -285,6 +285,9 @@ class User(AbstractUser):
         choices=MediaStatusChoices.choices,
     )
 
+    # Media type ordering
+    media_type_order = models.JSONField(default=list, blank=True)
+
     # UI preferences
     clickable_media_cards = models.BooleanField(
         default=False,
@@ -566,28 +569,37 @@ class User(AbstractUser):
 
     def get_enabled_media_types(self):
         """Return a list of enabled media type values based on user preferences."""
-        enabled_types = []
+        skip = {MediaTypes.EPISODE.value, MediaTypes.SEASON.value}
+        custom_order = self.media_type_order or []
+        ordered = []
+        seen = set()
 
-        for media_type in MediaTypes.values:
-            if media_type == MediaTypes.EPISODE.value:
+        for mt in custom_order:
+            if mt in skip or mt in seen:
                 continue
+            if getattr(self, f"{mt}_enabled", False):
+                ordered.append(mt)
+                seen.add(mt)
 
-            enabled_field = f"{media_type}_enabled"
-            if getattr(self, enabled_field, False):
-                enabled_types.append(media_type)
+        for mt in MediaTypes.values:
+            if mt in skip or mt in seen:
+                continue
+            if getattr(self, f"{mt}_enabled", False):
+                ordered.append(mt)
 
-        return enabled_types
+        return ordered
 
     def get_active_media_types(self):
         """Return a list of active media type values based on user preferences."""
         enabled_types = self.get_enabled_media_types()
 
-        # Add season if TV is enabled (and season isn't already in the list)
+        # Add season right after TV if TV is enabled
         if (
             MediaTypes.TV.value in enabled_types
             and MediaTypes.SEASON.value not in enabled_types
         ):
-            enabled_types.insert(0, MediaTypes.SEASON.value)
+            tv_index = enabled_types.index(MediaTypes.TV.value)
+            enabled_types.insert(tv_index + 1, MediaTypes.SEASON.value)
 
         return enabled_types
 

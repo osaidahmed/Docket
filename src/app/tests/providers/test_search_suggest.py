@@ -487,8 +487,8 @@ class SearchSuggestServiceTests(TestCase):
 
     @patch("app.providers.mal.search")
     @patch("app.providers.tmdb.search_multi")
-    def test_results_sorted_by_type_preference(self, mock_tmdb, mock_mal):
-        """Results are sorted by enabled_types order, not by provider speed."""
+    def test_results_interleaved_by_type_preference(self, mock_tmdb, mock_mal):
+        """One result per type is interleaved in enabled_types order."""
         mock_tmdb.return_value = [
             {
                 "media_id": 100,
@@ -538,7 +538,6 @@ class SearchSuggestServiceTests(TestCase):
             },
         ]
 
-        # Anime first in enabled_types — anime results should come first
         enabled = [
             MediaTypes.ANIME.value,
             MediaTypes.MANGA.value,
@@ -551,6 +550,61 @@ class SearchSuggestServiceTests(TestCase):
         self.assertEqual(
             result_types,
             [MediaTypes.ANIME.value, MediaTypes.MANGA.value, "tv", "movie"],
+        )
+
+    @patch("app.providers.mal.search")
+    @patch("app.providers.tmdb.search_multi")
+    def test_round_robin_diversity(self, mock_tmdb, mock_mal):
+        """Multiple results per type are interleaved, not grouped."""
+        mock_tmdb.return_value = [
+            {
+                "media_id": i,
+                "source": Sources.TMDB.value,
+                "media_type": "tv",
+                "title": f"TV {i}",
+                "image": "http://example.com/tv.jpg",
+            }
+            for i in range(3)
+        ]
+        mock_mal.side_effect = [
+            {
+                "page": 1,
+                "total_results": 3,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "media_id": 100 + i,
+                        "source": Sources.MAL.value,
+                        "media_type": MediaTypes.ANIME.value,
+                        "title": f"Anime {i}",
+                        "image": "http://example.com/a.jpg",
+                        "synopsis": "",
+                    }
+                    for i in range(3)
+                ],
+            },
+            {
+                "page": 1,
+                "total_results": 0,
+                "total_pages": 1,
+                "results": [],
+            },
+        ]
+
+        enabled = [MediaTypes.ANIME.value, MediaTypes.TV.value]
+        results = services.search_suggest_api("Test", enabled, limit=5)
+
+        result_types = [r["media_type"] for r in results]
+        # Round-robin: anime, tv, anime, tv, anime
+        self.assertEqual(
+            result_types,
+            [
+                MediaTypes.ANIME.value,
+                "tv",
+                MediaTypes.ANIME.value,
+                "tv",
+                MediaTypes.ANIME.value,
+            ],
         )
 
     @patch("app.providers.mal.search")
