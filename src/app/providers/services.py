@@ -430,6 +430,42 @@ def _collect_suggest_results(future, name, seen_keys, all_results):
         logger.exception("Suggest API failed for %s", name)
 
 
+def _cross_provider_dedup(all_results, enabled_types):
+    """Remove cross-provider duplicates between TMDB TV and MAL anime."""
+    tv_type = MediaTypes.TV.value
+    anime_type = MediaTypes.ANIME.value
+
+    if tv_type not in enabled_types or anime_type not in enabled_types:
+        return all_results
+
+    tv_preferred = enabled_types.index(tv_type) < enabled_types.index(anime_type)
+
+    tv_results = [r for r in all_results if r["media_type"] == tv_type]
+    anime_results = [r for r in all_results if r["media_type"] == anime_type]
+
+    if not tv_results or not anime_results:
+        return all_results
+
+    anime_titles = {}
+    for r in anime_results:
+        anime_titles[r["title"].lower()] = r
+        english = r.get("english_title", "")
+        if english:
+            anime_titles[english.lower()] = r
+
+    tv_titles = {r["title"].lower(): r for r in tv_results}
+
+    to_remove = set()
+    for tv_title_lower, tv_result in tv_titles.items():
+        if tv_title_lower in anime_titles:
+            if tv_preferred:
+                to_remove.add(id(anime_titles[tv_title_lower]))
+            else:
+                to_remove.add(id(tv_result))
+
+    return [r for r in all_results if id(r) not in to_remove]
+
+
 def _interleave_results(all_results, enabled_types, limit):
     """Round-robin interleave results by media type in preference order."""
     from collections import defaultdict  # noqa: PLC0415
@@ -487,4 +523,5 @@ def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
 
+    all_results = _cross_provider_dedup(all_results, enabled_types)
     return _interleave_results(all_results, enabled_types, limit)

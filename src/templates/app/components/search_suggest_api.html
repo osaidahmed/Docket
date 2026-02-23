@@ -14,7 +14,12 @@
            loading="lazy">
       <div class="flex-1 min-w-0">
         <div class="truncate">{{ result.title }}</div>
-        <div class="text-xs text-gray-500">{{ result.media_type|media_type_readable }}</div>
+        <div class="text-xs text-gray-500 truncate">
+          {% if result.english_title %}
+            {{ result.english_title }} ·
+          {% endif %}
+          {{ result.media_type|media_type_readable }}
+        </div>
       </div>
     </button>
   {% endfor %}
