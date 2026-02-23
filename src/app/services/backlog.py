@@ -203,7 +203,11 @@ def annotate_next_event(media_list):
                 bool(non_min_events)
                 and all(e.datetime > current_time for e in non_min_events)
             )
-            or (not non_min_events and media.progress == 0)
+            or (
+                all(e.is_min_datetime for e in all_events)
+                and media.progress == 0
+                and media.status == Status.PLANNING.value
+            )
         )
         media.is_ongoing = any(e.is_min_datetime for e in all_events) or (
             not all_events

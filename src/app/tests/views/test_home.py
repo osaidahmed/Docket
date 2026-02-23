@@ -2269,8 +2269,8 @@ class NotYetAiringTests(TestCase):
         self.assertNotIn("not_yet_airing", media_types)
         self.assertNotContains(response, "Not Yet Airing")
 
-    def test_not_yet_airing_unknown_date_min_datetime(self):
-        """Anime with only datetime.min events and zero progress is not-yet-airing."""
+    def test_min_datetime_planning_is_not_yet_airing(self):
+        """Anime with only datetime.min events in Planning is not-yet-airing."""
         item = Item.objects.create(
             media_id="6007",
             source=Sources.MAL.value,
@@ -2302,6 +2302,33 @@ class NotYetAiringTests(TestCase):
 
         self.assertIn("Upcoming Unknown Anime", nya_titles)
         self.assertNotIn("Upcoming Unknown Anime", type_titles)
+
+    def test_min_datetime_in_progress_stays_in_regular_group(self):
+        """Anime with only datetime.min events in In Progress stays in regular group."""
+        item = Item.objects.create(
+            media_id="6008",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Airing Long Runner",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=None,
+            datetime=datetime.min.replace(tzinfo=UTC),
+        )
+        Anime.objects.create(
+            item=item, user=self.user, status=Status.IN_PROGRESS.value, progress=0
+        )
+
+        response = self.client.get(reverse("home"))
+        groups = response.context["groups"]
+
+        media_types = {g["media_type"] for g in groups}
+        self.assertNotIn("not_yet_airing", media_types)
+
+        titles = _flatten_group_titles(groups)
+        self.assertIn("Airing Long Runner", titles)
 
     def test_not_yet_airing_future_plus_min_datetime(self):
         """Anime with future real dates + datetime.min events is not-yet-airing."""
@@ -2341,33 +2368,6 @@ class NotYetAiringTests(TestCase):
 
         self.assertIn("Partial Schedule Anime", nya_titles)
         self.assertNotIn("Partial Schedule Anime", type_titles)
-
-    def test_min_datetime_with_progress_stays_in_group(self):
-        """Anime with datetime.min events but progress > 0 stays in regular group."""
-        item = Item.objects.create(
-            media_id="6008",
-            source=Sources.MAL.value,
-            media_type=MediaTypes.ANIME.value,
-            title="Started Anime",
-            image="http://example.com/image.jpg",
-        )
-        Event.objects.create(
-            item=item,
-            content_number=None,
-            datetime=datetime.min.replace(tzinfo=UTC),
-        )
-        Anime.objects.create(
-            item=item, user=self.user, status=Status.IN_PROGRESS.value, progress=3
-        )
-
-        response = self.client.get(reverse("home"))
-        groups = response.context["groups"]
-
-        media_types = {g["media_type"] for g in groups}
-        self.assertNotIn("not_yet_airing", media_types)
-
-        titles = _flatten_group_titles(groups)
-        self.assertIn("Started Anime", titles)
 
 
 class HomeViewConsistencyTests(TestCase):
