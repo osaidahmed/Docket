@@ -92,6 +92,12 @@ urlpatterns = [
         name="delete_history_record",
     ),
     path("create", views.create_entry, name="create_entry"),
+    path("add_by_link", views.add_by_link, name="add_by_link"),
+    path(
+        "add_by_link/process",
+        views.add_by_link_process,
+        name="add_by_link_process",
+    ),
     path("search/parent_tv", views.search_parent_tv, name="search_parent_tv"),
     path(
         "search/parent_season",

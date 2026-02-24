@@ -129,6 +129,19 @@
                   </a>
                 </li>
 
+                {% url 'add_by_link' as add_by_link_url %}
+                <li>
+                  <a href="{{ add_by_link_url }}"
+                     class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if request.path == add_by_link_url %}text-white bg-line{% else %}text-gray-400 hover:text-white hover:bg-nav{% endif %}">
+                    {% if request.path|str_equals:add_by_link_url %}
+                      {% include "app/icons/link.svg" with classes="w-5 h-5 text-accent-soft " %}
+                    {% else %}
+                      {% include "app/icons/link.svg" with classes="w-5 h-5" %}
+                    {% endif %}
+                    <span>Add by Link</span>
+                  </a>
+                </li>
+
                 <li>
                   <a href="{{ explore_url }}"
                      class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if request.path|startswith:explore_url %}text-white bg-line{% else %}text-gray-400 hover:text-white hover:bg-nav{% endif %}">

@@ -8,6 +8,10 @@ from app.views.actions import (
     quick_rewatch,
     quick_status_transition,
 )
+from app.views.add_by_link import (
+    add_by_link,
+    add_by_link_process,
+)
 from app.views.crud import (
     create_entry,
     episode_save,
@@ -47,6 +51,8 @@ from app.views.stats import (
 )
 
 __all__ = [
+    "add_by_link",
+    "add_by_link_process",
     "backlog_save",
     "create_entry",
     "delete_history_record",
