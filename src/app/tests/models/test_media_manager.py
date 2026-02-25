@@ -31,17 +31,17 @@ mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 class MediaManagerTests(TestCase):
     """Test case for the MediaManager class."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data for MediaManager tests."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        # Enable all media types for the user
         for media_type in MediaTypes.values:
-            setattr(self.user, f"{media_type.lower()}_enabled", True)
-        self.user.save()
+            setattr(cls.user, f"{media_type.lower()}_enabled", True)
+        cls.user.save()
 
-        self.movie_item = Item.objects.create(
+        cls.movie_item = Item.objects.create(
             media_id="550",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
@@ -49,7 +49,7 @@ class MediaManagerTests(TestCase):
             image="http://example.com/fightclub.jpg",
         )
 
-        self.anime_item = Item.objects.create(
+        cls.anime_item = Item.objects.create(
             media_id="1",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
@@ -57,7 +57,7 @@ class MediaManagerTests(TestCase):
             image="http://example.com/bebop.jpg",
         )
 
-        self.game_item = Item.objects.create(
+        cls.game_item = Item.objects.create(
             media_id="1234",
             source=Sources.IGDB.value,
             media_type=MediaTypes.GAME.value,
@@ -65,7 +65,7 @@ class MediaManagerTests(TestCase):
             image="http://example.com/tlou.jpg",
         )
 
-        self.book_item = Item.objects.create(
+        cls.book_item = Item.objects.create(
             media_id="OL21733390M",
             source=Sources.OPENLIBRARY.value,
             media_type=MediaTypes.BOOK.value,
@@ -73,7 +73,7 @@ class MediaManagerTests(TestCase):
             image="http://example.com/1984.jpg",
         )
 
-        self.manga_item = Item.objects.create(
+        cls.manga_item = Item.objects.create(
             media_id="2",
             source=Sources.MAL.value,
             media_type=MediaTypes.MANGA.value,
@@ -81,45 +81,45 @@ class MediaManagerTests(TestCase):
             image="http://example.com/berserk.jpg",
         )
 
-        self.movie = Movie.objects.create(
-            item=self.movie_item,
-            user=self.user,
+        cls.movie = Movie.objects.create(
+            item=cls.movie_item,
+            user=cls.user,
             status=Status.COMPLETED.value,
             score=9,
         )
 
-        self.anime = Anime.objects.create(
-            item=self.anime_item,
-            user=self.user,
+        cls.anime = Anime.objects.create(
+            item=cls.anime_item,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             score=10,
             progress=13,
         )
 
-        self.game = Game.objects.create(
-            item=self.game_item,
-            user=self.user,
+        cls.game = Game.objects.create(
+            item=cls.game_item,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             score=7,
             progress=120,
         )
 
-        self.book = Book.objects.create(
-            item=self.book_item,
-            user=self.user,
+        cls.book = Book.objects.create(
+            item=cls.book_item,
+            user=cls.user,
             status=Status.PLANNING.value,
             score=0,
         )
 
-        self.manga = Manga.objects.create(
-            item=self.manga_item,
-            user=self.user,
+        cls.manga = Manga.objects.create(
+            item=cls.manga_item,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             score=10,
             progress=100,
         )
 
-        self.season1_item = Item.objects.create(
+        cls.season1_item = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -128,14 +128,14 @@ class MediaManagerTests(TestCase):
             season_number=1,
         )
 
-        self.season1 = Season.objects.create(
-            item=self.season1_item,
-            user=self.user,
+        cls.season1 = Season.objects.create(
+            item=cls.season1_item,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             score=8,
         )
 
-        self.tv = TV.objects.get(user=self.user)
+        cls.tv = TV.objects.get(user=cls.user)
 
         for i in range(1, 5):
             episode_item = Item.objects.create(
@@ -152,13 +152,13 @@ class MediaManagerTests(TestCase):
             if i <= watched_episodes:
                 Episode.objects.create(
                     item=episode_item,
-                    related_season=self.season1,
+                    related_season=cls.season1,
                     end_date=datetime(2023, 6, i, 0, 0, tzinfo=UTC),
                 )
 
         for i in range(4, 7):
             Event.objects.create(
-                item=self.anime_item,
+                item=cls.anime_item,
                 content_number=i + 13,
                 datetime=timezone.now() + timedelta(days=i),
                 notification_sent=False,

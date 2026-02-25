@@ -21,10 +21,11 @@ mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 class TVModel(TestCase):
     """Test the @properties and custom save of the TV model."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create a user and a season with episodes."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
         item_season1 = Item.objects.create(
             media_id="1668",
@@ -37,11 +38,11 @@ class TVModel(TestCase):
 
         season1 = Season.objects.create(
             item=item_season1,
-            user=self.user,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
         )
 
-        self.tv = TV.objects.get(user=self.user)
+        cls.tv = TV.objects.get(user=cls.user)
 
         item_ep1 = Item.objects.create(
             media_id="1668",
@@ -84,8 +85,8 @@ class TVModel(TestCase):
 
         season2 = Season.objects.create(
             item=item_season2,
-            related_tv=self.tv,
-            user=self.user,
+            related_tv=cls.tv,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
         )
 
@@ -151,12 +152,13 @@ class TVModel(TestCase):
 class TVStatusTests(TestCase):
     """Test TV model status change behaviors."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create test data."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.tv_item = Item.objects.create(
+        cls.tv_item = Item.objects.create(
             media_id="123",
             source=Sources.TMDB.value,
             media_type=MediaTypes.TV.value,
@@ -164,13 +166,13 @@ class TVStatusTests(TestCase):
             image="http://example.com/image.jpg",
         )
 
-        self.tv = TV.objects.create(
-            item=self.tv_item,
-            user=self.user,
+        cls.tv = TV.objects.create(
+            item=cls.tv_item,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
-        self.season1_item = Item.objects.create(
+        cls.season1_item = Item.objects.create(
             media_id="123",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -179,14 +181,14 @@ class TVStatusTests(TestCase):
             season_number=1,
         )
 
-        self.season1 = Season.objects.create(
-            item=self.season1_item,
-            user=self.user,
-            related_tv=self.tv,
+        cls.season1 = Season.objects.create(
+            item=cls.season1_item,
+            user=cls.user,
+            related_tv=cls.tv,
             status=Status.IN_PROGRESS.value,
         )
 
-        self.season2_item = Item.objects.create(
+        cls.season2_item = Item.objects.create(
             media_id="123",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -195,10 +197,10 @@ class TVStatusTests(TestCase):
             season_number=2,
         )
 
-        self.season2 = Season.objects.create(
-            item=self.season2_item,
-            user=self.user,
-            related_tv=self.tv,
+        cls.season2 = Season.objects.create(
+            item=cls.season2_item,
+            user=cls.user,
+            related_tv=cls.tv,
             status=Status.PLANNING.value,
         )
 

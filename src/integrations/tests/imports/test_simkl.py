@@ -29,13 +29,15 @@ app_mock_path = (
 class ImportSimkl(TestCase):
     """Test importing media from SIMKL."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user for the tests."""
-        credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**credentials)
-        self.importer = simkl.SimklImporter(
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
+        cls.importer = simkl.SimklImporter(
             helpers.encrypt("token"),
-            self.user,
+            cls.user,
             "new",
         )
 

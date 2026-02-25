@@ -23,10 +23,12 @@ app_mock_path = (
 class ImportTrakt(TestCase):
     """Test importing media from Trakt."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user for the tests."""
-        credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
 
     @patch("integrations.imports.trakt.TraktImporter._get_metadata")
     def test_process_watched_movie(self, mock_get_metadata):

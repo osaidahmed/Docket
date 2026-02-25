@@ -23,6 +23,11 @@ indent = 2
 DJANGO_SETTINGS_MODULE = "config.test_settings"
 pythonpath = ["src"]
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
+addopts = "--dist worksteal"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::django.utils.deprecation.RemovedInDjango60Warning",
+]
 
 [tool.coverage.run]
 source = ["src"]

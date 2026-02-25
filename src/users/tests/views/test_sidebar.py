@@ -9,10 +9,13 @@ from app.models import MediaTypes
 class SidebarViewTests(TestCase):
     """Tests for the sidebar view."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user for the tests."""
-        self.credentials = {"username": "testuser", "password": "testpass123"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "testuser", "password": "testpass123"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
         self.client.login(**self.credentials)
 
     def test_preferences_get(self):

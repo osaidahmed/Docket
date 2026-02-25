@@ -9,13 +9,15 @@ from users.forms import NotificationSettingsForm
 class NotificationSettingsFormTests(TestCase):
     """Tests for the NotificationSettingsForm."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.valid_discord_url = "discord://webhook_id/webhook_token"
-        self.valid_telegram_url = "tgram://bot_token/chat_id"
-        self.invalid_url = "invalid://not_a_real_url"
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
+        cls.valid_discord_url = "discord://webhook_id/webhook_token"
+        cls.valid_telegram_url = "tgram://bot_token/chat_id"
+        cls.invalid_url = "invalid://not_a_real_url"
 
     def test_form_fields(self):
         """Test that the form has the correct fields."""

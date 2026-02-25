@@ -19,10 +19,12 @@ from app.models import (
 class CreateEntryViewTests(TestCase):
     """Test the create entry view."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def test_create_entry_get(self):

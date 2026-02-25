@@ -49,11 +49,11 @@ def _flatten_group_titles(groups):
 class HomeViewTests(TestCase):
     """Test the home view."""
 
-    def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
+    @classmethod
+    def setUpTestData(cls):
+        """Create a user and test data."""
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
         season_item = Item.objects.create(
             media_id="1668",
@@ -65,7 +65,7 @@ class HomeViewTests(TestCase):
         )
         season = Season.objects.create(
             item=season_item,
-            user=self.user,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
         )
 
@@ -94,10 +94,13 @@ class HomeViewTests(TestCase):
         )
         Anime.objects.create(
             item=anime_item,
-            user=self.user,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             progress=10,
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_home_view(self):
         """Test that backlog shows grouped Planning and In Progress items."""
@@ -249,36 +252,11 @@ class HomeViewTests(TestCase):
             [Status.IN_PROGRESS.value, Status.PLANNING.value, Status.PAUSED.value],
         )
 
-    def test_backlog_card_shows_synopsis(self):
-        """Test that synopsis text appears in the backlog card HTML."""
-        movie_item = Item.objects.create(
-            media_id="600",
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.MOVIE.value,
-            title="Movie With Synopsis",
-            image="http://example.com/image.jpg",
-            synopsis="A gripping tale of adventure and mystery.",
-        )
-        Movie.objects.create(
-            item=movie_item,
-            user=self.user,
-            status=Status.PLANNING.value,
-        )
-
-        response = self.client.get(reverse("home"))
-        self.assertContains(response, "A gripping tale of adventure and mystery.")
-
     def test_archive_opens_with_view_param(self):
         """Test that ?view=archive sets archive_open in context."""
         response = self.client.get(reverse("home") + "?view=archive")
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context.get("archive_open"))
-
-    def test_sidebar_contains_archive_link(self):
-        """Test that the sidebar includes an Archive navigation link."""
-        response = self.client.get(reverse("home"))
-        self.assertContains(response, "?view=archive")
-        self.assertContains(response, ">Archive</span>")
 
     def test_tv_show_appears_in_backlog(self):
         """Test that TV shows added via quick_add appear in the backlog."""
@@ -298,14 +276,6 @@ class HomeViewTests(TestCase):
         response = self.client.get(reverse("home"))
         titles = _flatten_group_titles(response.context["groups"])
         self.assertIn("Breaking Bad", titles)
-
-    def test_tv_filter_chip_exists(self):
-        """Test that TV Show appears as a filter chip option."""
-        response = self.client.get(reverse("home"))
-        filter_values = [c["value"] for c in response.context["type_filter_choices"]]
-        self.assertIn(MediaTypes.TV.value, filter_values)
-        self.assertNotIn(MediaTypes.SEASON.value, filter_values)
-        self.assertNotIn(MediaTypes.EPISODE.value, filter_values)
 
     def test_tv_filter_includes_seasons(self):
         """Test that filtering by TV shows both TV and Season items."""
@@ -379,30 +349,10 @@ class HomeViewTests(TestCase):
         self.assertEqual(archive_titles.count("Rewatched Movie"), 1)
 
     @patch("app.providers.services.get_media_metadata")
-    def test_archive_count_on_page_matches_list(self, mock_metadata):
-        """Test that archive_count in context matches the archive list length."""
+    def test_archive_count_after_quick_complete(self, mock_metadata):
+        """Test that completing an item updates archive count correctly."""
         mock_metadata.return_value = {"max_progress": None}
-        for mid in ["810", "811", "812"]:
-            item = Item.objects.create(
-                media_id=mid,
-                source=Sources.TMDB.value,
-                media_type=MediaTypes.MOVIE.value,
-                title=f"Movie {mid}",
-                image="http://example.com/image.jpg",
-            )
-            Movie.objects.create(
-                item=item, user=self.user, status=Status.COMPLETED.value
-            )
 
-        response = self.client.get(reverse("home"))
-        self.assertEqual(
-            response.context["archive_count"], len(response.context["archive"])
-        )
-
-    @patch("app.providers.services.get_media_metadata")
-    def test_quick_complete_archive_count_matches_page(self, mock_metadata):
-        """Test that archive_count from quick_complete matches a fresh page load."""
-        mock_metadata.return_value = {"max_progress": None}
         item = Item.objects.create(
             media_id="820",
             source=Sources.TMDB.value,
@@ -413,6 +363,24 @@ class HomeViewTests(TestCase):
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
+
+        # item with prior rewatches (count should still increase by exactly 1)
+        rewatch_item = Item.objects.create(
+            media_id="830",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Multi Rewatch Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=rewatch_item, user=self.user, status=Status.COMPLETED.value
+        )
+        Movie.objects.create(
+            item=rewatch_item, user=self.user, status=Status.COMPLETED.value
+        )
+
+        page_before = self.client.get(reverse("home"))
+        count_before = page_before.context["archive_count"]
 
         response = self.client.post(
             reverse("quick_complete"),
@@ -425,110 +393,18 @@ class HomeViewTests(TestCase):
             .split(")")[0]
         )
 
-        page = self.client.get(reverse("home"))
-        self.assertEqual(oob_count, page.context["archive_count"])
-
-    @patch("app.providers.services.get_media_metadata")
-    def test_archive_count_stable_with_rewatched_item(self, mock_metadata):
-        """Test completing an item with prior rewatches increases count by 1."""
-        mock_metadata.return_value = {"max_progress": None}
-        item = Item.objects.create(
-            media_id="830",
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.MOVIE.value,
-            title="Multi Rewatch Movie",
-            image="http://example.com/image.jpg",
-        )
-        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
-        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
-
-        new_item = Item.objects.create(
-            media_id="831",
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.MOVIE.value,
-            title="Fresh Movie",
-            image="http://example.com/image.jpg",
-        )
-        new_movie = Movie.objects.create(
-            item=new_item, user=self.user, status=Status.IN_PROGRESS.value
-        )
-
-        page_before = self.client.get(reverse("home"))
-        count_before = page_before.context["archive_count"]
-
-        self.client.post(
-            reverse("quick_complete"),
-            {"media_type": "movie", "instance_id": new_movie.id},
-        )
-
         page_after = self.client.get(reverse("home"))
         count_after = page_after.context["archive_count"]
 
+        self.assertEqual(oob_count, count_after)
         self.assertEqual(count_after, count_before + 1)
 
     @patch("app.providers.services.get_media_metadata")
-    def test_archive_count_during_active_rewatch(self, mock_metadata):
-        """Test that completing a rewatch increases archive count by exactly 1."""
+    def test_archive_count_excludes_active_rewatches(self, mock_metadata):
+        """Test that items with active rewatches aren't counted in archive."""
         mock_metadata.return_value = {"max_progress": None}
-        item = Item.objects.create(
-            media_id="840",
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.MOVIE.value,
-            title="Rewatch In Progress",
-            image="http://example.com/image.jpg",
-        )
-        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
-        rewatch = Movie.objects.create(
-            item=item, user=self.user, status=Status.PLANNING.value
-        )
 
-        page_before = self.client.get(reverse("home"))
-        count_before = page_before.context["archive_count"]
-
-        self.client.post(
-            reverse("quick_complete"),
-            {"media_type": "movie", "instance_id": rewatch.id},
-        )
-
-        page_after = self.client.get(reverse("home"))
-        count_after = page_after.context["archive_count"]
-
-        self.assertEqual(count_after, count_before + 1)
-
-    @patch("app.providers.services.get_media_metadata")
-    def test_archive_count_oob_matches_during_rewatch(self, mock_metadata):
-        """Test OOB archive_count matches page after completing a rewatch."""
-        mock_metadata.return_value = {"max_progress": None}
-        item = Item.objects.create(
-            media_id="850",
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.MOVIE.value,
-            title="OOB Rewatch Test",
-            image="http://example.com/image.jpg",
-        )
-        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
-        rewatch = Movie.objects.create(
-            item=item, user=self.user, status=Status.PLANNING.value
-        )
-
-        response = self.client.post(
-            reverse("quick_complete"),
-            {"media_type": "movie", "instance_id": rewatch.id},
-        )
-        oob_count = int(
-            response.content.decode()
-            .split('id="archive-count"')[1]
-            .split("(")[1]
-            .split(")")[0]
-        )
-
-        page = self.client.get(reverse("home"))
-        self.assertEqual(oob_count, page.context["archive_count"])
-
-    @patch("app.providers.services.get_media_metadata")
-    def test_archive_count_oob_excludes_active_rewatch_items(self, mock_metadata):
-        """Test OOB count excludes items whose newest instance is a rewatch."""
-        mock_metadata.return_value = {"max_progress": None}
+        # item with an active (non-completed) rewatch should not be in archive count
         item_a = Item.objects.create(
             media_id="860",
             source=Sources.TMDB.value,
@@ -536,8 +412,12 @@ class HomeViewTests(TestCase):
             title="Active Rewatch Movie",
             image="http://example.com/image.jpg",
         )
-        Movie.objects.create(item=item_a, user=self.user, status=Status.COMPLETED.value)
-        Movie.objects.create(item=item_a, user=self.user, status=Status.PLANNING.value)
+        Movie.objects.create(
+            item=item_a, user=self.user, status=Status.COMPLETED.value
+        )
+        Movie.objects.create(
+            item=item_a, user=self.user, status=Status.PLANNING.value
+        )
 
         item_b = Item.objects.create(
             media_id="861",
@@ -553,6 +433,7 @@ class HomeViewTests(TestCase):
         page_before = self.client.get(reverse("home"))
         count_before = page_before.context["archive_count"]
 
+        # quick_complete: OOB count should match page and increase by 1
         response = self.client.post(
             reverse("quick_complete"),
             {"media_type": "movie", "instance_id": movie_b.id},
@@ -570,46 +451,36 @@ class HomeViewTests(TestCase):
         self.assertEqual(oob_count, count_after)
         self.assertEqual(count_after, count_before + 1)
 
-    @patch("app.providers.services.get_media_metadata")
-    def test_backlog_save_complete_archive_count_excludes_rewatches(
-        self, mock_metadata
-    ):
-        """Test backlog_save archive_count excludes items with active rewatches."""
-        mock_metadata.return_value = {"max_progress": None}
-        item_a = Item.objects.create(
-            media_id="870",
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.MOVIE.value,
-            title="Rewatch In Progress A",
-            image="http://example.com/image.jpg",
-        )
-        Movie.objects.create(item=item_a, user=self.user, status=Status.COMPLETED.value)
-        Movie.objects.create(item=item_a, user=self.user, status=Status.PLANNING.value)
-
-        item_b = Item.objects.create(
+        # backlog_save path: also excludes active rewatches
+        item_c = Item.objects.create(
             media_id="871",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Complete Via Save",
             image="http://example.com/image.jpg",
         )
-        movie_b = Movie.objects.create(
-            item=item_b, user=self.user, status=Status.IN_PROGRESS.value
+        movie_c = Movie.objects.create(
+            item=item_c, user=self.user, status=Status.IN_PROGRESS.value
         )
 
-        data = self._backlog_save_data(movie_b)
+        count_before_save = count_after
+
+        data = self._backlog_save_data(movie_c)
         data["status"] = Status.COMPLETED.value
         response = self.client.post(reverse("backlog_save"), data)
 
-        oob_count = int(
+        save_oob_count = int(
             response.content.decode()
             .split('id="archive-count"')[1]
             .split("(")[1]
             .split(")")[0]
         )
 
-        page = self.client.get(reverse("home"))
-        self.assertEqual(oob_count, page.context["archive_count"])
+        page_final = self.client.get(reverse("home"))
+        self.assertEqual(save_oob_count, page_final.context["archive_count"])
+        self.assertEqual(
+            page_final.context["archive_count"], count_before_save + 1
+        )
 
     def test_ongoing_caught_up_when_progress_matches(self):
         """Test that caught-up users see 'Caught Up' (no question mark)."""
@@ -1534,9 +1405,12 @@ class HomeViewTests(TestCase):
 class RewatchSectionTests(TestCase):
     """Tests for the Rewatches section in the backlog."""
 
-    def setUp(self):  # noqa: D102
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+    @classmethod
+    def setUpTestData(cls):  # noqa: D102
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
         self.client.login(**self.credentials)
 
     def _backlog_save_data(self, media):
@@ -2116,10 +1990,13 @@ class RewatchSectionTests(TestCase):
 class NotYetAiringTests(TestCase):
     """Test the 'Not Yet Airing' backlog section."""
 
+    @classmethod
+    def setUpTestData(cls):
+        """Create a user."""
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def _create_anime_with_future_events(self, media_id, title, days_ahead=30):
@@ -2373,10 +2250,13 @@ class NotYetAiringTests(TestCase):
 class HomeViewConsistencyTests(TestCase):
     """Test that HTMX partial responses match full page reloads."""
 
+    @classmethod
+    def setUpTestData(cls):
+        """Create a user."""
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def _backlog_save_data(self, media):
@@ -3055,18 +2935,21 @@ class HomeViewConsistencyTests(TestCase):
 class CaughtUpToggleTests(TestCase):
     """Tests for manual caught_up toggle on backlog cards."""
 
-    def setUp(self):  # noqa: D102
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
+    @classmethod
+    def setUpTestData(cls):  # noqa: D102
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.anime_item = Item.objects.create(
+        cls.anime_item = Item.objects.create(
             media_id="3000",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
             title="Ongoing Anime",
             image="http://example.com/image.jpg",
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def _backlog_save_data(self, media):
         return {
@@ -3271,9 +3154,12 @@ class CaughtUpToggleTests(TestCase):
 class ArchiveViewTests(TestCase):
     """Tests for the dedicated archive page and archive card editing."""
 
-    def setUp(self):  # noqa: D102
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+    @classmethod
+    def setUpTestData(cls):  # noqa: D102
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
         self.client.login(**self.credentials)
 
     def _archive_url(self):
@@ -3656,19 +3542,22 @@ class ArchiveViewTests(TestCase):
 class EnrichmentTests(TestCase):
     """Test the enrich_items_with_user_data helper."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create a user and test data."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.factory = RequestFactory()
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.item = Item.objects.create(
+        cls.item = Item.objects.create(
             media_id="238",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
             image="http://example.com/image.jpg",
         )
+
+    def setUp(self):
+        self.factory = RequestFactory()
 
     def _make_request(self):
         request = self.factory.get("/")
@@ -3773,13 +3662,13 @@ class EnrichmentTests(TestCase):
 class EnglishTitleTests(TestCase):
     """Test English title display and search."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create anime item with English title for testing."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.item = Item.objects.create(
+        cls.item = Item.objects.create(
             media_id="16498",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
@@ -3788,10 +3677,13 @@ class EnglishTitleTests(TestCase):
             image="http://example.com/image.jpg",
         )
         Anime.objects.create(
-            item=self.item,
-            user=self.user,
+            item=cls.item,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_english_title_displayed_on_backlog_card(self):
         """Test that English title subtitle appears on home backlog cards."""

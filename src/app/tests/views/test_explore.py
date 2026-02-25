@@ -17,10 +17,12 @@ from app.models import (
 class ExploreViewTests(TestCase):
     """Test the explore landing page view."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def test_explore_landing_page(self):
@@ -68,10 +70,12 @@ class ExploreViewTests(TestCase):
 class ExploreTypeViewTests(TestCase):
     """Test the explore_type view."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     @patch("app.providers.services.browse")
@@ -351,14 +355,16 @@ class ExploreTypeViewTests(TestCase):
 class ExploreSeasonalViewTests(TestCase):
     """Test the seasonal anime browse feature."""
 
-    def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
-        self.anime_url = reverse(
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.anime_url = reverse(
             "explore_type", kwargs={"media_type": MediaTypes.ANIME.value}
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     @patch("app.config.get_current_anime_season", return_value=(2026, "winter"))
     @patch("app.providers.services.browse")
@@ -503,10 +509,12 @@ class ExploreSeasonalViewTests(TestCase):
 class ExploreUpcomingTests(TestCase):
     """Test that upcoming categories hide the archive/completion button."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def _mock_results(self, media_type, source):

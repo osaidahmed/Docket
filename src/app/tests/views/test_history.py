@@ -14,30 +14,30 @@ from app.models import (
 class HistoryModalViewTests(TestCase):
     """Test the history modal view."""
 
-    def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
-
-        self.item = Item.objects.create(
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.item = Item.objects.create(
             media_id="238",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
             image="http://example.com/image.jpg",
         )
-        self.movie = Movie.objects.create(
-            item=self.item,
-            user=self.user,
+        cls.movie = Movie.objects.create(
+            item=cls.item,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             progress=0,
         )
+        cls.movie.status = Status.COMPLETED.value
+        cls.movie.progress = 1
+        cls.movie.score = 8
+        cls.movie.save()
 
-        self.movie.status = Status.COMPLETED.value
-        self.movie.progress = 1
-        self.movie.score = 8
-        self.movie.save()
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_history_modal_view(self):
         """Test the history modal view."""
@@ -67,37 +67,35 @@ class HistoryModalViewTests(TestCase):
 class DeleteHistoryRecordViewTests(TestCase):
     """Test the delete history record view."""
 
-    def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
-
-        self.item = Item.objects.create(
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.item = Item.objects.create(
             media_id="238",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
             image="http://example.com/image.jpg",
         )
-        self.movie = Movie.objects.create(
-            item=self.item,
-            user=self.user,
+        cls.movie = Movie.objects.create(
+            item=cls.item,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             progress=0,
         )
+        cls.movie.status = Status.COMPLETED.value
+        cls.movie.progress = 1
+        cls.movie.score = 8
+        cls.movie.save()
 
-        self.movie.status = Status.COMPLETED.value
-        self.movie.progress = 1
-        self.movie.score = 8
-        self.movie.save()
+        history = cls.movie.history.first()
+        cls.history_id = history.history_id
+        history.history_user = cls.user
+        history.save()
 
-        self.history = self.movie.history.first()
-        self.history_id = self.history.history_id
-
-        # Manually update the history_user field
-        self.history.history_user = self.user
-        self.history.save()
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_delete_history_record(self):
         """Test deleting a history record."""

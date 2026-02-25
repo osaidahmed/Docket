@@ -7,10 +7,12 @@ from lists.forms import CustomListForm
 class CustomListFormTest(TestCase):
     """Test the Custom List form."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create a user."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
 
     def test_custom_list_form_valid(self):
         """Test the form with valid data."""

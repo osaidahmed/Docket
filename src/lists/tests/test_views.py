@@ -11,43 +11,43 @@ from lists.models import CustomList, CustomListItem
 class ListsViewTests(TestCase):
     """Tests for the lists view."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data for lists view tests."""
-        self.factory = RequestFactory()
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.collaborator_credentials = {
+        cls.collaborator_credentials = {
             "username": "collaborator",
             "password": "12345",
         }
-        self.collaborator = get_user_model().objects.create_user(
-            **self.collaborator_credentials,
+        cls.collaborator = get_user_model().objects.create_user(
+            **cls.collaborator_credentials,
         )
 
         # Create some test lists
-        self.list1 = CustomList.objects.create(
+        cls.list1 = CustomList.objects.create(
             name="Test List 1",
             description="Description 1",
-            owner=self.user,
+            owner=cls.user,
         )
-        self.list2 = CustomList.objects.create(
+        cls.list2 = CustomList.objects.create(
             name="Test List 2",
             description="Description 2",
-            owner=self.user,
+            owner=cls.user,
         )
 
         # Add collaborator to one list
-        self.list1.collaborators.add(self.collaborator)
+        cls.list1.collaborators.add(cls.collaborator)
 
         # Create some items
-        self.item1 = Item.objects.create(
+        cls.item1 = Item.objects.create(
             media_id="1",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
         )
-        self.item2 = Item.objects.create(
+        cls.item2 = Item.objects.create(
             media_id="2",
             source=Sources.TMDB.value,
             media_type=MediaTypes.TV.value,
@@ -56,13 +56,16 @@ class ListsViewTests(TestCase):
 
         # Add items to lists
         CustomListItem.objects.create(
-            custom_list=self.list1,
-            item=self.item1,
+            custom_list=cls.list1,
+            item=cls.item1,
         )
         CustomListItem.objects.create(
-            custom_list=self.list2,
-            item=self.item2,
+            custom_list=cls.list2,
+            item=cls.item2,
         )
+
+    def setUp(self):
+        self.factory = RequestFactory()
 
     def test_lists_owner_view(self):
         """Test the lists view response and context for owner."""
@@ -172,42 +175,37 @@ class ListsViewTests(TestCase):
 class ListDetailViewTests(TestCase):
     """Tests for the list_detail view."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.factory = RequestFactory()
-        self.credentials = {"username": "testuser", "password": "testpassword"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "testuser", "password": "testpassword"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.other_credentials = {
-            "username": "otheruser",
-            "password": "testpassword",
-        }
-        self.other_user = get_user_model().objects.create_user(
-            **self.other_credentials,
+        cls.other_user = get_user_model().objects.create_user(
+            username="otheruser", password="testpassword",
         )
-        self.client.login(**self.credentials)
 
         # Create a test list
-        self.custom_list = CustomList.objects.create(
+        cls.custom_list = CustomList.objects.create(
             name="Test List",
             description="Test Description",
-            owner=self.user,
+            owner=cls.user,
         )
 
         # Create some items with different media types
-        self.movie_item = Item.objects.create(
+        cls.movie_item = Item.objects.create(
             media_id="238",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
         )
-        self.tv_item = Item.objects.create(
+        cls.tv_item = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.TV.value,
             title="Test TV Show",
         )
-        self.anime_item = Item.objects.create(
+        cls.anime_item = Item.objects.create(
             media_id="1",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
@@ -216,17 +214,21 @@ class ListDetailViewTests(TestCase):
 
         # Add items to the list
         CustomListItem.objects.create(
-            custom_list=self.custom_list,
-            item=self.movie_item,
+            custom_list=cls.custom_list,
+            item=cls.movie_item,
         )
         CustomListItem.objects.create(
-            custom_list=self.custom_list,
-            item=self.tv_item,
+            custom_list=cls.custom_list,
+            item=cls.tv_item,
         )
         CustomListItem.objects.create(
-            custom_list=self.custom_list,
-            item=self.anime_item,
+            custom_list=cls.custom_list,
+            item=cls.anime_item,
         )
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.client.login(**self.credentials)
 
     @patch.object(get_user_model(), "update_preference")
     @patch.object(CustomList, "user_can_view")
@@ -506,11 +508,14 @@ class ListDetailViewTests(TestCase):
 class CreateListViewTest(TestCase):
     """Test case for the create list view."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data for create list view tests."""
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
         self.client = Client()
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def test_create_list(self):
@@ -529,21 +534,24 @@ class CreateListViewTest(TestCase):
 class EditListViewTest(TestCase):
     """Test case for the edit list view."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data for edit list view tests."""
-        self.client = Client()
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.collaborator_credentials = {
+        cls.collaborator_credentials = {
             "username": "collaborator",
             "password": "12345",
         }
-        self.collaborator = get_user_model().objects.create_user(
-            **self.collaborator_credentials,
+        cls.collaborator = get_user_model().objects.create_user(
+            **cls.collaborator_credentials,
         )
-        self.list = CustomList.objects.create(name="Test List", owner=self.user)
-        self.list.collaborators.add(self.collaborator)
+        cls.list = CustomList.objects.create(name="Test List", owner=cls.user)
+        cls.list.collaborators.add(cls.collaborator)
+
+    def setUp(self):
+        self.client = Client()
 
     def test_edit_list(self):
         """Test editing an existing custom list."""
@@ -579,21 +587,24 @@ class EditListViewTest(TestCase):
 class DeleteListViewTest(TestCase):
     """Test the delete view."""
 
-    def setUp(self):
-        """Create a user, log in, and create a list."""
-        self.client = Client()
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+    @classmethod
+    def setUpTestData(cls):
+        """Create a user and test data."""
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.collaborator_credentials = {
+        cls.collaborator_credentials = {
             "username": "collaborator",
             "password": "12345",
         }
-        self.collaborator = get_user_model().objects.create_user(
-            **self.collaborator_credentials,
+        cls.collaborator = get_user_model().objects.create_user(
+            **cls.collaborator_credentials,
         )
-        self.list = CustomList.objects.create(name="Test List", owner=self.user)
-        self.list.collaborators.add(self.collaborator)
+        cls.list = CustomList.objects.create(name="Test List", owner=cls.user)
+        cls.list.collaborators.add(cls.collaborator)
+
+    def setUp(self):
+        self.client = Client()
 
     def test_delete_list(self):
         """Test deleting a list."""
@@ -611,22 +622,25 @@ class DeleteListViewTest(TestCase):
 class ListsModalViewTests(TestCase):
     """Tests for the lists_modal view."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.client = Client()
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
         # Create some test lists
-        self.list1 = CustomList.objects.create(
+        cls.list1 = CustomList.objects.create(
             name="Test List 1",
-            owner=self.user,
+            owner=cls.user,
         )
-        self.list2 = CustomList.objects.create(
+        cls.list2 = CustomList.objects.create(
             name="Test List 2",
-            owner=self.user,
+            owner=cls.user,
         )
+
+    def setUp(self):
+        self.client = Client()
+        self.client.login(**self.credentials)
 
     def test_lists_modal_view(self):
         """Test the basic lists_modal view."""
@@ -748,42 +762,44 @@ class ListsModalViewTests(TestCase):
 class ListItemToggleTests(TestCase):
     """Tests for the list_item_toggle view."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.client = Client()
-
         # Create users
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.collaborator_credentials = {
+        cls.collaborator_credentials = {
             "username": "collaborator",
             "password": "12345",
         }
-        self.collaborator = get_user_model().objects.create_user(
-            **self.collaborator_credentials,
+        cls.collaborator = get_user_model().objects.create_user(
+            **cls.collaborator_credentials,
         )
 
-        self.other_credentials = {
+        cls.other_credentials = {
             "username": "otheruser",
             "password": "testpassword",
         }
-        self.other_user = get_user_model().objects.create_user(
-            **self.other_credentials,
+        cls.other_user = get_user_model().objects.create_user(
+            **cls.other_credentials,
         )
 
         # Create lists
-        self.list = CustomList.objects.create(name="Test List", owner=self.user)
-        self.list.collaborators.add(self.collaborator)
+        cls.list = CustomList.objects.create(name="Test List", owner=cls.user)
+        cls.list.collaborators.add(cls.collaborator)
 
         # Create an item
-        self.item = Item.objects.create(
+        cls.item = Item.objects.create(
             media_id=1,
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
             image="http://example.com/image.jpg",
         )
+
+    def setUp(self):
+        self.client = Client()
 
     def test_list_item_owner_toggle(self):
         """Test adding an item to a list as owner."""

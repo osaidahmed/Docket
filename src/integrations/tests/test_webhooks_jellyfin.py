@@ -11,12 +11,16 @@ from integrations.webhooks.jellyfin import JellyfinWebhookProcessor
 class JellyfinWebhookTests(TestCase):
     """Tests for Jellyfin webhook."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
+        cls.user = get_user_model().objects.create_superuser(
+            username="testuser", token="test-token",
+        )
+        cls.url = reverse("jellyfin_webhook", kwargs={"token": "test-token"})
+
+    def setUp(self):
         self.client = Client()
-        self.credentials = {"username": "testuser", "token": "test-token"}
-        self.user = get_user_model().objects.create_superuser(**self.credentials)
-        self.url = reverse("jellyfin_webhook", kwargs={"token": "test-token"})
 
     def test_invalid_token(self):
         """Test webhook with invalid token returns 401."""

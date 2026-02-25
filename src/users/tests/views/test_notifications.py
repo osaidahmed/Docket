@@ -11,13 +11,13 @@ from app.models import Item, MediaTypes, Sources
 class NotificationTests(TestCase):
     """Tests for notification functionality."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.item1 = Item.objects.create(
+        cls.item1 = Item.objects.create(
             media_id="1",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
@@ -25,13 +25,16 @@ class NotificationTests(TestCase):
             image="http://example.com/anime.jpg",
         )
 
-        self.item2 = Item.objects.create(
+        cls.item2 = Item.objects.create(
             media_id="2",
             source=Sources.MAL.value,
             media_type=MediaTypes.MANGA.value,
             title="Test Manga",
             image="http://example.com/manga.jpg",
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_notifications_get(self):
         """Test GET request to notifications view."""

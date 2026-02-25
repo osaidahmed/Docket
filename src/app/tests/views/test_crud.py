@@ -20,10 +20,12 @@ from app.models import (
 class CreateMedia(TestCase):
     """Test the creation of media objects through views."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     @override_settings(MEDIA_ROOT=("create_media"))
@@ -126,10 +128,12 @@ class CreateMedia(TestCase):
 class EditMedia(TestCase):
     """Test the editing of media objects through views."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def test_edit_movie_score(self):
@@ -171,13 +175,11 @@ class EditMedia(TestCase):
 class DeleteMedia(TestCase):
     """Test the deletion of media objects through views."""
 
-    def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
-
-        self.item_season = Item.objects.create(
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.item_season = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -185,13 +187,12 @@ class DeleteMedia(TestCase):
             image="http://example.com/image.jpg",
             season_number=1,
         )
-        self.season = Season.objects.create(
-            item=self.item_season,
-            user=self.user,
+        cls.season = Season.objects.create(
+            item=cls.item_season,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
         )
-
-        self.item_ep = Item.objects.create(
+        cls.item_ep = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.EPISODE.value,
@@ -200,11 +201,14 @@ class DeleteMedia(TestCase):
             season_number=1,
             episode_number=1,
         )
-        self.episode = Episode.objects.create(
-            item=self.item_ep,
-            related_season=self.season,
+        cls.episode = Episode.objects.create(
+            item=cls.item_ep,
+            related_season=cls.season,
             end_date=datetime.datetime(2023, 6, 1, 0, 0, tzinfo=datetime.UTC),
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_delete_tv(self):
         """Test the deletion of a tv through views."""

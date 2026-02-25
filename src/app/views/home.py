@@ -7,6 +7,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
+from app import config
 from app.models import BasicMedia, MediaTypes, Status
 from app.services import backlog
 from app.templatetags import app_tags
@@ -46,7 +47,7 @@ def home(request):
 def _get_type_filter_choices(user):
     choices = [{"value": "all", "label": "All"}]
     choices.extend(
-        {"value": mt, "label": MediaTypes(mt).label}
+        {"value": mt, "label": config.get_plural_label(mt)}
         for mt in user.get_enabled_media_types()
         if mt != MediaTypes.SEASON.value
     )

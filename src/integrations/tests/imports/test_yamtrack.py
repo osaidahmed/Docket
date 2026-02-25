@@ -26,12 +26,14 @@ app_mock_path = (
 class ImportYamtrack(TestCase):
     """Test importing media from Yamtrack CSV."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user for the tests."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
         with Path(mock_path / "import_yamtrack.csv").open("rb") as file:
-            self.import_results = yamtrack.importer(file, self.user, "new")
+            cls.import_results = yamtrack.importer(file, cls.user, "new")
 
     def test_import_counts(self):
         """Test basic counts of imported media."""
@@ -123,12 +125,14 @@ class ImportYamtrack(TestCase):
 class ImportYamtrackPartials(TestCase):
     """Test importing yamtrack media with no ID."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user for the tests."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
         with Path(mock_path / "import_yamtrack_partials.csv").open("rb") as file:
-            self.import_results = yamtrack.importer(file, self.user, "new")
+            cls.import_results = yamtrack.importer(file, cls.user, "new")
 
     def test_import_counts(self):
         """Test basic counts of imported media."""

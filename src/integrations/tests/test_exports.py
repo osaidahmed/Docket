@@ -25,11 +25,11 @@ from app.models import (
 class ExportCSVTest(TestCase):
     """Test exporting media to CSV."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create necessary data for the tests."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_superuser(**self.credentials)
-        self.client.login(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_superuser(**cls.credentials)
 
         item_movie = Item.objects.create(
             media_id="10494",
@@ -40,7 +40,7 @@ class ExportCSVTest(TestCase):
         )
         Movie.objects.create(
             item=item_movie,
-            user=self.user,
+            user=cls.user,
             score=9,
             status=Status.COMPLETED.value,
             notes="Nice",
@@ -59,7 +59,7 @@ class ExportCSVTest(TestCase):
 
         season = Season.objects.create(
             item=item_season,
-            user=self.user,
+            user=cls.user,
             score=9,
             status=Status.IN_PROGRESS.value,
             notes="Nice",
@@ -89,7 +89,7 @@ class ExportCSVTest(TestCase):
         )
         Anime.objects.create(
             item=item_anime,
-            user=self.user,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             progress=2,
             start_date=datetime(2021, 6, 1, 0, 0, tzinfo=UTC),
@@ -104,7 +104,7 @@ class ExportCSVTest(TestCase):
         )
         Manga.objects.create(
             item=item_manga,
-            user=self.user,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             progress=2,
             start_date=datetime(2021, 6, 1, 0, 0, tzinfo=UTC),
@@ -119,7 +119,7 @@ class ExportCSVTest(TestCase):
         )
         Game.objects.create(
             item=item_game,
-            user=self.user,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             progress=120,
             start_date=datetime(2021, 6, 1, 0, 0, tzinfo=UTC),
@@ -134,11 +134,14 @@ class ExportCSVTest(TestCase):
         )
         Book.objects.create(
             item=item_book,
-            user=self.user,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             progress=120,
             start_date=datetime(2021, 6, 1, 0, 0, tzinfo=UTC),
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_export_csv(self):
         """Basic test exporting media to CSV."""

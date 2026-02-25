@@ -40,13 +40,15 @@ from events.models import Event
 class ReloadCalendarTaskTests(TestCase):
     """Test the fetch_releases task."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up the tests."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
 
         # Create anime item
-        self.anime_item = Item.objects.create(
+        cls.anime_item = Item.objects.create(
             media_id="437",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
@@ -54,13 +56,13 @@ class ReloadCalendarTaskTests(TestCase):
             image="http://example.com/image.jpg",
         )
         Anime.objects.create(
-            item=self.anime_item,
-            user=self.user,
+            item=cls.anime_item,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
         # Create movie item
-        self.movie_item = Item.objects.create(
+        cls.movie_item = Item.objects.create(
             media_id="238",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
@@ -68,12 +70,12 @@ class ReloadCalendarTaskTests(TestCase):
             image="http://example.com/thegodfather.jpg",
         )
         Movie.objects.create(
-            item=self.movie_item,
-            user=self.user,
+            item=cls.movie_item,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
-        self.tv_item = Item.objects.create(
+        cls.tv_item = Item.objects.create(
             media_id="1396",
             source=Sources.TMDB.value,
             media_type=MediaTypes.TV.value,
@@ -81,13 +83,13 @@ class ReloadCalendarTaskTests(TestCase):
             image="http://example.com/breakingbad.jpg",
         )
         tv_object = TV.objects.create(
-            item=self.tv_item,
-            user=self.user,
+            item=cls.tv_item,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
         # Create season item
-        self.season_item = Item.objects.create(
+        cls.season_item = Item.objects.create(
             media_id="1396",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -96,14 +98,14 @@ class ReloadCalendarTaskTests(TestCase):
             season_number=1,
         )
         Season.objects.create(
-            item=self.season_item,
+            item=cls.season_item,
             related_tv=tv_object,
-            user=self.user,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
         # Create manga item
-        self.manga_item = Item.objects.create(
+        cls.manga_item = Item.objects.create(
             media_id="1",
             source=Sources.MAL.value,
             media_type=MediaTypes.MANGA.value,
@@ -111,13 +113,13 @@ class ReloadCalendarTaskTests(TestCase):
             image="http://example.com/berserk.jpg",
         )
         Manga.objects.create(
-            item=self.manga_item,
-            user=self.user,
+            item=cls.manga_item,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
         # Create book item
-        self.book_item = Item.objects.create(
+        cls.book_item = Item.objects.create(
             media_id="OL21733390M",
             source=Sources.OPENLIBRARY.value,
             media_type=MediaTypes.BOOK.value,
@@ -125,12 +127,12 @@ class ReloadCalendarTaskTests(TestCase):
             image="http://example.com/1984.jpg",
         )
         Book.objects.create(
-            item=self.book_item,
-            user=self.user,
+            item=cls.book_item,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
-        self.comic_item = Item.objects.create(
+        cls.comic_item = Item.objects.create(
             media_id="60760",
             source=Sources.COMICVINE.value,
             media_type=MediaTypes.COMIC.value,
@@ -138,8 +140,8 @@ class ReloadCalendarTaskTests(TestCase):
             image="http://example.com/batman.jpg",
         )
         Comic.objects.create(
-            item=self.comic_item,
-            user=self.user,
+            item=cls.comic_item,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
@@ -986,12 +988,14 @@ class ReloadCalendarTaskTests(TestCase):
 class AutoMoveCompletedToPlanningTests(TestCase):
     """Test auto-moving Completed TV shows to Planning on new future events."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
 
-        self.tv_item = Item.objects.create(
+        cls.tv_item = Item.objects.create(
             media_id="500",
             source=Sources.TMDB.value,
             media_type=MediaTypes.TV.value,
@@ -999,14 +1003,14 @@ class AutoMoveCompletedToPlanningTests(TestCase):
             image="http://example.com/tv.jpg",
         )
         # Use save_base to bypass custom TV.save() logic
-        self.tv = TV(
-            item=self.tv_item,
-            user=self.user,
+        cls.tv = TV(
+            item=cls.tv_item,
+            user=cls.user,
             status=Status.COMPLETED.value,
         )
-        TV.save_base(self.tv)
+        TV.save_base(cls.tv)
 
-        self.season_item = Item.objects.create(
+        cls.season_item = Item.objects.create(
             media_id="500",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,

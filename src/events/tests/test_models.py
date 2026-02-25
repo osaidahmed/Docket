@@ -21,13 +21,15 @@ from events.models import Event
 class EventModelTests(TestCase):
     """Test the Event model."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.credentials = {"username": "testuser", "password": "testpassword"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="testuser", password="testpassword",
+        )
 
         # Create test items
-        self.season_item = Item.objects.create(
+        cls.season_item = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -35,77 +37,77 @@ class EventModelTests(TestCase):
             season_number=1,
         )
 
-        self.movie_item = Item.objects.create(
+        cls.movie_item = Item.objects.create(
             media_id="238",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
         )
 
-        self.anime_item = Item.objects.create(
+        cls.anime_item = Item.objects.create(
             media_id="1",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
             title="Test Anime",
         )
 
-        self.manga_item = Item.objects.create(
+        cls.manga_item = Item.objects.create(
             media_id="66296374554",
             source=Sources.MANGAUPDATES.value,
             media_type=MediaTypes.MANGA.value,
             title="Test Manga",
         )
 
-        self.season = Season.objects.create(
-            user=self.user,
-            item=self.season_item,
+        cls.season = Season.objects.create(
+            user=cls.user,
+            item=cls.season_item,
             status=Status.IN_PROGRESS.value,
         )
 
-        self.movie = Movie.objects.create(
-            user=self.user,
-            item=self.movie_item,
+        cls.movie = Movie.objects.create(
+            user=cls.user,
+            item=cls.movie_item,
             status=Status.PLANNING.value,
         )
 
-        self.anime = Anime.objects.create(
-            user=self.user,
-            item=self.anime_item,
+        cls.anime = Anime.objects.create(
+            user=cls.user,
+            item=cls.anime_item,
             status=Status.IN_PROGRESS.value,
         )
 
-        self.manga = Manga.objects.create(
-            user=self.user,
-            item=self.manga_item,
+        cls.manga = Manga.objects.create(
+            user=cls.user,
+            item=cls.manga_item,
             status=Status.IN_PROGRESS.value,
         )
 
         # Create events
-        self.now = timezone.now()
-        self.tomorrow = self.now + datetime.timedelta(days=1)
-        self.next_week = self.now + datetime.timedelta(days=7)
+        cls.now = timezone.now()
+        cls.tomorrow = cls.now + datetime.timedelta(days=1)
+        cls.next_week = cls.now + datetime.timedelta(days=7)
 
-        self.season_event = Event.objects.create(
-            item=self.season_item,
+        cls.season_event = Event.objects.create(
+            item=cls.season_item,
             content_number=1,
-            datetime=self.tomorrow,
+            datetime=cls.tomorrow,
         )
 
-        self.movie_event = Event.objects.create(
-            item=self.movie_item,
-            datetime=self.next_week,
+        cls.movie_event = Event.objects.create(
+            item=cls.movie_item,
+            datetime=cls.next_week,
         )
 
-        self.anime_event = Event.objects.create(
-            item=self.anime_item,
+        cls.anime_event = Event.objects.create(
+            item=cls.anime_item,
             content_number=1,
-            datetime=self.tomorrow,
+            datetime=cls.tomorrow,
         )
 
-        self.manga_event = Event.objects.create(
-            item=self.manga_item,
+        cls.manga_event = Event.objects.create(
+            item=cls.manga_item,
             content_number=1,
-            datetime=self.tomorrow,
+            datetime=cls.tomorrow,
         )
 
     def test_event_string_representation(self):
@@ -129,23 +131,26 @@ class EventModelTests(TestCase):
 class EventManagerTests(TestCase):
     """Test the EventManager custom manager."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.credentials = {"username": "testuser", "password": "testpassword"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="testuser", password="testpassword",
+        )
 
-        self.credentials_other = {"username": "otheruser", "password": "testpassword"}
-        self.other_user = get_user_model().objects.create_user(**self.credentials_other)
+        cls.other_user = get_user_model().objects.create_user(
+            username="otheruser", password="testpassword",
+        )
 
         # Create test items
-        self.tv_item = Item.objects.create(
+        cls.tv_item = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.TV.value,
             title="Test TV Show",
         )
 
-        self.season_item = Item.objects.create(
+        cls.season_item = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -153,28 +158,28 @@ class EventManagerTests(TestCase):
             season_number=1,
         )
 
-        self.movie_item = Item.objects.create(
+        cls.movie_item = Item.objects.create(
             media_id="238",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
         )
 
-        self.paused_movie_item = Item.objects.create(
+        cls.paused_movie_item = Item.objects.create(
             media_id="278",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Paused Movie",
         )
 
-        self.dropped_movie_item = Item.objects.create(
+        cls.dropped_movie_item = Item.objects.create(
             media_id="424",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Dropped Movie",
         )
 
-        self.manga_item = Item.objects.create(
+        cls.manga_item = Item.objects.create(
             media_id="66296374554",
             source=Sources.MANGAUPDATES.value,
             media_type=MediaTypes.MANGA.value,
@@ -182,88 +187,88 @@ class EventManagerTests(TestCase):
         )
 
         # Create media objects
-        self.tv = TV.objects.create(
-            user=self.user,
-            item=self.tv_item,
+        cls.tv = TV.objects.create(
+            user=cls.user,
+            item=cls.tv_item,
             status=Status.IN_PROGRESS.value,
         )
 
-        self.other_tv = TV.objects.create(
-            user=self.other_user,
-            item=self.tv_item,
+        cls.other_tv = TV.objects.create(
+            user=cls.other_user,
+            item=cls.tv_item,
             status=Status.IN_PROGRESS.value,
         )
 
-        self.movie = Movie.objects.create(
-            user=self.user,
-            item=self.movie_item,
+        cls.movie = Movie.objects.create(
+            user=cls.user,
+            item=cls.movie_item,
             status=Status.PLANNING.value,
         )
 
-        self.paused_movie = Movie.objects.create(
-            user=self.user,
-            item=self.paused_movie_item,
+        cls.paused_movie = Movie.objects.create(
+            user=cls.user,
+            item=cls.paused_movie_item,
             status=Status.PAUSED.value,
         )
 
-        self.dropped_movie = Movie.objects.create(
-            user=self.user,
-            item=self.dropped_movie_item,
+        cls.dropped_movie = Movie.objects.create(
+            user=cls.user,
+            item=cls.dropped_movie_item,
             status=Status.DROPPED.value,
         )
 
-        self.manga = Manga.objects.create(
-            user=self.user,
-            item=self.manga_item,
+        cls.manga = Manga.objects.create(
+            user=cls.user,
+            item=cls.manga_item,
             status=Status.IN_PROGRESS.value,
         )
 
         # Use fixed dates instead of timezone.now()
         # Base date: April 15, 2025 at noon UTC
-        self.base_date = datetime.datetime(2025, 4, 15, 12, 0, 0, tzinfo=datetime.UTC)
-        self.yesterday = self.base_date - datetime.timedelta(days=1)  # April 14
-        self.tomorrow = self.base_date + datetime.timedelta(days=1)  # April 16
-        self.next_week = self.base_date + datetime.timedelta(days=7)  # April 22
+        cls.base_date = datetime.datetime(2025, 4, 15, 12, 0, 0, tzinfo=datetime.UTC)
+        cls.yesterday = cls.base_date - datetime.timedelta(days=1)  # April 14
+        cls.tomorrow = cls.base_date + datetime.timedelta(days=1)  # April 16
+        cls.next_week = cls.base_date + datetime.timedelta(days=7)  # April 22
 
         # Create events with fixed dates
-        self.past_event = Event.objects.create(
-            item=self.season_item,
+        cls.past_event = Event.objects.create(
+            item=cls.season_item,
             content_number=1,
-            datetime=self.yesterday,  # April 14
+            datetime=cls.yesterday,  # April 14
         )
 
-        self.movie_event = Event.objects.create(
-            item=self.movie_item,
-            datetime=self.next_week,  # April 22
+        cls.movie_event = Event.objects.create(
+            item=cls.movie_item,
+            datetime=cls.next_week,  # April 22
         )
 
-        self.paused_movie_event = Event.objects.create(
-            item=self.paused_movie_item,
-            datetime=self.next_week,  # April 22
+        cls.paused_movie_event = Event.objects.create(
+            item=cls.paused_movie_item,
+            datetime=cls.next_week,  # April 22
         )
 
-        self.dropped_movie_event = Event.objects.create(
-            item=self.dropped_movie_item,
-            datetime=self.next_week,  # April 22
+        cls.dropped_movie_event = Event.objects.create(
+            item=cls.dropped_movie_item,
+            datetime=cls.next_week,  # April 22
         )
 
-        self.season_event = Event.objects.create(
-            item=self.season_item,
+        cls.season_event = Event.objects.create(
+            item=cls.season_item,
             content_number=2,
-            datetime=self.tomorrow,  # April 16
+            datetime=cls.tomorrow,  # April 16
         )
 
         # Manga with multiple events
-        self.manga_event1 = Event.objects.create(
-            item=self.manga_item,
+        cls.manga_event1 = Event.objects.create(
+            item=cls.manga_item,
             content_number=1,
-            datetime=self.tomorrow,  # April 16
+            datetime=cls.tomorrow,  # April 16
         )
 
-        self.manga_event2 = Event.objects.create(
-            item=self.manga_item,
+        cls.manga_event2 = Event.objects.create(
+            item=cls.manga_item,
             content_number=2,
-            datetime=self.next_week,  # April 22
+            datetime=cls.next_week,  # April 22
         )
 
     def test_get_user_events(self):

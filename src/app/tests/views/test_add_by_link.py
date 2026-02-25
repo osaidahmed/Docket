@@ -86,10 +86,12 @@ _META = "app.views.add_by_link.services.get_media_metadata"
 class AddByLinkViewTests(TestCase):
     """Test the add-by-link views."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def test_get_renders_form(self):

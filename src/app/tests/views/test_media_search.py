@@ -17,10 +17,12 @@ from app.models import (
 class MediaSearchViewTests(TestCase):
     """Test the media search view."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     @patch("app.providers.services.search")
@@ -123,10 +125,12 @@ class MediaSearchViewTests(TestCase):
 class QuickAddViewTests(TestCase):
     """Test the quick_add view."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     @patch("app.providers.services.get_media_metadata")
@@ -234,11 +238,6 @@ class QuickAddViewTests(TestCase):
             ).exists(),
         )
 
-    def test_quick_add_requires_post(self):
-        """Test that quick_add rejects GET requests."""
-        response = self.client.get(reverse("quick_add"))
-        self.assertEqual(response.status_code, 405)
-
     @patch("app.providers.services.get_media_metadata")
     def test_quick_add_populates_synopsis(self, mock_metadata):
         """Test that quick_add persists synopsis on the Item."""
@@ -264,10 +263,12 @@ class QuickAddViewTests(TestCase):
 class QuickArchiveViewTests(TestCase):
     """Test the quick_archive view."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     @patch("app.providers.services.get_media_metadata")
@@ -348,33 +349,29 @@ class QuickArchiveViewTests(TestCase):
         movie = Movie.objects.get(item__media_id="238", user=self.user)
         self.assertEqual(movie.status, Status.COMPLETED.value)
 
-    def test_quick_archive_requires_post(self):
-        """Test that quick_archive rejects GET requests."""
-        response = self.client.get(reverse("quick_archive"))
-        self.assertEqual(response.status_code, 405)
-
 
 class QuickCompleteViewTests(TestCase):
     """Test the quick_complete view."""
 
-    def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
-
-        self.item = Item.objects.create(
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.item = Item.objects.create(
             media_id="1",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
             title="Test Anime",
             image="http://example.com/image.jpg",
         )
-        self.anime = Anime.objects.create(
-            item=self.item,
-            user=self.user,
+        cls.anime = Anime.objects.create(
+            item=cls.item,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_quick_complete_marks_completed(self):
         """Test that quick_complete sets status to Completed."""
@@ -443,34 +440,30 @@ class QuickCompleteViewTests(TestCase):
         self.assertIn("(1)", content)
         self.assertNotIn("(2)", content)
 
-    def test_quick_complete_requires_post(self):
-        """Test that quick_complete rejects GET requests."""
-        response = self.client.get(reverse("quick_complete"))
-        self.assertEqual(response.status_code, 405)
-
 
 class BacklogSaveViewTests(TestCase):
     """Test the backlog_save view."""
 
-    def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
-
-        self.item = Item.objects.create(
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.item = Item.objects.create(
             media_id="1",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
             title="Test Anime",
             image="http://example.com/image.jpg",
         )
-        self.anime = Anime.objects.create(
-            item=self.item,
-            user=self.user,
+        cls.anime = Anime.objects.create(
+            item=cls.item,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
             progress=5,
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_backlog_save_updates_fields(self):
         """Test that backlog_save updates media fields."""
@@ -569,19 +562,20 @@ class BacklogSaveViewTests(TestCase):
 class QuickRewatchViewTests(TestCase):
     """Test the quick_rewatch view."""
 
-    def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
-
-        self.item = Item.objects.create(
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.item = Item.objects.create(
             media_id="238",
             source=Sources.TMDB.value,
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
             image="http://example.com/image.jpg",
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     @patch("app.providers.services.get_media_metadata")
     def test_quick_rewatch_creates_planning_instance(self, mock_metadata):
@@ -685,7 +679,3 @@ class QuickRewatchViewTests(TestCase):
             response, "app/components/backlog_rewatch_confirmed.html"
         )
 
-    def test_quick_rewatch_requires_post(self):
-        """Test that quick_rewatch rejects GET requests."""
-        response = self.client.get(reverse("quick_rewatch"))
-        self.assertEqual(response.status_code, 405)

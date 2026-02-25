@@ -7,10 +7,13 @@ from django.urls import reverse
 class PlexUsernamesUpdateTests(TestCase):
     """Tests for Plex integration functionality."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user for the tests."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
         self.client.login(**self.credentials)
 
     def test_update_plex_usernames_success(self):

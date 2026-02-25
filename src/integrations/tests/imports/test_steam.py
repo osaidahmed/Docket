@@ -27,10 +27,12 @@ app_mock_path = (
 class ImportSteam(TestCase):
     """Test importing media from Steam."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user for the tests."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
 
     @patch("integrations.imports.steam.services.api_request")
     @patch("integrations.imports.steam.external_game")

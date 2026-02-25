@@ -10,14 +10,16 @@ from django.urls import reverse
 class RegenerateTokenTests(TestCase):
     """Tests for the regenerate_token view."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user for the tests."""
-        self.credentials = {"username": "testuser", "password": "testpass123"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
+        cls.credentials = {"username": "testuser", "password": "testpass123"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.user.token = "initial_token"  # noqa: S105
+        cls.user.save()
 
-        self.user.token = "initial_token"  # noqa: S105
-        self.user.save()
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_regenerate_token(self):
         """Test token regeneration."""

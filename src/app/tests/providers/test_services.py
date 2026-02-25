@@ -150,224 +150,212 @@ class ServicesTests(TestCase):
 
         self.assertEqual(cm.exception.provider, Sources.MAL.value)
 
-    @patch("app.providers.mal.anime")
-    def test_get_media_metadata_anime(self, mock_anime):
-        """Test the get_media_metadata function for anime."""
-        mock_anime.return_value = {"title": "Test Anime"}
+    _DEFAULT_RETURN = {"title": "test"}
 
-        result = services.get_media_metadata(
+    METADATA_CASES = [
+        (
             MediaTypes.ANIME.value,
-            "1",
             Sources.MAL.value,
-        )
-
-        self.assertEqual(result, {"title": "Test Anime"})
-
-        mock_anime.assert_called_once_with("1")
-
-    @patch("app.providers.mangaupdates.manga")
-    def test_get_media_metadata_manga_mangaupdates(self, mock_manga):
-        """Test the get_media_metadata function for manga from MangaUpdates."""
-        mock_manga.return_value = {"title": "Test Manga"}
-
-        result = services.get_media_metadata(
-            MediaTypes.MANGA.value,
+            "app.providers.mal.anime",
             "1",
+            ("1",),
+            None,
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
+            MediaTypes.MANGA.value,
             Sources.MANGAUPDATES.value,
-        )
-
-        self.assertEqual(result, {"title": "Test Manga"})
-
-        mock_manga.assert_called_once_with("1")
-
-    @patch("app.providers.mal.manga")
-    def test_get_media_metadata_manga_mal(self, mock_manga):
-        """Test the get_media_metadata function for manga from MAL."""
-        mock_manga.return_value = {"title": "Test Manga"}
-
-        result = services.get_media_metadata(
+            "app.providers.mangaupdates.manga",
+            "1",
+            ("1",),
+            None,
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             MediaTypes.MANGA.value,
-            "1",
             Sources.MAL.value,
-        )
-
-        self.assertEqual(result, {"title": "Test Manga"})
-
-        mock_manga.assert_called_once_with("1")
-
-    @patch("app.providers.tmdb.tv")
-    def test_get_media_metadata_tv(self, mock_tv):
-        """Test the get_media_metadata function for TV shows."""
-        mock_tv.return_value = {"title": "Test TV"}
-
-        result = services.get_media_metadata(
+            "app.providers.mal.manga",
+            "1",
+            ("1",),
+            None,
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             MediaTypes.TV.value,
-            "1",
             Sources.TMDB.value,
-        )
-
-        self.assertEqual(result, {"title": "Test TV"})
-
-        mock_tv.assert_called_once_with("1")
-
-    @patch("app.providers.tmdb.tv_with_seasons")
-    def test_get_media_metadata_tv_with_seasons(self, mock_tv_with_seasons):
-        """Test the get_media_metadata function for TV shows with seasons."""
-        mock_tv_with_seasons.return_value = {"title": "Test TV with Seasons"}
-
-        result = services.get_media_metadata(
+            "app.providers.tmdb.tv",
+            "1",
+            ("1",),
+            None,
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             "tv_with_seasons",
-            "1",
             Sources.TMDB.value,
-            season_numbers=[1, 2],
-        )
-
-        self.assertEqual(result, {"title": "Test TV with Seasons"})
-
-        mock_tv_with_seasons.assert_called_once_with("1", [1, 2])
-
-    @patch("app.providers.tmdb.tv_with_seasons")
-    def test_get_media_metadata_season(self, mock_tv_with_seasons):
-        """Test the get_media_metadata function for TV seasons."""
-        mock_tv_with_seasons.return_value = {
-            "season/1": {"title": "Test Season"},
-        }
-
-        result = services.get_media_metadata(
+            "app.providers.tmdb.tv_with_seasons",
+            "1",
+            ("1", [1, 2]),
+            [1, 2],
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             MediaTypes.SEASON.value,
-            "1",
             Sources.TMDB.value,
-            season_numbers=[1],
-        )
-
-        self.assertEqual(result, {"title": "Test Season"})
-
-        mock_tv_with_seasons.assert_called_once_with("1", [1])
-
-    @patch("app.providers.tmdb.episode")
-    def test_get_media_metadata_episode(self, mock_episode):
-        """Test the get_media_metadata function for TV episodes."""
-        mock_episode.return_value = {"title": "Test Episode"}
-
-        result = services.get_media_metadata(
+            "app.providers.tmdb.tv_with_seasons",
+            "1",
+            ("1", [1]),
+            [1],
+            None,
+            {"season/1": {"title": "test"}},
+            {"title": "test"},
+        ),
+        (
             MediaTypes.EPISODE.value,
-            "1",
             Sources.TMDB.value,
-            season_numbers=[1],
-            episode_number="2",
-        )
-
-        self.assertEqual(result, {"title": "Test Episode"})
-
-        mock_episode.assert_called_once_with("1", 1, "2")
-
-    @patch("app.providers.tmdb.movie")
-    def test_get_media_metadata_movie(self, mock_movie):
-        """Test the get_media_metadata function for movies."""
-        mock_movie.return_value = {"title": "Test Movie"}
-
-        result = services.get_media_metadata(
+            "app.providers.tmdb.episode",
+            "1",
+            ("1", 1, "2"),
+            [1],
+            "2",
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             MediaTypes.MOVIE.value,
-            "1",
             Sources.TMDB.value,
-        )
-
-        self.assertEqual(result, {"title": "Test Movie"})
-
-        mock_movie.assert_called_once_with("1")
-
-    @patch("app.providers.igdb.game")
-    def test_get_media_metadata_game(self, mock_game):
-        """Test the get_media_metadata function for games."""
-        mock_game.return_value = {"title": "Test Game"}
-
-        result = services.get_media_metadata(
+            "app.providers.tmdb.movie",
+            "1",
+            ("1",),
+            None,
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             MediaTypes.GAME.value,
-            "1",
             Sources.IGDB.value,
-        )
-
-        self.assertEqual(result, {"title": "Test Game"})
-
-        mock_game.assert_called_once_with("1")
-
-    @patch("app.providers.comicvine.comic")
-    def test_get_media_metadata_comic(self, mock_comic):
-        """Test the get_media_metadata function for comics."""
-        mock_comic.return_value = {"title": "Test Comic"}
-
-        result = services.get_media_metadata(
+            "app.providers.igdb.game",
+            "1",
+            ("1",),
+            None,
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             MediaTypes.COMIC.value,
-            "1",
             Sources.COMICVINE.value,
-        )
-
-        self.assertEqual(result, {"title": "Test Comic"})
-
-        mock_comic.assert_called_once_with("1")
-
-    @patch("app.providers.openlibrary.book")
-    def test_get_media_metadata_book(self, mock_book):
-        """Test the get_media_metadata function for books."""
-        mock_book.return_value = {"title": "Test Book"}
-
-        result = services.get_media_metadata(
+            "app.providers.comicvine.comic",
+            "1",
+            ("1",),
+            None,
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             MediaTypes.BOOK.value,
-            "1",
             Sources.OPENLIBRARY.value,
-        )
-
-        self.assertEqual(result, {"title": "Test Book"})
-
-        mock_book.assert_called_once_with("1")
-
-    @patch("app.providers.manual.metadata")
-    def test_get_media_metadata_manual(self, mock_metadata):
-        """Test the get_media_metadata function for manual media."""
-        mock_metadata.return_value = {"title": "Test Manual"}
-
-        result = services.get_media_metadata(
+            "app.providers.openlibrary.book",
+            "1",
+            ("1",),
+            None,
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
+            MediaTypes.BOOK.value,
+            Sources.HARDCOVER.value,
+            "app.providers.hardcover.book",
+            "1",
+            ("1",),
+            None,
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             MediaTypes.MOVIE.value,
-            "1",
             Sources.MANUAL.value,
-        )
-
-        self.assertEqual(result, {"title": "Test Manual"})
-
-        mock_metadata.assert_called_once_with("1", MediaTypes.MOVIE.value)
-
-    @patch("app.providers.manual.season")
-    def test_get_media_metadata_manual_season(self, mock_season):
-        """Test the get_media_metadata function for manual seasons."""
-        mock_season.return_value = {"title": "Test Manual Season"}
-
-        result = services.get_media_metadata(
+            "app.providers.manual.metadata",
+            "1",
+            ("1", MediaTypes.MOVIE.value),
+            None,
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             MediaTypes.SEASON.value,
-            "1",
             Sources.MANUAL.value,
-            season_numbers=[1],
-        )
-
-        self.assertEqual(result, {"title": "Test Manual Season"})
-
-        mock_season.assert_called_once_with("1", 1)
-
-    @patch("app.providers.manual.episode")
-    def test_get_media_metadata_manual_episode(self, mock_episode):
-        """Test the get_media_metadata function for manual episodes."""
-        mock_episode.return_value = {"title": "Test Manual Episode"}
-
-        result = services.get_media_metadata(
+            "app.providers.manual.season",
+            "1",
+            ("1", 1),
+            [1],
+            None,
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+        (
             MediaTypes.EPISODE.value,
-            "1",
             Sources.MANUAL.value,
-            season_numbers=[1],
-            episode_number="2",
-        )
+            "app.providers.manual.episode",
+            "1",
+            ("1", 1, "2"),
+            [1],
+            "2",
+            _DEFAULT_RETURN,
+            _DEFAULT_RETURN,
+        ),
+    ]
 
-        self.assertEqual(result, {"title": "Test Manual Episode"})
+    def test_get_media_metadata(self):
+        """Test get_media_metadata dispatches to the correct provider."""
+        for (
+            media_type,
+            source,
+            patch_target,
+            media_id,
+            expected_call_args,
+            season_numbers,
+            episode_number,
+            mock_return,
+            expected_result,
+        ) in self.METADATA_CASES:
+            with (
+                self.subTest(
+                    media_type=media_type, source=source, patch_target=patch_target
+                ),
+                patch(patch_target) as mock_fn,
+            ):
+                mock_fn.return_value = mock_return
 
-        mock_episode.assert_called_once_with("1", 1, "2")
+                kwargs = {}
+                if season_numbers is not None:
+                    kwargs["season_numbers"] = season_numbers
+                if episode_number is not None:
+                    kwargs["episode_number"] = episode_number
+
+                result = services.get_media_metadata(
+                    media_type,
+                    media_id,
+                    source,
+                    **kwargs,
+                )
+
+                self.assertEqual(result, expected_result)
+                mock_fn.assert_called_once_with(*expected_call_args)
 
     @patch("app.providers.tmdb.episode")
     def test_get_media_metadata_tmdb_episode_not_found(self, mock_episode):
@@ -396,134 +384,76 @@ class ServicesTests(TestCase):
 
         mock_episode.assert_called_once_with("1396", 1, "3")
 
-    @patch("app.providers.hardcover.book")
-    def test_get_media_metadata_hardcover_book(self, mock_book):
-        """Test the get_media_metadata function for books from Hardcover."""
-        mock_book.return_value = {"title": "Test Hardcover Book"}
-
-        result = services.get_media_metadata(
-            MediaTypes.BOOK.value,
-            "1",
-            Sources.HARDCOVER.value,
-        )
-
-        self.assertEqual(result, {"title": "Test Hardcover Book"})
-
-        mock_book.assert_called_once_with("1")
-
-    @patch("app.providers.mal.search")
-    def test_search_anime(self, mock_search):
-        """Test the search function for anime."""
-        mock_search.return_value = [{"title": "Test Anime"}]
-
-        result = services.search(MediaTypes.ANIME.value, "test", 1)
-
-        self.assertEqual(result, [{"title": "Test Anime"}])
-
-        mock_search.assert_called_once_with(MediaTypes.ANIME.value, "test", 1)
-
-    @patch("app.providers.mangaupdates.search")
-    def test_search_manga_mangaupdates(self, mock_search):
-        """Test the search function for manga from MangaUpdates."""
-        mock_search.return_value = [{"title": "Test Manga"}]
-
-        result = services.search(
+    SEARCH_CASES = [
+        (
+            MediaTypes.ANIME.value,
+            None,
+            "app.providers.mal.search",
+            (MediaTypes.ANIME.value, "test", 1),
+        ),
+        (
             MediaTypes.MANGA.value,
-            "test",
-            1,
-            source=Sources.MANGAUPDATES.value,
-        )
-
-        self.assertEqual(result, [{"title": "Test Manga"}])
-
-        mock_search.assert_called_once_with("test", 1)
-
-    @patch("app.providers.mal.search")
-    def test_search_manga_mal(self, mock_search):
-        """Test the search function for manga from MAL."""
-        mock_search.return_value = [{"title": "Test Manga"}]
-
-        result = services.search(MediaTypes.MANGA.value, "test", 1)
-
-        self.assertEqual(result, [{"title": "Test Manga"}])
-
-        mock_search.assert_called_once_with(MediaTypes.MANGA.value, "test", 1)
-
-    @patch("app.providers.tmdb.search")
-    def test_search_tv(self, mock_search):
-        """Test the search function for TV shows."""
-        mock_search.return_value = [{"title": "Test TV"}]
-
-        result = services.search(MediaTypes.TV.value, "test", 1)
-
-        self.assertEqual(result, [{"title": "Test TV"}])
-
-        mock_search.assert_called_once_with(MediaTypes.TV.value, "test", 1)
-
-    @patch("app.providers.tmdb.search")
-    def test_search_movie(self, mock_search):
-        """Test the search function for movies."""
-        mock_search.return_value = [{"title": "Test Movie"}]
-
-        result = services.search(MediaTypes.MOVIE.value, "test", 1)
-
-        self.assertEqual(result, [{"title": "Test Movie"}])
-
-        mock_search.assert_called_once_with(MediaTypes.MOVIE.value, "test", 1)
-
-    @patch("app.providers.igdb.search")
-    def test_search_game(self, mock_search):
-        """Test the search function for games."""
-        mock_search.return_value = [{"title": "Test Game"}]
-
-        result = services.search(MediaTypes.GAME.value, "test", 1)
-
-        self.assertEqual(result, [{"title": "Test Game"}])
-
-        mock_search.assert_called_once_with("test", 1)
-
-    @patch("app.providers.hardcover.search")
-    def test_search_hardcover_book(self, mock_search):
-        """Test the search function for books from Hardcover."""
-        mock_search.return_value = [{"title": "Test Hardcover Book"}]
-
-        result = services.search(
+            Sources.MANGAUPDATES.value,
+            "app.providers.mangaupdates.search",
+            ("test", 1),
+        ),
+        (
+            MediaTypes.MANGA.value,
+            None,
+            "app.providers.mal.search",
+            (MediaTypes.MANGA.value, "test", 1),
+        ),
+        (
+            MediaTypes.TV.value,
+            None,
+            "app.providers.tmdb.search",
+            (MediaTypes.TV.value, "test", 1),
+        ),
+        (
+            MediaTypes.MOVIE.value,
+            None,
+            "app.providers.tmdb.search",
+            (MediaTypes.MOVIE.value, "test", 1),
+        ),
+        (MediaTypes.GAME.value, None, "app.providers.igdb.search", ("test", 1)),
+        (
             MediaTypes.BOOK.value,
-            "test",
-            1,
-            source=Sources.HARDCOVER.value,
-        )
-
-        self.assertEqual(result, [{"title": "Test Hardcover Book"}])
-
-        mock_search.assert_called_once_with("test", 1)
-
-    @patch("app.providers.openlibrary.search")
-    def test_search_openlibrary_book(self, mock_search):
-        """Test the search function for books."""
-        mock_search.return_value = [{"title": "Test Book"}]
-
-        result = services.search(
+            Sources.HARDCOVER.value,
+            "app.providers.hardcover.search",
+            ("test", 1),
+        ),
+        (
             MediaTypes.BOOK.value,
-            "test",
-            1,
-            source=Sources.OPENLIBRARY.value,
-        )
+            Sources.OPENLIBRARY.value,
+            "app.providers.openlibrary.search",
+            ("test", 1),
+        ),
+        (MediaTypes.COMIC.value, None, "app.providers.comicvine.search", ("test", 1)),
+    ]
 
-        self.assertEqual(result, [{"title": "Test Book"}])
+    def test_search(self):
+        """Test search dispatches to the correct provider."""
+        for media_type, source, patch_target, expected_call_args in self.SEARCH_CASES:
+            with (
+                self.subTest(
+                    media_type=media_type, source=source, patch_target=patch_target
+                ),
+                patch(patch_target) as mock_fn,
+            ):
+                mock_fn.return_value = [{"title": "test"}]
 
-        mock_search.assert_called_once_with("test", 1)
+                kwargs = {}
+                if source is not None:
+                    kwargs["source"] = source
+                result = services.search(
+                    media_type,
+                    "test",
+                    1,
+                    **kwargs,
+                )
 
-    @patch("app.providers.comicvine.search")
-    def test_search_comic(self, mock_search):
-        """Test the search function for comics."""
-        mock_search.return_value = [{"title": "Test Comic"}]
-
-        result = services.search(MediaTypes.COMIC.value, "test", 1)
-
-        self.assertEqual(result, [{"title": "Test Comic"}])
-
-        mock_search.assert_called_once_with("test", 1)
+                self.assertEqual(result, [{"title": "test"}])
+                mock_fn.assert_called_once_with(*expected_call_args)
 
     @patch("app.providers.services.search")
     def test_search_all_returns_grouped_results(self, mock_search):

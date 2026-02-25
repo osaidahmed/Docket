@@ -54,6 +54,7 @@ usage: $0 [options] [category ...] [-- pytest-args]
 
 options:
   --list       show available categories and exit
+  --quick      skip integrations and events tests for faster iteration
   --cov        enable coverage collection
   --no-reuse   recreate the test database from scratch
   --serial     disable parallel execution (run on single core)
@@ -61,7 +62,7 @@ options:
 
 examples:
   $0                          run all tests
-  $0 providers views          run providers and views tests
+  $0 --quick providers        run provider tests only
   $0 --cov app                run app tests with coverage
   $0 models -- -x --pdb       run model tests, stop on first failure
   $0 --no-reuse               force fresh database
@@ -78,6 +79,7 @@ pytest_extra=""
 use_coverage=false
 reuse_db=true
 parallel=true
+quick_mode=false
 parsing_categories=true
 
 for arg in "$@"; do
@@ -98,6 +100,8 @@ for arg in "$@"; do
     reuse_db=false
   elif [ "$arg" = "--serial" ]; then
     parallel=false
+  elif [ "$arg" = "--quick" ]; then
+    quick_mode=true
   else
     resolved=$(resolve_category "$arg" 2>/dev/null) || {
       echo "error: unknown category '$arg'" >&2
@@ -124,6 +128,12 @@ fi
 
 if [ "$parallel" = true ]; then
   pytest_flags="$pytest_flags -n auto"
+fi
+
+# --quick: exclude heavier peripheral test suites
+if [ "$quick_mode" = true ]; then
+  pytest_flags="$pytest_flags --ignore=$SRC_DIR/integrations/tests"
+  pytest_flags="$pytest_flags --ignore=$SRC_DIR/events/tests"
 fi
 
 # ── run ───────────────────────────────────────────────────────────

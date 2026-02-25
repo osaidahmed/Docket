@@ -17,10 +17,12 @@ from users.models import (
 class UserUpdatePreferenceTests(TestCase):
     """Tests for the User.update_preference method."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
 
     def test_update_preference_no_new_value(self):
         """Test update_preference when no new value is provided."""
@@ -170,17 +172,18 @@ class UserUpdatePreferenceTests(TestCase):
 class UserGetImportTasksTests(TestCase):
     """Tests for the User.get_import_tasks method."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.credentials_other = {"username": "otheruser", "password": "12345"}
-        self.other_user = get_user_model().objects.create_user(
-            **self.credentials_other,
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
+        cls.other_user = get_user_model().objects.create_user(
+            username="otheruser", password="12345",
         )
 
         # Create a crontab schedule for periodic tasks
-        self.crontab = CrontabSchedule.objects.create(
+        cls.crontab = CrontabSchedule.objects.create(
             minute="0",
             hour="0",
             day_of_week="*",
@@ -357,13 +360,15 @@ class UserGetImportTasksTests(TestCase):
 class UserResolveWatchDateTests(TestCase):
     """Tests for the User.resolve_watch_date method."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.QuickWatchDateChoices = QuickWatchDateChoices
-        self.credentials = {"username": "test_watch", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.now = timezone.now()
-        self.release_date = datetime(2020, 5, 15, 20, 0, tzinfo=UTC)
+        cls.QuickWatchDateChoices = QuickWatchDateChoices
+        cls.user = get_user_model().objects.create_user(
+            username="test_watch", password="12345",
+        )
+        cls.now = timezone.now()
+        cls.release_date = datetime(2020, 5, 15, 20, 0, tzinfo=UTC)
 
     def test_resolve_watch_date_current_date(self):
         """Test resolve_watch_date returns current date for CURRENT_DATE."""
@@ -416,9 +421,11 @@ class UserResolveWatchDateTests(TestCase):
 class UserMediaTypeOrderTests(TestCase):
     """Tests for custom media type ordering."""
 
-    def setUp(self):  # noqa: D102
-        self.credentials = {"username": "ordertest", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+    @classmethod
+    def setUpTestData(cls):  # noqa: D102
+        cls.user = get_user_model().objects.create_user(
+            username="ordertest", password="12345",
+        )
 
     def test_default_order_follows_enum(self):
         """Empty media_type_order falls back to MediaTypes enum order."""
@@ -501,9 +508,12 @@ class UserMediaTypeOrderTests(TestCase):
 class PreferencesViewOrderTests(TestCase):
     """Tests for saving media_type_order via the preferences view."""
 
+    @classmethod
+    def setUpTestData(cls):  # noqa: D102
+        cls.credentials = {"username": "preftest", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
     def setUp(self):  # noqa: D102
-        self.credentials = {"username": "preftest", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def test_saves_media_type_order(self):

@@ -15,10 +15,13 @@ from events.models import Event
 class CalendarViewTests(TestCase):
     """Tests for the calendar views."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.credentials = {"username": "testuser", "password": "testpassword"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "testuser", "password": "testpassword"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
         self.client.login(**self.credentials)
 
     @patch("events.models.Event.objects.get_user_events")

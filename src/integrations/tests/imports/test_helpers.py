@@ -27,10 +27,12 @@ app_mock_path = (
 class HelpersTest(TestCase):
     """Test helper functions for imports."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
 
     def test_update_season_references(self):
         """Test updating season references with actual TV instances."""

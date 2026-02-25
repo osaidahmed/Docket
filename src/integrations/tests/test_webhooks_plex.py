@@ -11,16 +11,18 @@ from integrations.webhooks.plex import PlexWebhookProcessor
 class PlexWebhookTests(TestCase):
     """Tests for Plex webhook."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
+        cls.user = get_user_model().objects.create_superuser(
+            username="testuser",
+            token="test-token",
+            plex_usernames="testuser",
+        )
+        cls.url = reverse("plex_webhook", kwargs={"token": "test-token"})
+
+    def setUp(self):
         self.client = Client()
-        self.credentials = {
-            "username": "testuser",
-            "token": "test-token",
-            "plex_usernames": "testuser",
-        }
-        self.user = get_user_model().objects.create_superuser(**self.credentials)
-        self.url = reverse("plex_webhook", kwargs={"token": "test-token"})
 
     def test_invalid_token(self):
         """Test webhook with invalid token returns 401."""

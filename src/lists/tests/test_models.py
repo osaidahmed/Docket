@@ -9,39 +9,33 @@ from lists.models import CustomList, CustomListItem
 class CustomListModelTest(TestCase):
     """Test case for the CustomList model."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data for CustomList model."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-
-        self.collaborator_credentials = {
-            "username": "collaborator",
-            "password": "12345",
-        }
-        self.collaborator = get_user_model().objects.create_user(
-            **self.collaborator_credentials,
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
         )
 
-        self.custom_list = CustomList.objects.create(
+        cls.collaborator = get_user_model().objects.create_user(
+            username="collaborator", password="12345",
+        )
+
+        cls.custom_list = CustomList.objects.create(
             name="Test List",
             description="Test Description",
-            owner=self.user,
+            owner=cls.user,
         )
-        self.custom_list.collaborators.add(self.collaborator)
+        cls.custom_list.collaborators.add(cls.collaborator)
 
-        self.item = Item.objects.create(
+        cls.item = Item.objects.create(
             title="Test Item",
             media_id="123",
             media_type=MediaTypes.TV.value,
             source=Sources.TMDB.value,
         )
 
-        self.non_member_credentials = {
-            "username": "non_member",
-            "password": "12345",
-        }
-        self.non_member = get_user_model().objects.create_user(
-            **self.non_member_credentials,
+        cls.non_member = get_user_model().objects.create_user(
+            username="non_member", password="12345",
         )
 
     def test_custom_list_creation(self):
@@ -89,15 +83,18 @@ class CustomListModelTest(TestCase):
 class CustomListManagerTest(TestCase):
     """Test case for the CustomListManager."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data for CustomListManager tests."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.other_credentials = {"username": "other", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.other_user = get_user_model().objects.create_user(**self.other_credentials)
-        self.list1 = CustomList.objects.create(name="List 1", owner=self.user)
-        self.list2 = CustomList.objects.create(name="List 2", owner=self.other_user)
-        self.list2.collaborators.add(self.user)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
+        cls.other_user = get_user_model().objects.create_user(
+            username="other", password="12345",
+        )
+        cls.list1 = CustomList.objects.create(name="List 1", owner=cls.user)
+        cls.list2 = CustomList.objects.create(name="List 2", owner=cls.other_user)
+        cls.list2.collaborators.add(cls.user)
 
     def test_get_user_lists(self):
         """Test the get_user_lists method of CustomListManager."""

@@ -8,13 +8,13 @@ from django_celery_beat.models import CrontabSchedule, PeriodicTask
 class DeleteImportScheduleTests(TestCase):
     """Tests for the delete_import_schedule view."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user and test data for the tests."""
-        self.credentials = {"username": "testuser", "password": "testpass123"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
+        cls.credentials = {"username": "testuser", "password": "testpass123"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.crontab = CrontabSchedule.objects.create(
+        cls.crontab = CrontabSchedule.objects.create(
             minute="0",
             hour="0",
             day_of_week="*",
@@ -22,24 +22,28 @@ class DeleteImportScheduleTests(TestCase):
             month_of_year="*",
         )
 
-        self.task = PeriodicTask.objects.create(
+        cls.task = PeriodicTask.objects.create(
             name="Import from Trakt for testuser at daily",
             task="Import from Trakt",
-            kwargs=f'{{"user_id": {self.user.id}, "username": "testuser"}}',
-            crontab=self.crontab,
+            kwargs=f'{{"user_id": {cls.user.id}, "username": "testuser"}}',
+            crontab=cls.crontab,
             enabled=True,
         )
 
-        self.other_credentials = {"username": "otheruser", "password": "testpass123"}
-        self.other_user = get_user_model().objects.create_user(**self.other_credentials)
+        cls.other_user = get_user_model().objects.create_user(
+            username="otheruser", password="testpass123",
+        )
 
-        self.other_task = PeriodicTask.objects.create(
+        cls.other_task = PeriodicTask.objects.create(
             name="Import from Trakt for otheruser at daily",
             task="Import from Trakt",
-            kwargs=f'{{"user_id": {self.other_user.id}, "username": "otheruser"}}',
-            crontab=self.crontab,
+            kwargs=f'{{"user_id": {cls.other_user.id}, "username": "otheruser"}}',
+            crontab=cls.crontab,
             enabled=True,
         )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_delete_import_schedule_success(self):
         """Test successful deletion of an import schedule."""

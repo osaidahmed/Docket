@@ -25,18 +25,20 @@ app_mock_path = (
 class ImportKitsu(TestCase):
     """Test importing media from Kitsu."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user for the tests."""
-        credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
 
         with Path(mock_path / "import_kitsu_anime.json").open() as file:
-            self.sample_anime_response = json.load(file)
+            cls.sample_anime_response = json.load(file)
 
         with Path(mock_path / "import_kitsu_manga.json").open() as file:
-            self.sample_manga_response = json.load(file)
+            cls.sample_manga_response = json.load(file)
 
-        self.importer = kitsu.KitsuImporter("testuser", self.user, "new")
+        cls.importer = kitsu.KitsuImporter("testuser", cls.user, "new")
 
     @patch("app.providers.services.api_request")
     def test_get_kitsu_id(self, mock_api_request):

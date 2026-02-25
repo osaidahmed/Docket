@@ -23,10 +23,11 @@ mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 class SeasonModel(TestCase):
     """Test the @properties and custom save of the Season model."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create a user and a season with episodes."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
         item_season = Item.objects.create(
             media_id="1668",
@@ -37,9 +38,9 @@ class SeasonModel(TestCase):
             season_number=1,
         )
 
-        self.season = Season.objects.create(
+        cls.season = Season.objects.create(
             item=item_season,
-            user=self.user,
+            user=cls.user,
             status=Status.IN_PROGRESS.value,
         )
 
@@ -54,7 +55,7 @@ class SeasonModel(TestCase):
         )
         Episode.objects.create(
             item=item_ep1,
-            related_season=self.season,
+            related_season=cls.season,
             end_date=datetime(2023, 6, 1, 0, 0, tzinfo=UTC),
         )
 
@@ -69,7 +70,7 @@ class SeasonModel(TestCase):
         )
         Episode.objects.create(
             item=item_ep2,
-            related_season=self.season,
+            related_season=cls.season,
             end_date=datetime(2023, 6, 2, 0, 0, tzinfo=UTC),
         )
 
@@ -241,12 +242,13 @@ class SeasonModel(TestCase):
 class SeasonStatusTests(TestCase):
     """Test Season model status change behaviors."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create test data."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.tv_item = Item.objects.create(
+        cls.tv_item = Item.objects.create(
             media_id="123",
             source=Sources.TMDB.value,
             media_type=MediaTypes.TV.value,
@@ -254,13 +256,13 @@ class SeasonStatusTests(TestCase):
             image="http://example.com/image.jpg",
         )
 
-        self.tv = TV.objects.create(
-            item=self.tv_item,
-            user=self.user,
+        cls.tv = TV.objects.create(
+            item=cls.tv_item,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
-        self.season_item = Item.objects.create(
+        cls.season_item = Item.objects.create(
             media_id="123",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -269,10 +271,10 @@ class SeasonStatusTests(TestCase):
             season_number=1,
         )
 
-        self.season = Season.objects.create(
-            item=self.season_item,
-            user=self.user,
-            related_tv=self.tv,
+        cls.season = Season.objects.create(
+            item=cls.season_item,
+            user=cls.user,
+            related_tv=cls.tv,
             status=Status.PLANNING.value,
         )
 
@@ -394,11 +396,12 @@ class SeasonStatusTests(TestCase):
 class SeasonGetRemainingEpsQuickWatchDateTests(TestCase):
     """Tests for Season.get_remaining_eps with different quick_watch_date settings."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create a user and a season for testing."""
-        self.QuickWatchDateChoices = QuickWatchDateChoices
-        self.credentials = {"username": "test_quick", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.QuickWatchDateChoices = QuickWatchDateChoices
+        cls.credentials = {"username": "test_quick", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
         item_season = Item.objects.create(
             media_id="1668",
@@ -409,13 +412,13 @@ class SeasonGetRemainingEpsQuickWatchDateTests(TestCase):
             season_number=1,
         )
 
-        self.season = Season.objects.create(
+        cls.season = Season.objects.create(
             item=item_season,
-            user=self.user,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
-        self.mock_metadata = {
+        cls.mock_metadata = {
             "episodes": [
                 {
                     "episode_number": 1,

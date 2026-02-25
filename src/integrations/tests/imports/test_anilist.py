@@ -25,10 +25,12 @@ app_mock_path = (
 class ImportAniList(TestCase):
     """Test importing media from AniList."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create user for the tests."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.user = get_user_model().objects.create_user(
+            username="test", password="12345",
+        )
 
     @patch("requests.Session.post")
     def test_import_anilist_public(self, mock_request):

@@ -15,11 +15,10 @@ from app.templatetags import app_tags
 class MediaListViewTests(TestCase):
     """Test the media list view."""
 
-    def setUp(self):
-        """Create a user and log in."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
-        self.client.login(**self.credentials)
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
         movies_id = ["278", "238", "129", "424", "680"]
         num_completed = 3
@@ -38,11 +37,14 @@ class MediaListViewTests(TestCase):
             )
             Movie.objects.create(
                 item=item,
-                user=self.user,
+                user=cls.user,
                 status=status,
                 progress=1 if i < num_completed else 0,
                 score=i,
             )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
 
     def test_media_list_view(self):
         """Test the media list view displays media items."""

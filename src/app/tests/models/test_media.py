@@ -18,10 +18,11 @@ mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 class MediaModel(TestCase):
     """Test the custom save of the Media model."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create a user."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
         item_anime = Item.objects.create(
             media_id="1",
@@ -31,9 +32,9 @@ class MediaModel(TestCase):
             image="http://example.com/image.jpg",
         )
 
-        self.anime = Anime.objects.create(
+        cls.anime = Anime.objects.create(
             item=item_anime,
-            user=self.user,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 
@@ -77,12 +78,13 @@ class MediaModel(TestCase):
 class AnimeOngoingCompletionTests(TestCase):
     """Test that ongoing/upcoming anime cannot be fully completed."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Create a user and anime instance."""
-        self.credentials = {"username": "test", "password": "12345"}
-        self.user = get_user_model().objects.create_user(**self.credentials)
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        self.anime_item = Item.objects.create(
+        cls.anime_item = Item.objects.create(
             media_id="99999",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
@@ -90,9 +92,9 @@ class AnimeOngoingCompletionTests(TestCase):
             image="http://example.com/image.jpg",
         )
 
-        self.anime = Anime.objects.create(
-            item=self.anime_item,
-            user=self.user,
+        cls.anime = Anime.objects.create(
+            item=cls.anime_item,
+            user=cls.user,
             status=Status.PLANNING.value,
         )
 

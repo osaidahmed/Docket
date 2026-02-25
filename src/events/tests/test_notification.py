@@ -25,28 +25,28 @@ from events.notifications import (
 class NotificationTests(TestCase):
     """Tests for the notification system."""
 
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         """Set up test data."""
         # Create users
-        self.credentials = {
-            "username": "user1",
-            "password": "12345",
-            "notification_urls": "https://example.com/notify1",
-        }
-        self.user1 = get_user_model().objects.create_user(**self.credentials)
+        cls.user1 = get_user_model().objects.create_user(
+            username="user1",
+            password="12345",
+            notification_urls="https://example.com/notify1",
+        )
 
-        self.credentials = {
-            "username": "user2",
-            "password": "12345",
-            "notification_urls": "https://example.com/notify2",
-        }
-        self.user2 = get_user_model().objects.create_user(**self.credentials)
+        cls.user2 = get_user_model().objects.create_user(
+            username="user2",
+            password="12345",
+            notification_urls="https://example.com/notify2",
+        )
 
-        self.credentials = {"username": "user3", "password": "12345"}
-        self.user3 = get_user_model().objects.create_user(**self.credentials)
+        cls.user3 = get_user_model().objects.create_user(
+            username="user3", password="12345",
+        )
 
         # Create items
-        self.anime_item = Item.objects.create(
+        cls.anime_item = Item.objects.create(
             media_id="1",
             source=Sources.MAL.value,
             media_type=MediaTypes.ANIME.value,
@@ -54,7 +54,7 @@ class NotificationTests(TestCase):
             image="http://example.com/anime.jpg",
         )
 
-        self.manga_item = Item.objects.create(
+        cls.manga_item = Item.objects.create(
             media_id="2",
             source=Sources.MAL.value,
             media_type=MediaTypes.MANGA.value,
@@ -63,7 +63,7 @@ class NotificationTests(TestCase):
         )
 
         # Create TV show and season items
-        self.tv_show_item = Item.objects.create(
+        cls.tv_show_item = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.TV.value,
@@ -71,7 +71,7 @@ class NotificationTests(TestCase):
             image="http://example.com/tv.jpg",
         )
 
-        self.season1_item = Item.objects.create(
+        cls.season1_item = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -80,7 +80,7 @@ class NotificationTests(TestCase):
             image="http://example.com/tv.jpg",
         )
 
-        self.season2_item = Item.objects.create(
+        cls.season2_item = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -89,7 +89,7 @@ class NotificationTests(TestCase):
             image="http://example.com/tv.jpg",
         )
 
-        self.season3_item = Item.objects.create(
+        cls.season3_item = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -100,44 +100,44 @@ class NotificationTests(TestCase):
 
         # Create media tracking
         Anime.objects.create(
-            item=self.anime_item,
-            user=self.user1,
+            item=cls.anime_item,
+            user=cls.user1,
             status=Status.IN_PROGRESS.value,
         )
 
         Anime.objects.create(
-            item=self.anime_item,
-            user=self.user2,
+            item=cls.anime_item,
+            user=cls.user2,
             status=Status.IN_PROGRESS.value,
         )
 
         Anime.objects.create(
-            item=self.anime_item,
-            user=self.user3,
+            item=cls.anime_item,
+            user=cls.user3,
             status=Status.IN_PROGRESS.value,
         )
 
         Manga.objects.create(
-            item=self.manga_item,
-            user=self.user1,
+            item=cls.manga_item,
+            user=cls.user1,
             status=Status.IN_PROGRESS.value,
         )
 
         Manga.objects.create(
-            item=self.manga_item,
-            user=self.user2,
+            item=cls.manga_item,
+            user=cls.user2,
             status=Status.PAUSED.value,
         )
 
         TV.objects.create(
-            item=self.tv_show_item,
-            user=self.user1,
+            item=cls.tv_show_item,
+            user=cls.user1,
             status=Status.IN_PROGRESS.value,
         )
 
         user2_tv = TV.objects.create(
-            item=self.tv_show_item,
-            user=self.user2,
+            item=cls.tv_show_item,
+            user=cls.user2,
             status=Status.IN_PROGRESS.value,
         )
 
@@ -145,9 +145,9 @@ class NotificationTests(TestCase):
         Season.objects.bulk_create(
             [
                 Season(
-                    item=self.season2_item,
+                    item=cls.season2_item,
                     related_tv=user2_tv,
-                    user=self.user2,
+                    user=cls.user2,
                     status=Status.DROPPED.value,
                 ),
             ],
@@ -157,43 +157,43 @@ class NotificationTests(TestCase):
         now = timezone.now()
         ten_mins_ago = now - timedelta(minutes=10)
 
-        self.anime_event = Event.objects.create(
-            item=self.anime_item,
+        cls.anime_event = Event.objects.create(
+            item=cls.anime_item,
             content_number=5,
             datetime=ten_mins_ago,
             notification_sent=False,
         )
 
-        self.manga_event = Event.objects.create(
-            item=self.manga_item,
+        cls.manga_event = Event.objects.create(
+            item=cls.manga_item,
             content_number=10,
             datetime=ten_mins_ago,
             notification_sent=False,
         )
 
-        self.season1_event = Event.objects.create(
-            item=self.season1_item,
+        cls.season1_event = Event.objects.create(
+            item=cls.season1_item,
             content_number=5,
             datetime=ten_mins_ago,
             notification_sent=False,
         )
 
-        self.season2_event = Event.objects.create(
-            item=self.season2_item,
+        cls.season2_event = Event.objects.create(
+            item=cls.season2_item,
             content_number=3,
             datetime=ten_mins_ago,
             notification_sent=False,
         )
 
-        self.season3_event = Event.objects.create(
-            item=self.season3_item,
+        cls.season3_event = Event.objects.create(
+            item=cls.season3_item,
             content_number=1,
             datetime=ten_mins_ago,
             notification_sent=False,
         )
 
         # User1 excludes manga_item
-        self.user1.notification_excluded_items.add(self.manga_item)
+        cls.user1.notification_excluded_items.add(cls.manga_item)
 
     @patch("events.notifications.send_notifications")
     def test_end_to_end_notification(self, mock_send_notifications):
