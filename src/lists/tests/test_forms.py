@@ -11,7 +11,8 @@ class CustomListFormTest(TestCase):
     def setUpTestData(cls):
         """Create a user."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
 
     def test_custom_list_form_valid(self):

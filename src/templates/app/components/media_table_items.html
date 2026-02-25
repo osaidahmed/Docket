@@ -28,8 +28,13 @@
     </td>
     <td class="p-2 pe-8 font-medium">
       <div class=" flex justify-between items-center">
-        <a href="{{ media.item|media_url }}"
-           class="hover:text-accent-soft transition-colors line-clamp-1">{{ media.item }}</a>
+        <div class="min-w-0">
+          <a href="{{ media.item|media_url }}"
+             class="hover:text-accent-soft transition-colors line-clamp-1">{{ media.item }}</a>
+          {% if media.item.english_title %}
+            <p class="text-xs text-gray-400 line-clamp-1">{{ media.item.english_title }}</p>
+          {% endif %}
+        </div>
 
         {% if media.repeats > 1 %}
           <div class="flex items-center">

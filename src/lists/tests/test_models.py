@@ -13,11 +13,13 @@ class CustomListModelTest(TestCase):
     def setUpTestData(cls):
         """Set up test data for CustomList model."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
 
         cls.collaborator = get_user_model().objects.create_user(
-            username="collaborator", password="12345",
+            username="collaborator",
+            password="12345",
         )
 
         cls.custom_list = CustomList.objects.create(
@@ -35,7 +37,8 @@ class CustomListModelTest(TestCase):
         )
 
         cls.non_member = get_user_model().objects.create_user(
-            username="non_member", password="12345",
+            username="non_member",
+            password="12345",
         )
 
     def test_custom_list_creation(self):
@@ -87,10 +90,12 @@ class CustomListManagerTest(TestCase):
     def setUpTestData(cls):
         """Set up test data for CustomListManager tests."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
         cls.other_user = get_user_model().objects.create_user(
-            username="other", password="12345",
+            username="other",
+            password="12345",
         )
         cls.list1 = CustomList.objects.create(name="List 1", owner=cls.user)
         cls.list2 = CustomList.objects.create(name="List 2", owner=cls.other_user)

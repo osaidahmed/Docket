@@ -44,7 +44,8 @@ class ReloadCalendarTaskTests(TestCase):
     def setUpTestData(cls):
         """Set up the tests."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
 
         # Create anime item
@@ -992,7 +993,8 @@ class AutoMoveCompletedToPlanningTests(TestCase):
     def setUpTestData(cls):
         """Set up test data."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
 
         cls.tv_item = Item.objects.create(

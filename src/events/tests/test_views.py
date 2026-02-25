@@ -282,6 +282,40 @@ class CalendarViewTests(TestCase):
         self.assertEqual(len(messages), 1)
         self.assertIn("refresh upcoming releases", str(messages[0]))
 
+    @patch("events.models.Event.objects.get_user_events")
+    @patch.object(get_user_model(), "update_preference")
+    def test_calendar_list_shows_english_title(
+        self,
+        mock_update_preference,
+        mock_get_user_events,
+    ):
+        """Test that calendar list view shows english_title when present."""
+        mock_update_preference.return_value = "list"
+
+        item = Item(
+            id=10,
+            media_id="789",
+            source=Sources.MANUAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Shingeki no Kyojin",
+            english_title="Attack on Titan",
+            image="https://example.com/image.jpg",
+        )
+
+        today = timezone.localdate()
+        event = Event(
+            item=item,
+            content_number=5,
+            datetime=timezone.make_aware(
+                timezone.datetime(today.year, today.month, 15, 12, 0),
+            ),
+        )
+        mock_get_user_events.return_value = [event]
+
+        response = self.client.get(reverse("calendar") + "?view=list")
+        self.assertContains(response, "Attack on Titan")
+        self.assertContains(response, "Shingeki no Kyojin")
+
     def test_reload_calendar_get_method_not_allowed(self):
         """Test that GET requests to reload_calendar are not allowed."""
         # Make a GET request

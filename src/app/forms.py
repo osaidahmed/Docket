@@ -108,6 +108,8 @@ class ManualItemForm(forms.ModelForm):
         fields = [
             "media_type",
             "title",
+            "english_title",
+            "synopsis",
             "image",
             "season_number",
             "episode_number",

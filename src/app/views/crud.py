@@ -232,11 +232,21 @@ def episode_save(request):
     return helpers.redirect_back(request)
 
 
+def _get_create_entry_media_types(user):
+    """Get media types for create entry, including season/episode after TV."""
+    media_types = []
+    for mt in user.get_enabled_media_types():
+        media_types.append(mt)
+        if mt == MediaTypes.TV.value:
+            media_types.extend([MediaTypes.SEASON.value, MediaTypes.EPISODE.value])
+    return media_types
+
+
 @require_http_methods(["GET", "POST"])
 def create_entry(request):
     """Return the form for manually adding media items."""
     if request.method == "GET":
-        media_types = MediaTypes.values
+        media_types = _get_create_entry_media_types(request.user)
         return render(request, "app/create_entry.html", {"media_types": media_types})
 
     form = ManualItemForm(request.POST, user=request.user)

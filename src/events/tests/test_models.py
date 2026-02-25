@@ -25,7 +25,8 @@ class EventModelTests(TestCase):
     def setUpTestData(cls):
         """Set up test data."""
         cls.user = get_user_model().objects.create_user(
-            username="testuser", password="testpassword",
+            username="testuser",
+            password="testpassword",
         )
 
         # Create test items
@@ -135,11 +136,13 @@ class EventManagerTests(TestCase):
     def setUpTestData(cls):
         """Set up test data."""
         cls.user = get_user_model().objects.create_user(
-            username="testuser", password="testpassword",
+            username="testuser",
+            password="testpassword",
         )
 
         cls.other_user = get_user_model().objects.create_user(
-            username="otheruser", password="testpassword",
+            username="otheruser",
+            password="testpassword",
         )
 
         # Create test items

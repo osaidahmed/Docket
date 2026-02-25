@@ -31,7 +31,8 @@ class HelpersTest(TestCase):
     def setUpTestData(cls):
         """Set up test data."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
 
     def test_update_season_references(self):

@@ -20,6 +20,9 @@
                    src="{{ release.item.image }}">
               <div class="flex-1 min-w-0">
                 <h4 class="font-medium text-sm line-clamp-1">{{ release.item }}</h4>
+                {% if release.item.english_title %}
+                  <p class="text-xs text-gray-400 line-clamp-1">{{ release.item.english_title }}</p>
+                {% endif %}
                 <div class="flex items-center">
                   <span class="text-xs text-gray-400 me-2">{{ release.item.media_type|media_type_readable }}</span>
                   {% if release.readable_content_number %}

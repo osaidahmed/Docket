@@ -21,7 +21,8 @@ class UserUpdatePreferenceTests(TestCase):
     def setUpTestData(cls):
         """Set up test data."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
 
     def test_update_preference_no_new_value(self):
@@ -176,10 +177,12 @@ class UserGetImportTasksTests(TestCase):
     def setUpTestData(cls):
         """Set up test data."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
         cls.other_user = get_user_model().objects.create_user(
-            username="otheruser", password="12345",
+            username="otheruser",
+            password="12345",
         )
 
         # Create a crontab schedule for periodic tasks
@@ -365,7 +368,8 @@ class UserResolveWatchDateTests(TestCase):
         """Set up test data."""
         cls.QuickWatchDateChoices = QuickWatchDateChoices
         cls.user = get_user_model().objects.create_user(
-            username="test_watch", password="12345",
+            username="test_watch",
+            password="12345",
         )
         cls.now = timezone.now()
         cls.release_date = datetime(2020, 5, 15, 20, 0, tzinfo=UTC)
@@ -422,9 +426,10 @@ class UserMediaTypeOrderTests(TestCase):
     """Tests for custom media type ordering."""
 
     @classmethod
-    def setUpTestData(cls):  # noqa: D102
+    def setUpTestData(cls):
         cls.user = get_user_model().objects.create_user(
-            username="ordertest", password="12345",
+            username="ordertest",
+            password="12345",
         )
 
     def test_default_order_follows_enum(self):
@@ -509,11 +514,11 @@ class PreferencesViewOrderTests(TestCase):
     """Tests for saving media_type_order via the preferences view."""
 
     @classmethod
-    def setUpTestData(cls):  # noqa: D102
+    def setUpTestData(cls):
         cls.credentials = {"username": "preftest", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-    def setUp(self):  # noqa: D102
+    def setUp(self):
         self.client.login(**self.credentials)
 
     def test_saves_media_type_order(self):

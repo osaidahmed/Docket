@@ -13,7 +13,7 @@
     </div>
     {# djlint:off #}
     <form method="post" class="space-y-6" x-data="{
-      mediaType: 'tv',
+      mediaType: '{{ media_types.0 }}',
       placeholderHtml: null,
 
       init() {
@@ -49,24 +49,23 @@
       },
     
       showField(field) {
-        // TV Show fields
         if (this.mediaType === 'tv') {
-          return ['title', 'image', 'score', 'status', 'notes'].includes(field);
+          return ['title', 'englishTitle', 'synopsis', 'image', 'score', 'status', 'notes', 'link', 'isRewatch'].includes(field);
         }
-    
-        // Season fields
         else if (this.mediaType === 'season') {
-          return ['parentShow', 'image', 'seasonNumber', 'score', 'status', 'notes'].includes(field);
+          return ['parentShow', 'image', 'seasonNumber', 'score', 'status', 'notes', 'link', 'isRewatch'].includes(field);
         }
-    
-        // Episode fields
         else if (this.mediaType === 'episode') {
           return ['parentSeason', 'image', 'episodeNumber', 'endDate'].includes(field);
         }
-    
-        // Movie, Anime, Manga, Game, Book fields
+        else if (this.mediaType === 'movie') {
+          return ['title', 'englishTitle', 'synopsis', 'image', 'score', 'status', 'startDate', 'endDate', 'notes', 'link', 'isRewatch'].includes(field);
+        }
+        else if (this.mediaType === 'game' || this.mediaType === 'boardgame') {
+          return ['title', 'englishTitle', 'synopsis', 'image', 'score', 'progress', 'status', 'startDate', 'endDate', 'notes', 'link'].includes(field);
+        }
         else {
-          return ['title', 'image', 'score', 'progress', 'status', 'startDate', 'endDate', 'notes'].includes(field);
+          return ['title', 'englishTitle', 'synopsis', 'image', 'score', 'progress', 'status', 'startDate', 'endDate', 'notes', 'link', 'isRewatch', 'caughtUp'].includes(field);
         }
       },
     
@@ -78,6 +77,12 @@
         return 'Progress';
       },
     
+      getRepeatLabel() {
+        if (['manga', 'book'].includes(this.mediaType)) return 'Reread';
+        if (['game', 'boardgame'].includes(this.mediaType)) return 'Replay';
+        return 'Rewatch';
+      },
+
       validateForm() {
         // Validate parent TV selection for Season
         if (this.mediaType === 'season') {
@@ -129,6 +134,25 @@
                  name="title"
                  type="text"
                  value="">
+        </div>
+
+        <!-- English Title field -->
+        <div x-show="showField('englishTitle')">
+          <label class="block text-sm font-medium mb-2 text-gray-300">English Title</label>
+          <input class="w-full p-2 bg-input rounded-md text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent appearance-none"
+                 placeholder="Enter english title (optional)"
+                 name="english_title"
+                 type="text"
+                 value="">
+        </div>
+
+        <!-- Synopsis field -->
+        <div x-show="showField('synopsis')">
+          <label class="block text-sm font-medium mb-2 text-gray-300">Synopsis</label>
+          <textarea class="w-full p-2 bg-input rounded-md text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent appearance-none"
+                    rows="3"
+                    name="synopsis"
+                    placeholder="Enter synopsis (optional)"></textarea>
         </div>
 
         <!-- Parent TV Show field (Season) -->
@@ -321,7 +345,7 @@
           <label class="block text-sm font-medium mb-2 text-gray-300">Start Date</label>
           <input class="w-full p-2 bg-input rounded-md text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent appearance-none"
                  name="start_date"
-                 type="date"
+                 type="{% if TRACK_TIME %}datetime-local{% else %}date{% endif %}"
                  value="">
         </div>
 
@@ -330,7 +354,7 @@
           <label class="block text-sm font-medium mb-2 text-gray-300">End Date</label>
           <input class="w-full p-2 bg-input rounded-md text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent appearance-none"
                  name="end_date"
-                 type="date"
+                 type="{% if TRACK_TIME %}datetime-local{% else %}date{% endif %}"
                  value="">
         </div>
 
@@ -341,6 +365,38 @@
                     rows="4"
                     name="notes"
                     placeholder="Add any notes or comments..."></textarea>
+        </div>
+
+        <!-- Link field -->
+        <div x-show="showField('link')">
+          <label class="block text-sm font-medium mb-2 text-gray-300">Link</label>
+          <input class="w-full p-2 bg-input rounded-md text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent appearance-none"
+                 name="link"
+                 placeholder="https://..."
+                 type="url"
+                 value="">
+        </div>
+
+        <!-- Rewatch/Reread checkbox -->
+        <div x-show="showField('isRewatch')">
+          <div class="flex items-center gap-2">
+            <input type="checkbox"
+                   name="is_rewatch"
+                   id="is-rewatch"
+                   class="w-4 h-4 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0">
+            <label for="is-rewatch" class="text-sm text-gray-300" x-text="getRepeatLabel()">Rewatch</label>
+          </div>
+        </div>
+
+        <!-- Caught Up checkbox -->
+        <div x-show="showField('caughtUp')">
+          <div class="flex items-center gap-2">
+            <input type="checkbox"
+                   name="caught_up"
+                   id="caught-up"
+                   class="w-4 h-4 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0">
+            <label for="caught-up" class="text-sm text-gray-300">Caught Up</label>
+          </div>
         </div>
       </div>
 

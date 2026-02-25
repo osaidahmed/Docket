@@ -10,6 +10,9 @@ ignore = ["ANN", "PT", "PD", "D100", "D104", "RUF012", "PLR0913", "SLF001", "COM
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 88
 
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["D102", "S106"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
 

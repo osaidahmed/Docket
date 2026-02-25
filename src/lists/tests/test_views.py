@@ -182,7 +182,8 @@ class ListDetailViewTests(TestCase):
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
         cls.other_user = get_user_model().objects.create_user(
-            username="otheruser", password="testpassword",
+            username="otheruser",
+            password="testpassword",
         )
 
         # Create a test list

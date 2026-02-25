@@ -15,7 +15,8 @@ class EmbyWebhookTests(TestCase):
     def setUpTestData(cls):
         """Set up test data."""
         cls.user = get_user_model().objects.create_superuser(
-            username="testuser", token="test-token",
+            username="testuser",
+            token="test-token",
         )
         cls.url = reverse("emby_webhook", kwargs={"token": "test-token"})
 

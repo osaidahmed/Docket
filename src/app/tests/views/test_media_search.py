@@ -678,4 +678,3 @@ class QuickRewatchViewTests(TestCase):
         self.assertTemplateUsed(
             response, "app/components/backlog_rewatch_confirmed.html"
         )
-

@@ -13,7 +13,8 @@ class NotificationSettingsFormTests(TestCase):
     def setUpTestData(cls):
         """Set up test data."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
         cls.valid_discord_url = "discord://webhook_id/webhook_token"
         cls.valid_telegram_url = "tgram://bot_token/chat_id"

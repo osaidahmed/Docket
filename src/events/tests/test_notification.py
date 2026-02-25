@@ -42,7 +42,8 @@ class NotificationTests(TestCase):
         )
 
         cls.user3 = get_user_model().objects.create_user(
-            username="user3", password="12345",
+            username="user3",
+            password="12345",
         )
 
         # Create items

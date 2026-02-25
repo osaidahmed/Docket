@@ -30,7 +30,8 @@ class ImportMAL(TestCase):
     def setUpTestData(cls):
         """Create user for the tests."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
 
     @patch("requests.Session.get")

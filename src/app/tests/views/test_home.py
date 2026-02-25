@@ -412,12 +412,8 @@ class HomeViewTests(TestCase):
             title="Active Rewatch Movie",
             image="http://example.com/image.jpg",
         )
-        Movie.objects.create(
-            item=item_a, user=self.user, status=Status.COMPLETED.value
-        )
-        Movie.objects.create(
-            item=item_a, user=self.user, status=Status.PLANNING.value
-        )
+        Movie.objects.create(item=item_a, user=self.user, status=Status.COMPLETED.value)
+        Movie.objects.create(item=item_a, user=self.user, status=Status.PLANNING.value)
 
         item_b = Item.objects.create(
             media_id="861",
@@ -478,9 +474,7 @@ class HomeViewTests(TestCase):
 
         page_final = self.client.get(reverse("home"))
         self.assertEqual(save_oob_count, page_final.context["archive_count"])
-        self.assertEqual(
-            page_final.context["archive_count"], count_before_save + 1
-        )
+        self.assertEqual(page_final.context["archive_count"], count_before_save + 1)
 
     def test_ongoing_caught_up_when_progress_matches(self):
         """Test that caught-up users see 'Caught Up' (no question mark)."""
@@ -1406,7 +1400,7 @@ class RewatchSectionTests(TestCase):
     """Tests for the Rewatches section in the backlog."""
 
     @classmethod
-    def setUpTestData(cls):  # noqa: D102
+    def setUpTestData(cls):
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -2936,7 +2930,7 @@ class CaughtUpToggleTests(TestCase):
     """Tests for manual caught_up toggle on backlog cards."""
 
     @classmethod
-    def setUpTestData(cls):  # noqa: D102
+    def setUpTestData(cls):
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -3155,7 +3149,7 @@ class ArchiveViewTests(TestCase):
     """Tests for the dedicated archive page and archive card editing."""
 
     @classmethod
-    def setUpTestData(cls):  # noqa: D102
+    def setUpTestData(cls):
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -3538,6 +3532,46 @@ class ArchiveViewTests(TestCase):
         self.assertContains(response, 'title="Edit"')
         self.assertContains(response, "archive-card-")
 
+    # --- Archive caught_up checkbox ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_card_caught_up_checkbox_present(self, mock_metadata):
+        """Archive card for anime shows caught_up checkbox."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2060",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Caught Up Archive Anime",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, 'name="caught_up"')
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_card_caught_up_toggle(self, mock_metadata):
+        """Caught up can be toggled from archive card edit form."""
+        mock_metadata.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="2061",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Toggle Caught Up Anime",
+            image="http://example.com/image.jpg",
+        )
+        anime = Anime.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+            caught_up=False,
+        )
+        data = self._backlog_save_data(anime)
+        data["caught_up"] = "on"
+        self.client.post(reverse("backlog_save"), data)
+        anime.refresh_from_db()
+        self.assertTrue(anime.caught_up)
+
 
 class EnrichmentTests(TestCase):
     """Test the enrich_items_with_user_data helper."""
@@ -3798,7 +3832,7 @@ class GetEnglishTitleTests(TestCase):
 class BacklogActionRegistryTests(TestCase):
     """Ensure every backlog action endpoint has HX-Refresh policy tests."""
 
-    def test_all_backlog_actions_covered(self):  # noqa: D102
+    def test_all_backlog_actions_covered(self):
         action_names = {
             p.name
             for p in urlpatterns

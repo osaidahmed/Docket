@@ -29,7 +29,7 @@
                     {% icon release.item.media_type is_active=False extra_classes=color|add:" w-4 h-4 shrink-0" %}
                   {% endwith %}
                   <span class="truncate"
-                        title="{{ release }} {{ release.datetime|time_format:user }}">{{ release }} {{ release.datetime|time_format:user }}</span>
+                        title="{{ release }}{% if release.item.english_title %} ({{ release.item.english_title }}){% endif %} {{ release.datetime|time_format:user }}">{{ release }} {{ release.datetime|time_format:user }}</span>
                 </div>
               </a>
             {% endfor %}

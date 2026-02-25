@@ -3,6 +3,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from app.models import (
+    Anime,
     Item,
     MediaTypes,
     Movie,
@@ -104,3 +105,27 @@ class MediaListViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "app/components/media_table_items.html")
+
+    def test_table_view_shows_english_title(self):
+        """Test that the table layout displays english_title when present."""
+        item = Item.objects.create(
+            media_id="999",
+            source=Sources.MANUAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Shingeki no Kyojin",
+            english_title="Attack on Titan",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=0,
+        )
+
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.ANIME.value]) + "?layout=table",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Attack on Titan")

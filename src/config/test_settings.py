@@ -27,14 +27,13 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 STEAM_API_KEY = "test_steam_api_key"
 
 # strip apps that are unnecessary for tests
-INSTALLED_APPS = [  # noqa: F405
+INSTALLED_APPS = [
     app
     for app in INSTALLED_APPS  # noqa: F405
-    if not app.startswith("health_check")
-    and app != "debug_toolbar"
+    if not app.startswith("health_check") and app != "debug_toolbar"
 ]
 
-MIDDLEWARE = [  # noqa: F405
+MIDDLEWARE = [
     m
     for m in MIDDLEWARE  # noqa: F405
     if m != "debug_toolbar.middleware.DebugToolbarMiddleware"

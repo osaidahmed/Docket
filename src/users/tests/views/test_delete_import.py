@@ -31,7 +31,8 @@ class DeleteImportScheduleTests(TestCase):
         )
 
         cls.other_user = get_user_model().objects.create_user(
-            username="otheruser", password="testpass123",
+            username="otheruser",
+            password="testpass123",
         )
 
         cls.other_task = PeriodicTask.objects.create(

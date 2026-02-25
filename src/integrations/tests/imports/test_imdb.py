@@ -29,7 +29,8 @@ class ImportIMDB(TestCase):
     def setUpTestData(cls):
         """Create user for the tests."""
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
         with Path(mock_path / "import_imdb.csv").open("rb") as file:
             cls.import_results = imdb.importer(file, cls.user, "new")
