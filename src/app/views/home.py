@@ -29,10 +29,13 @@ def home(request):
     )
 
     archive_open = request.GET.get("view") == "archive"
+    archive = backlog_data["archive"]
+    if not archive_open:
+        archive = archive[:20]
 
     context = {
         "groups": backlog_data["groups"],
-        "archive": backlog_data["archive"],
+        "archive": archive,
         "archive_count": backlog_data["archive_count"],
         "archive_open": archive_open,
         "current_sort": sort_by,

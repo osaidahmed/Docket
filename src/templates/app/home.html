@@ -9,6 +9,16 @@
   {% if archive_open %}
     <h1 class="text-3xl font-bold mb-6">Archive</h1>
 
+    <div class="flex flex-wrap gap-2 mb-6">
+      {% for chip in type_filter_choices %}
+        <a href="{% url 'home' %}?view=archive{% if chip.value != 'all' %}&type={{ chip.value }}{% endif %}"
+           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                  {% if current_type_filter == chip.value %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+          {{ chip.label }}
+        </a>
+      {% endfor %}
+    </div>
+
     {% if archive %}
       <div id="archive-list" class="space-y-2">
         {% for media in archive %}

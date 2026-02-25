@@ -3,6 +3,8 @@ import logging
 from django.apps import apps
 from django.db.models import Q
 from django.shortcuts import render
+from django.urls import reverse
+from django.utils.text import slugify
 from django.views.decorators.http import require_GET
 
 from app import config, helpers
@@ -217,6 +219,17 @@ def search_suggest_recent(request):
         media_type_filter=media_type_filter,
         limit=SUGGEST_MAX_RESULTS,
     )
+
+    for result in results:
+        result["url"] = reverse(
+            "media_details",
+            kwargs={
+                "source": result["source"],
+                "media_type": result["media_type"],
+                "media_id": result["media_id"],
+                "title": slugify(result["title"]) or "-",
+            },
+        )
 
     return render(
         request,

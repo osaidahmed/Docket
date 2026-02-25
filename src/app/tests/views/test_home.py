@@ -3183,11 +3183,11 @@ class ArchiveViewTests(TestCase):
         self.assertContains(response, ">Archive</h1>")
         self.assertNotContains(response, ">Backlog</h1>")
 
-    def test_archive_page_hides_sort_and_filters(self):
-        """Archive view does not show sort dropdown or type filter chips."""
+    def test_archive_page_hides_sort_but_shows_type_filters(self):
+        """Archive view hides sort dropdown but shows type filter chips."""
         response = self.client.get(self._archive_url())
         self.assertNotContains(response, "arrows-up-down")
-        self.assertNotContains(response, "rounded-full text-sm font-medium")
+        self.assertContains(response, "rounded-full text-sm font-medium")
 
     @patch("app.providers.services.get_media_metadata")
     def test_archive_page_shows_completed_items(self, mock_metadata):
@@ -3571,6 +3571,61 @@ class ArchiveViewTests(TestCase):
         self.client.post(reverse("backlog_save"), data)
         anime.refresh_from_db()
         self.assertTrue(anime.caught_up)
+
+    # --- Archive type filtering ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_filters_by_media_type(self, mock_metadata):
+        """Archive page filters items when type parameter is provided."""
+        mock_metadata.return_value = {"max_progress": None}
+        anime_item = Item.objects.create(
+            media_id="2070",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Filtered Anime",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=anime_item, user=self.user, status=Status.COMPLETED.value,
+        )
+        movie_item = Item.objects.create(
+            media_id="2071",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Filtered Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=movie_item, user=self.user, status=Status.COMPLETED.value,
+        )
+
+        response = self.client.get(self._archive_url() + "&type=anime")
+        self.assertContains(response, "Filtered Anime")
+        self.assertNotContains(response, "Filtered Movie")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_shows_all_items_not_capped(self, mock_metadata):
+        """Full archive page shows all items, not just 20."""
+        mock_metadata.return_value = {"max_progress": None}
+        for i in range(25):
+            item = Item.objects.create(
+                media_id=f"3{i:03d}",
+                source=Sources.TMDB.value,
+                media_type=MediaTypes.MOVIE.value,
+                title=f"Archive Movie {i}",
+                image="http://example.com/image.jpg",
+            )
+            Movie.objects.create(
+                item=item, user=self.user, status=Status.COMPLETED.value,
+            )
+
+        response = self.client.get(self._archive_url())
+        self.assertEqual(len(response.context["archive"]), 25)
+
+    def test_archive_type_filter_chip_links_preserve_view(self):
+        """Type filter chips on archive page keep view=archive in URL."""
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, "?view=archive&type=")
 
 
 class EnrichmentTests(TestCase):

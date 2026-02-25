@@ -4,12 +4,18 @@
     {{ section_title|default:"Your Library" }}
   </div>
   {% for result in results %}
-    <button type="button"
-            role="option"
-            class="suggest-item w-full flex items-center gap-3 px-3 py-2 text-left text-sm text-gray-300 hover:bg-card hover:text-white transition-colors"
-            data-title="{{ result.title }}"
-            data-media-id="{{ result.media_id }}"
-            data-source="{{ result.source }}">
+    {% if result.url %}
+      <a href="{{ result.url }}"
+         role="option"
+         class="suggest-item w-full flex items-center gap-3 px-3 py-2 text-left text-sm text-gray-300 hover:bg-card hover:text-white transition-colors no-underline">
+    {% else %}
+      <button type="button"
+              role="option"
+              class="suggest-item w-full flex items-center gap-3 px-3 py-2 text-left text-sm text-gray-300 hover:bg-card hover:text-white transition-colors"
+              data-title="{{ result.title }}"
+              data-media-id="{{ result.media_id }}"
+              data-source="{{ result.source }}">
+    {% endif %}
       <img src="{{ result.image }}"
            alt=""
            class="w-8 h-10 object-cover rounded shrink-0"
@@ -21,10 +27,15 @@
             {{ result.english_title }} ·
           {% endif %}
           {{ result.media_type|media_type_readable }}
-          ·
-          {{ result.status }}
+          {% if result.status %}
+            · {{ result.status }}
+          {% endif %}
         </div>
       </div>
-    </button>
+    {% if result.url %}
+      </a>
+    {% else %}
+      </button>
+    {% endif %}
   {% endfor %}
 {% endif %}

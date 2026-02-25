@@ -71,7 +71,7 @@ def get_backlog(user, sort_by, media_type_filter=None):
     )
     return {
         "groups": groups,
-        "archive": archive_all[:20],
+        "archive": archive_all,
         "archive_count": len(archive_all),
     }
 
