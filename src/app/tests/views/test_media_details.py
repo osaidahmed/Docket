@@ -1,14 +1,21 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from app.models import (
+    Anime,
+    Item,
     MediaTypes,
+    Movie,
     Sources,
+    Status,
 )
 from app.services import recent
+from events.models import Event
 
 
 class MediaDetailsViewTests(TestCase):
@@ -195,3 +202,165 @@ class DetailViewTrackingTests(TestCase):
 
         results = recent.get_recent(self.user.id)
         self.assertEqual(len(results), 0)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_detail_page_shows_quick_actions_for_untracked(self, mock_get_metadata):
+        mock_get_metadata.return_value = {
+            "media_id": "500",
+            "title": "Untracked Movie",
+            "media_type": MediaTypes.MOVIE.value,
+            "source": Sources.TMDB.value,
+            "image": "http://example.com/image.jpg",
+        }
+
+        response = self.client.get(
+            reverse(
+                "media_details",
+                kwargs={
+                    "source": Sources.TMDB.value,
+                    "media_type": MediaTypes.MOVIE.value,
+                    "media_id": "500",
+                    "title": "untracked-movie",
+                },
+            ),
+        )
+
+        self.assertContains(response, "quick_add")
+        self.assertContains(response, "quick_archive")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_detail_page_hides_quick_actions_for_tracked(self, mock_get_metadata):
+        mock_get_metadata.return_value = {
+            "media_id": "501",
+            "title": "Tracked Movie",
+            "media_type": MediaTypes.MOVIE.value,
+            "source": Sources.TMDB.value,
+            "image": "http://example.com/image.jpg",
+            "max_progress": None,
+        }
+
+        item = Item.objects.create(
+            media_id="501",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Tracked Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+
+        response = self.client.get(
+            reverse(
+                "media_details",
+                kwargs={
+                    "source": Sources.TMDB.value,
+                    "media_type": MediaTypes.MOVIE.value,
+                    "media_id": "501",
+                    "title": "tracked-movie",
+                },
+            ),
+        )
+
+        self.assertNotContains(response, "quick_add")
+        self.assertNotContains(response, "quick_archive")
+        self.assertNotContains(response, "Add to Backlog")
+
+
+class DetailScoreGatingTests(TestCase):
+    """Test that score widget is disabled for not-yet-airing media on detail page."""
+
+    def setUp(self):
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_detail_page_hides_score_for_not_yet_airing(self, mock_get_metadata):
+        mock_get_metadata.return_value = {
+            "media_id": "8000",
+            "title": "Future Anime",
+            "media_type": MediaTypes.ANIME.value,
+            "source": Sources.MAL.value,
+            "image": "http://example.com/image.jpg",
+        }
+        item = Item.objects.create(
+            media_id="8000",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Future Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=1,
+            datetime=timezone.now() + timedelta(days=30),
+        )
+        Anime.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
+
+        response = self.client.get(
+            reverse(
+                "media_details",
+                kwargs={
+                    "source": Sources.MAL.value,
+                    "media_type": MediaTypes.ANIME.value,
+                    "media_id": "8000",
+                    "title": "future-anime",
+                },
+            ),
+        )
+
+        self.assertContains(response, "Not yet released")
+        self.assertNotContains(response, "Click to edit")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_detail_page_shows_score_for_airing_media(self, mock_get_metadata):
+        mock_get_metadata.return_value = {
+            "media_id": "8001",
+            "title": "Airing Anime",
+            "media_type": MediaTypes.ANIME.value,
+            "source": Sources.MAL.value,
+            "image": "http://example.com/image.jpg",
+        }
+        item = Item.objects.create(
+            media_id="8001",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Airing Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=1,
+            datetime=timezone.now() - timedelta(days=7),
+        )
+        Event.objects.create(
+            item=item,
+            content_number=2,
+            datetime=timezone.now() + timedelta(days=7),
+        )
+        # create with PLANNING to avoid process_status calling get_media_metadata,
+        # then update via queryset to bypass save() hooks entirely
+        anime = Anime.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+        Anime.objects.filter(id=anime.id).update(
+            status=Status.IN_PROGRESS.value, progress=1
+        )
+
+        response = self.client.get(
+            reverse(
+                "media_details",
+                kwargs={
+                    "source": Sources.MAL.value,
+                    "media_type": MediaTypes.ANIME.value,
+                    "media_id": "8001",
+                    "title": "airing-anime",
+                },
+            ),
+        )
+
+        self.assertContains(response, "Click to edit")
+        self.assertNotContains(response, "Not yet released")

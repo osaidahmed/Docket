@@ -11,8 +11,28 @@ from app import helpers
 from app.forms import EpisodeForm, ManualItemForm, get_form_class
 from app.models import BasicMedia, Item, MediaTypes, Season, Sources, Status
 from app.providers import services
+from app.services import backlog
 
 logger = logging.getLogger(__name__)
+
+
+def _restrict_ongoing_status_choices(form, media_type, media_id, source, season_number):
+    """Remove 'Completed' from status choices for ongoing anime/TV."""
+    if media_type not in (MediaTypes.ANIME.value, MediaTypes.TV.value):
+        return
+    metadata = services.get_media_metadata(
+        media_type, media_id, source, [season_number]
+    )
+    detail_status = metadata.get("details", {}).get("status", "")
+    is_ongoing = (
+        metadata.get("is_ongoing")
+        or (metadata.get("next_episode_season") is not None)
+        or detail_status in ("Airing", "Upcoming")
+    )
+    if is_ongoing:
+        form.fields["status"].choices = [
+            c for c in form.fields["status"].choices if c[0] != Status.COMPLETED.value
+        ]
 
 
 @require_GET
@@ -26,11 +46,12 @@ def track_modal(
     """Return the tracking form for a media item."""
     instance_id = request.GET.get("instance_id")
     if instance_id:
-        media = BasicMedia.objects.get_media(
+        media = BasicMedia.objects.get_media_prefetch(
             request.user,
             media_type,
             instance_id,
         )
+        backlog.annotate_next_event([media])
     elif request.GET.get("is_create"):
         media = None
     else:
@@ -69,25 +90,11 @@ def track_modal(
 
     form = get_form_class(media_type)(instance=media, initial=initial_data)
 
-    if media_type in (MediaTypes.ANIME.value, MediaTypes.TV.value):
-        metadata = services.get_media_metadata(
-            media_type,
-            media_id,
-            source,
-            [season_number],
-        )
-        detail_status = metadata.get("details", {}).get("status", "")
-        is_ongoing = (
-            metadata.get("is_ongoing")
-            or (metadata.get("next_episode_season") is not None)
-            or detail_status in ("Airing", "Upcoming")
-        )
-        if is_ongoing:
-            form.fields["status"].choices = [
-                c
-                for c in form.fields["status"].choices
-                if c[0] != Status.COMPLETED.value
-            ]
+    if getattr(media, "not_yet_airing", False):
+        for field_name in ("score", "progress", "caught_up", "is_rewatch"):
+            form.fields.pop(field_name, None)
+
+    _restrict_ongoing_status_choices(form, media_type, media_id, source, season_number)
 
     return render(
         request,

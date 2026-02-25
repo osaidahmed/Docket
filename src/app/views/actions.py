@@ -66,14 +66,17 @@ def _create_media_from_search(request, status):
             },
         )
 
-    recent.track_view(request.user.id, {
-        "media_type": media_type,
-        "media_id": media_id,
-        "source": source,
-        "title": item.title,
-        "english_title": item.english_title,
-        "image": item.image,
-    })
+    recent.track_view(
+        request.user.id,
+        {
+            "media_type": media_type,
+            "media_id": media_id,
+            "source": source,
+            "title": item.title,
+            "english_title": item.english_title,
+            "image": item.image,
+        },
+    )
 
     model = apps.get_model(app_label="app", model_name=media_type)
     instance = model.objects.create(

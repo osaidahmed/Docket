@@ -10,7 +10,7 @@ from django.views.decorators.http import require_GET, require_POST
 from app import helpers
 from app.models import BasicMedia, Item, MediaTypes, Sources
 from app.providers import manual, services, tmdb
-from app.services import recent
+from app.services import backlog, recent
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,9 @@ def media_details(request, source, media_type, media_id, title):  # noqa: ARG001
         source,
     )
     current_instance = user_medias[0] if user_medias else None
+
+    if current_instance:
+        backlog.annotate_next_event([current_instance])
 
     if media_metadata.get("related"):
         for section_name, related_items in media_metadata["related"].items():
@@ -78,6 +81,10 @@ def season_details(request, source, media_id, title, season_number):  # noqa: AR
     )
 
     current_instance = user_medias[0] if user_medias else None
+
+    if current_instance:
+        backlog.annotate_next_event([current_instance])
+
     episodes_in_db = current_instance.episodes.all() if current_instance else []
 
     if source == Sources.MANUAL.value:

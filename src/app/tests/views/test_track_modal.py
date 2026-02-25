@@ -1,16 +1,20 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from app.models import (
+    Anime,
     Item,
     MediaTypes,
     Movie,
     Sources,
     Status,
 )
+from events.models import Event
 
 
 class TrackModalViewTests(TestCase):
@@ -91,3 +95,96 @@ class TrackModalViewTests(TestCase):
             response.context["form"].initial["media_type"],
             MediaTypes.MOVIE.value,
         )
+
+
+class TrackModalNotYetAiringTests(TestCase):
+    """Test that track modal strips fields for not-yet-airing media."""
+
+    def setUp(self):
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    def test_track_modal_strips_fields_for_not_yet_airing(self):
+        item = Item.objects.create(
+            media_id="9000",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Future Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=1,
+            datetime=timezone.now() + timedelta(days=30),
+        )
+        anime = Anime.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+        response = self.client.get(
+            reverse(
+                "track_modal",
+                kwargs={
+                    "source": Sources.MAL.value,
+                    "media_type": MediaTypes.ANIME.value,
+                    "media_id": "9000",
+                },
+            )
+            + f"?return_url=/home&instance_id={anime.id}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        self.assertNotIn("score", form.fields)
+        self.assertNotIn("progress", form.fields)
+        self.assertNotIn("caught_up", form.fields)
+        self.assertNotIn("is_rewatch", form.fields)
+        self.assertIn("status", form.fields)
+        self.assertIn("notes", form.fields)
+
+    def test_track_modal_keeps_fields_for_airing_media(self):
+        item = Item.objects.create(
+            media_id="9001",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Airing Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=1,
+            datetime=timezone.now() - timedelta(days=7),
+        )
+        Event.objects.create(
+            item=item,
+            content_number=2,
+            datetime=timezone.now() + timedelta(days=7),
+        )
+        # create with PLANNING to avoid process_status calling get_media_metadata,
+        # then update via queryset to bypass save() hooks entirely
+        anime = Anime.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+        Anime.objects.filter(id=anime.id).update(
+            status=Status.IN_PROGRESS.value, progress=1
+        )
+        anime.refresh_from_db()
+
+        response = self.client.get(
+            reverse(
+                "track_modal",
+                kwargs={
+                    "source": Sources.MAL.value,
+                    "media_type": MediaTypes.ANIME.value,
+                    "media_id": "9001",
+                },
+            )
+            + f"?return_url=/home&instance_id={anime.id}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        self.assertIn("score", form.fields)
+        self.assertIn("progress", form.fields)
+        self.assertIn("is_rewatch", form.fields)

@@ -19,7 +19,7 @@
       {% if total_fields > 8 %}<div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">{% endif %}
 
         {% for field in form %}
-          {% if field.name != 'notes' and field.name != 'instance_id' and field.name != 'media_type' and field.name != 'source' and field.name != 'media_id' and field.name != 'season_number' %}
+          {% if field.name != 'notes' and field.name != 'instance_id' and field.name != 'media_type' and field.name != 'source' and field.name != 'media_id' and field.name != 'season_number' and field.name != 'is_rewatch' and field.name != 'caught_up' %}
             <div class="mb-5 {% if field.name == 'status' and total_fields|divisibleby:2 %}sm:col-span-2{% endif %}">
               <label class="block text-sm font-medium mb-1 text-gray-300"
                      for="{{ field.id_for_label }}">{{ field.label }}</label>
@@ -59,6 +59,25 @@
         <label class="block text-sm font-medium mb-1 text-gray-300"
                for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
         {{ form.notes|add_class:"w-full p-2 bg-input rounded-md text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent" }}
+      </div>
+    {% endif %}
+
+    {% if form.is_rewatch or form.caught_up %}
+      <div class="flex flex-wrap gap-4 mb-5">
+        {% if form.caught_up %}
+          <label for="{{ form.caught_up.id_for_label }}"
+                 class="flex items-center gap-2 px-3 py-2 bg-input rounded-md cursor-pointer">
+            {{ form.caught_up|add_class:"w-4 h-4 rounded bg-muted border-gray-600 text-accent focus:ring-accent focus:ring-offset-0" }}
+            <span class="text-sm text-gray-300">{{ form.caught_up.label }}</span>
+          </label>
+        {% endif %}
+        {% if form.is_rewatch %}
+          <label for="{{ form.is_rewatch.id_for_label }}"
+                 class="flex items-center gap-2 px-3 py-2 bg-input rounded-md cursor-pointer">
+            {{ form.is_rewatch|add_class:"w-4 h-4 rounded bg-muted border-gray-600 text-accent focus:ring-accent focus:ring-offset-0" }}
+            <span class="text-sm text-gray-300">{{ form.is_rewatch.label }}</span>
+          </label>
+        {% endif %}
       </div>
     {% endif %}
 

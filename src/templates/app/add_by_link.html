@@ -12,9 +12,7 @@
     </div>
 
     {% if error %}
-      <div class="mb-6 p-4 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
-        {{ error }}
-      </div>
+      <div class="mb-6 p-4 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">{{ error }}</div>
     {% endif %}
 
     {% if results %}
@@ -71,9 +69,7 @@
                 <div class="min-w-0 flex-1">
                   <p class="text-sm font-medium text-white truncate">{{ item.title }}</p>
                   <p class="text-xs text-gray-500 truncate">{{ item.url }}</p>
-                  {% if item.link_updated %}
-                    <p class="text-xs text-blue-400">Link updated</p>
-                  {% endif %}
+                  {% if item.link_updated %}<p class="text-xs text-blue-400">Link updated</p>{% endif %}
                 </div>
               </div>
             {% endfor %}
@@ -88,9 +84,7 @@
             {% for item in failed %}
               <div class="p-3 bg-card rounded-lg border border-amber-900/30">
                 <p class="text-sm text-white truncate">{{ item.url }}</p>
-                {% if item.query %}
-                  <p class="text-xs text-gray-500">Searched: "{{ item.query }}"</p>
-                {% endif %}
+                {% if item.query %}<p class="text-xs text-gray-500">Searched: "{{ item.query }}"</p>{% endif %}
                 <p class="text-xs text-amber-400">{{ item.reason }}</p>
               </div>
             {% endfor %}
@@ -103,7 +97,9 @@
         Add more
       </a>
     {% else %}
-      <form method="post" action="{% url 'add_by_link_process' %}" class="space-y-6">
+      <form method="post"
+            action="{% url 'add_by_link_process' %}"
+            class="space-y-6">
         {% csrf_token %}
         <div class="bg-card rounded-lg p-6">
           <div class="space-y-6">
@@ -113,9 +109,7 @@
                       name="media_type"
                       required
                       class="w-full p-2 bg-input rounded-md text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent appearance-none">
-                {% for mt in media_types %}
-                  <option value="{{ mt.value }}">{{ mt.label }}</option>
-                {% endfor %}
+                {% for mt in media_types %}<option value="{{ mt.value }}">{{ mt.label }}</option>{% endfor %}
               </select>
             </div>
 

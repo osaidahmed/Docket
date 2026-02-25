@@ -18,13 +18,7 @@
 
       {# Color Scheme #}
       <div class="mb-5"
-           x-data="{
-             selected: '{{ request.user.color_scheme|default:'charcoal' }}',
-             pick(scheme) {
-               this.selected = scheme;
-               document.documentElement.setAttribute('data-theme', scheme);
-             }
-           }">
+           x-data="{ selected: '{{ request.user.color_scheme|default:'charcoal' }}', pick(scheme) { this.selected = scheme; document.documentElement.setAttribute('data-theme', scheme); } }">
         <div class="flex items-center text-gray-200 mb-3">
           {% include "app/icons/palette.svg" with classes="w-5 h-5 mr-2" %}
           <span class="text-sm font-medium">Color Scheme</span>
@@ -33,9 +27,7 @@
           {% for value, label in color_scheme_choices %}
             <button type="button"
                     @click="pick('{{ value }}')"
-                    :class="selected === '{{ value }}'
-                      ? 'ring-2 ring-accent-soft'
-                      : 'border border-line'"
+                    :class="selected === '{{ value }}' ? 'ring-2 ring-accent-soft' : 'border border-line'"
                     class="flex flex-col items-center gap-2 p-3 rounded-lg transition-all duration-200 cursor-pointer">
               <div class="w-full h-8 rounded-md theme-swatch-{{ value }}"></div>
               <span class="text-xs text-gray-300">{{ label }}</span>
@@ -202,24 +194,7 @@
 
       {# Media Types Settings #}
       <div class="mb-5"
-           x-data="{
-             moveUp(el) {
-               const item = el.closest('[data-media-type]');
-               const prev = item.previousElementSibling;
-               if (prev) item.parentNode.insertBefore(item, prev);
-               this.updateOrder();
-             },
-             moveDown(el) {
-               const item = el.closest('[data-media-type]');
-               const next = item.nextElementSibling;
-               if (next) item.parentNode.insertBefore(next, item);
-               this.updateOrder();
-             },
-             updateOrder() {
-               const items = [...$refs.list.querySelectorAll('[data-media-type]')];
-               $refs.orderInput.value = JSON.stringify(items.map(el => el.dataset.mediaType));
-             }
-           }">
+           x-data="{ moveUp(el) { const item = el.closest('[data-media-type]'); const prev = item.previousElementSibling; if (prev) item.parentNode.insertBefore(item, prev); this.updateOrder(); }, moveDown(el) { const item = el.closest('[data-media-type]'); const next = item.nextElementSibling; if (next) item.parentNode.insertBefore(next, item); this.updateOrder(); }, updateOrder() { const items = [...$refs.list.querySelectorAll('[data-media-type]')]; $refs.orderInput.value = JSON.stringify(items.map(el => el.dataset.mediaType)); } }">
         <div class="flex items-center mb-4">
           {% include "app/icons/four-square.svg" with classes="w-5 h-5 text-accent-soft mr-2" %}
           <h3 class="text-lg font-semibold">Media Types</h3>

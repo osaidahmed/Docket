@@ -2,7 +2,12 @@
 {% load app_tags %}
 
 {% block title %}
-  {% if archive_open %}Archive{% else %}Home{% endif %} - Yamtrack
+  {% if archive_open %}
+    Archive
+  {% else %}
+    Home
+  {% endif %}
+  - Yamtrack
 {% endblock title %}
 
 {% block content %}
@@ -12,8 +17,7 @@
     <div class="flex flex-wrap gap-2 mb-6">
       {% for chip in type_filter_choices %}
         <a href="{% url 'home' %}?view=archive{% if chip.value != 'all' %}&type={{ chip.value }}{% endif %}"
-           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors
-                  {% if current_type_filter == chip.value %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if current_type_filter == chip.value %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
           {{ chip.label }}
         </a>
       {% endfor %}
@@ -66,8 +70,7 @@
     <div class="flex flex-wrap gap-2 mb-6">
       {% for chip in type_filter_choices %}
         <a href="{% url 'home' %}?sort={{ current_sort }}{% if chip.value != 'all' %}&type={{ chip.value }}{% endif %}"
-           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors
-                  {% if current_type_filter == chip.value %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if current_type_filter == chip.value %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
           {{ chip.label }}
         </a>
       {% endfor %}
@@ -90,9 +93,7 @@
 
         {% for sg in group.status_groups %}
           <div class="mb-4">
-            <h3 class="text-sm font-medium uppercase tracking-wider mb-2 {{ sg.status|status_color }}">
-              {{ sg.status }}
-            </h3>
+            <h3 class="text-sm font-medium uppercase tracking-wider mb-2 {{ sg.status|status_color }}">{{ sg.status }}</h3>
             <div class="space-y-3">
               {% for media in sg.items %}
                 {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}

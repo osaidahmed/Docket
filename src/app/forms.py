@@ -246,6 +246,7 @@ class MangaForm(MediaForm):
             "progress": (
                 f"Progress ({config.get_unit(MediaTypes.MANGA.value, short=False)}s)"
             ),
+            "is_rewatch": "Reread",
         }
 
 
@@ -256,6 +257,7 @@ class AnimeForm(MediaForm):
         """Bind form to model."""
 
         model = Anime
+        labels = {"is_rewatch": "Rewatch"}
 
 
 class MovieForm(MediaForm):
@@ -274,6 +276,7 @@ class MovieForm(MediaForm):
             "link",
             "is_rewatch",
         ]
+        labels = {"is_rewatch": "Rewatch"}
 
 
 class GameForm(MediaForm):
@@ -289,6 +292,7 @@ class GameForm(MediaForm):
         """Bind form to model."""
 
         model = Game
+        labels = {"is_rewatch": "Replay"}
 
 
 class BookForm(MediaForm):
@@ -302,6 +306,7 @@ class BookForm(MediaForm):
             "progress": (
                 f"Progress ({config.get_unit(MediaTypes.BOOK.value, short=False)}s)"
             ),
+            "is_rewatch": "Reread",
         }
 
 
@@ -316,6 +321,7 @@ class ComicForm(MediaForm):
             "progress": (
                 f"Progress ({config.get_unit(MediaTypes.COMIC.value, short=False)}s)"
             ),
+            "is_rewatch": "Reread",
         }
 
 
@@ -331,6 +337,7 @@ class BoardgameForm(MediaForm):
                 "Progress "
                 f"({config.get_unit(MediaTypes.BOARDGAME.value, short=False)}s)"
             ),
+            "is_rewatch": "Replay",
         }
 
 
@@ -342,6 +349,7 @@ class TvForm(MediaForm):
 
         model = TV
         fields = ["score", "status", "notes", "link", "is_rewatch"]
+        labels = {"is_rewatch": "Rewatch"}
 
 
 class SeasonForm(MediaForm):
@@ -360,6 +368,7 @@ class SeasonForm(MediaForm):
             "link",
             "is_rewatch",
         ]
+        labels = {"is_rewatch": "Rewatch"}
 
 
 class EpisodeForm(forms.ModelForm):

@@ -2241,6 +2241,115 @@ class NotYetAiringTests(TestCase):
         self.assertNotIn("Partial Schedule Anime", type_titles)
 
 
+class NotYetAiringActionGatingTests(TestCase):
+    """Test that actions are disabled for not-yet-airing media."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def _create_not_yet_airing_anime(self, media_id="7000"):
+        item = Item.objects.create(
+            media_id=media_id,
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Future Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=1,
+            datetime=timezone.now() + timedelta(days=30),
+        )
+        return Anime.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+    def _create_airing_anime(self, media_id="7100"):
+        item = Item.objects.create(
+            media_id=media_id,
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Airing Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=1,
+            datetime=timezone.now() - timedelta(days=7),
+        )
+        Event.objects.create(
+            item=item,
+            content_number=2,
+            datetime=timezone.now() + timedelta(days=7),
+        )
+        # create with PLANNING to avoid process_status calling get_media_metadata,
+        # then update via queryset to bypass save() hooks entirely
+        anime = Anime.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+        Anime.objects.filter(id=anime.id).update(
+            status=Status.IN_PROGRESS.value, progress=1
+        )
+        anime.refresh_from_db()
+        return anime
+
+    def test_backlog_hides_score_for_not_yet_airing(self):
+        self._create_not_yet_airing_anime()
+        response = self.client.get(reverse("home"))
+        content = response.content.decode()
+        self.assertNotIn('name="score" min="0" max="10"', content)
+        self.assertIn('type="hidden" name="score"', content)
+
+    def test_backlog_hides_progress_for_not_yet_airing(self):
+        self._create_not_yet_airing_anime()
+        response = self.client.get(reverse("home"))
+        content = response.content.decode()
+        self.assertNotIn('name="progress" min="0"', content)
+        self.assertIn('type="hidden" name="progress"', content)
+
+    def test_backlog_hides_caught_up_checkbox_for_not_yet_airing(self):
+        self._create_not_yet_airing_anime()
+        response = self.client.get(reverse("home"))
+        self.assertNotContains(response, 'name="caught_up"')
+
+    def test_backlog_hides_rewatch_checkbox_for_not_yet_airing(self):
+        self._create_not_yet_airing_anime()
+        response = self.client.get(reverse("home"))
+        self.assertNotContains(response, 'name="is_rewatch"')
+
+    def test_backlog_shows_fields_for_airing_media(self):
+        self._create_airing_anime()
+        response = self.client.get(reverse("home"))
+        content = response.content.decode()
+        self.assertIn('name="score"', content)
+        self.assertIn('name="progress"', content)
+        self.assertIn('name="is_rewatch"', content)
+
+    def test_backlog_save_preserves_values_for_not_yet_airing(self):
+        anime = self._create_not_yet_airing_anime()
+        response = self.client.post(
+            reverse("backlog_save"),
+            {
+                "media_id": anime.item.media_id,
+                "source": anime.item.source,
+                "media_type": anime.item.media_type,
+                "instance_id": anime.id,
+                "score": "",
+                "progress": "0",
+                "status": Status.PLANNING.value,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        anime.refresh_from_db()
+        self.assertIsNone(anime.score)
+        self.assertEqual(anime.progress, 0)
+
+
 class HomeViewConsistencyTests(TestCase):
     """Test that HTMX partial responses match full page reloads."""
 
@@ -3586,7 +3695,9 @@ class ArchiveViewTests(TestCase):
             image="http://example.com/image.jpg",
         )
         Anime.objects.create(
-            item=anime_item, user=self.user, status=Status.COMPLETED.value,
+            item=anime_item,
+            user=self.user,
+            status=Status.COMPLETED.value,
         )
         movie_item = Item.objects.create(
             media_id="2071",
@@ -3596,7 +3707,9 @@ class ArchiveViewTests(TestCase):
             image="http://example.com/image.jpg",
         )
         Movie.objects.create(
-            item=movie_item, user=self.user, status=Status.COMPLETED.value,
+            item=movie_item,
+            user=self.user,
+            status=Status.COMPLETED.value,
         )
 
         response = self.client.get(self._archive_url() + "&type=anime")
@@ -3616,7 +3729,9 @@ class ArchiveViewTests(TestCase):
                 image="http://example.com/image.jpg",
             )
             Movie.objects.create(
-                item=item, user=self.user, status=Status.COMPLETED.value,
+                item=item,
+                user=self.user,
+                status=Status.COMPLETED.value,
             )
 
         response = self.client.get(self._archive_url())

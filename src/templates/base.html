@@ -2,7 +2,9 @@
 {% load app_tags %}
 
 <!DOCTYPE html>
-<html lang="en" class="scheme-dark bg-page" data-theme="{{ request.user.color_scheme|default:'charcoal' }}">
+<html lang="en"
+      class="scheme-dark bg-page"
+      data-theme="{{ request.user.color_scheme|default:'charcoal' }}">
   <head>
     {# Required meta tags #}
     <meta charset="UTF-8">
@@ -270,122 +272,9 @@
                 {% endif %}
 
                 {# Search bar with live suggestions #}
-                <div class="relative w-full max-w-2xl"
-                     x-data="{
-                       isOpen: false,
-                       selectedType: { display: '{% if search_type == "all" %}All{% else %}{{ search_type|media_type_readable_plural }}{% endif %}', value: '{{ search_type }}' },
-                       mediaTypes: {% get_search_media_types user as search_types %}{{ search_types }},
-                       getPlaceholder() { return `Search ${this.selectedType.display.toLowerCase()}...` },
-                       suggestOpen: false,
-                       highlightIndex: -1,
-                       currentQuery: '',
-                       localTimer: null,
-                       apiTimer: null,
-                       handleInput(e) {
-                         const q = e.target.value.trim();
-                         this.currentQuery = q;
-                         this.highlightIndex = -1;
-                         clearTimeout(this.localTimer);
-                         clearTimeout(this.apiTimer);
-                         if (q.length < 2) {
-                           this.suggestOpen = false;
-                           this.$refs.suggestRecent.innerHTML = '';
-                           this.$refs.suggestLocal.innerHTML = '';
-                           this.$refs.suggestApi.innerHTML = '';
-                           return;
-                         }
-                         this.suggestOpen = true;
-                         const localUrl = '{% url "search_suggest_local" %}?q=' + encodeURIComponent(q);
-                         const apiUrl = '{% url "search_suggest_api" %}?q=' + encodeURIComponent(q);
-                         const savedQuery = q;
-                         this.localTimer = setTimeout(() => {
-                           fetch(localUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                             .then(r => r.text())
-                             .then(html => { if (this.currentQuery === savedQuery) this.$refs.suggestLocal.innerHTML = html; });
-                         }, 200);
-                         if (q.length >= 3) {
-                           this.$refs.suggestApi.innerHTML = this.$refs.suggestLoading.innerHTML;
-                           this.apiTimer = setTimeout(() => {
-                             const localItems = this.$refs.suggestLocal.querySelectorAll('.suggest-item[data-media-id]');
-                             const keys = [...localItems].map(el => el.dataset.mediaId + ':' + el.dataset.source).join(',');
-                             const fullApiUrl = keys ? apiUrl + '&local_keys=' + encodeURIComponent(keys) : apiUrl;
-                             fetch(fullApiUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                               .then(r => r.text())
-                               .then(html => { if (this.currentQuery === savedQuery) this.$refs.suggestApi.innerHTML = html; });
-                           }, 500);
-                         } else {
-                           this.$refs.suggestApi.innerHTML = '';
-                         }
-                       },
-                       getAllItems() {
-                         return [...this.$refs.suggestDropdown.querySelectorAll('.suggest-item')];
-                       },
-                       handleKeydown(e) {
-                         if (!this.suggestOpen) return;
-                         const items = this.getAllItems();
-                         if (!items.length) return;
-                         if (e.key === 'ArrowDown') {
-                           e.preventDefault();
-                           this.highlightIndex = (this.highlightIndex + 1) % items.length;
-                           this.updateHighlight(items);
-                         } else if (e.key === 'ArrowUp') {
-                           e.preventDefault();
-                           this.highlightIndex = this.highlightIndex <= 0 ? items.length - 1 : this.highlightIndex - 1;
-                           this.updateHighlight(items);
-                         } else if (e.key === 'Enter' && this.highlightIndex >= 0) {
-                           e.preventDefault();
-                           const item = items[this.highlightIndex];
-                           if (item.tagName === 'A') {
-                             window.location.href = item.href;
-                           } else if (item.dataset.title) {
-                             this.$refs.searchInput.value = item.dataset.title;
-                             this.suggestOpen = false;
-                             this.$refs.searchForm.submit();
-                           }
-                         } else if (e.key === 'Escape') {
-                           this.suggestOpen = false;
-                         }
-                       },
-                       updateHighlight(items) {
-                         items.forEach((el, i) => {
-                           const active = i === this.highlightIndex;
-                           el.classList.toggle('bg-card', active);
-                           el.classList.toggle('text-white', active);
-                           if (el.getAttribute('role') === 'option') el.setAttribute('aria-selected', active);
-                         });
-                         if (items[this.highlightIndex]) items[this.highlightIndex].scrollIntoView({ block: 'nearest' });
-                       },
-                       handleFocus() {
-                         if (this.currentQuery.length >= 2) {
-                           this.suggestOpen = true;
-                         } else if (this.currentQuery.length === 0) {
-                           const url = '{% url "search_suggest_recent" %}?type=' + encodeURIComponent(this.selectedType.value);
-                           fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                             .then(r => r.text())
-                             .then(html => {
-                               if (html.trim()) {
-                                 this.$refs.suggestRecent.innerHTML = html;
-                                 this.$refs.suggestLocal.innerHTML = '';
-                                 this.$refs.suggestApi.innerHTML = '';
-                                 this.suggestOpen = true;
-                               }
-                             });
-                         }
-                       },
-                       selectItem(e) {
-                         const item = e.target.closest('.suggest-item');
-                         if (!item) return;
-                         if (item.tagName === 'A') return;
-                         if (item.dataset.title) {
-                           this.$refs.searchInput.value = item.dataset.title;
-                           this.suggestOpen = false;
-                           this.$refs.searchForm.submit();
-                         }
-                       }
-                     }">
-                  <form method="get"
-                        action="{% url 'search' %}"
-                        x-ref="searchForm">
+                {# djlint:off #}
+                <div class="relative w-full max-w-2xl" x-data="{ isOpen: false, selectedType: { display: '{% if search_type == "all" %}All{% else %}{{ search_type|media_type_readable_plural }}{% endif %}', value: '{{ search_type }}' }, mediaTypes: {% get_search_media_types user as search_types %}{{ search_types }}, getPlaceholder() { return `Search ${this.selectedType.display.toLowerCase()}...` }, suggestOpen: false, highlightIndex: -1, currentQuery: '', localTimer: null, apiTimer: null, handleInput(e) { const q = e.target.value.trim(); this.currentQuery = q; this.highlightIndex = -1; clearTimeout(this.localTimer); clearTimeout(this.apiTimer); if (q.length < 2) { this.suggestOpen = false; this.$refs.suggestRecent.innerHTML = ''; this.$refs.suggestLocal.innerHTML = ''; this.$refs.suggestApi.innerHTML = ''; return; } this.suggestOpen = true; const localUrl = '{% url "search_suggest_local" %}?q=' + encodeURIComponent(q); const apiUrl = '{% url "search_suggest_api" %}?q=' + encodeURIComponent(q); const savedQuery = q; this.localTimer = setTimeout(() => { fetch(localUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }) .then(r => r.text()) .then(html => { if (this.currentQuery === savedQuery) this.$refs.suggestLocal.innerHTML = html; }); }, 200); if (q.length >= 3) { this.$refs.suggestApi.innerHTML = this.$refs.suggestLoading.innerHTML; this.apiTimer = setTimeout(() => { const localItems = this.$refs.suggestLocal.querySelectorAll('.suggest-item[data-media-id]'); const keys = [...localItems].map(el => el.dataset.mediaId + ':' + el.dataset.source).join(','); const fullApiUrl = keys ? apiUrl + '&local_keys=' + encodeURIComponent(keys) : apiUrl; fetch(fullApiUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }) .then(r => r.text()) .then(html => { if (this.currentQuery === savedQuery) this.$refs.suggestApi.innerHTML = html; }); }, 500); } else { this.$refs.suggestApi.innerHTML = ''; } }, getAllItems() { return [...this.$refs.suggestDropdown.querySelectorAll('.suggest-item')]; }, handleKeydown(e) { if (!this.suggestOpen) return; const items = this.getAllItems(); if (!items.length) return; if (e.key === 'ArrowDown') { e.preventDefault(); this.highlightIndex = (this.highlightIndex + 1) % items.length; this.updateHighlight(items); } else if (e.key === 'ArrowUp') { e.preventDefault(); this.highlightIndex = this.highlightIndex <= 0 ? items.length - 1 : this.highlightIndex - 1; this.updateHighlight(items); } else if (e.key === 'Enter' && this.highlightIndex >= 0) { e.preventDefault(); const item = items[this.highlightIndex]; if (item.tagName === 'A') { window.location.href = item.href; } else if (item.dataset.title) { this.$refs.searchInput.value = item.dataset.title; this.suggestOpen = false; this.$refs.searchForm.submit(); } } else if (e.key === 'Escape') { this.suggestOpen = false; } }, updateHighlight(items) { items.forEach((el, i) => { const active = i === this.highlightIndex; el.classList.toggle('bg-card', active); el.classList.toggle('text-white', active); if (el.getAttribute('role') === 'option') el.setAttribute('aria-selected', active); }); if (items[this.highlightIndex]) items[this.highlightIndex].scrollIntoView({ block: 'nearest' }); }, handleFocus() { if (this.currentQuery.length >= 2) { this.suggestOpen = true; } else if (this.currentQuery.length === 0) { const url = '{% url "search_suggest_recent" %}?type=' + encodeURIComponent(this.selectedType.value); fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }) .then(r => r.text()) .then(html => { if (html.trim()) { this.$refs.suggestRecent.innerHTML = html; this.$refs.suggestLocal.innerHTML = ''; this.$refs.suggestApi.innerHTML = ''; this.suggestOpen = true; } }); } }, selectItem(e) { const item = e.target.closest('.suggest-item'); if (!item) return; if (item.tagName === 'A') return; if (item.dataset.title) { this.$refs.searchInput.value = item.dataset.title; this.suggestOpen = false; this.$refs.searchForm.submit(); } } }">
+                  <form method="get" action="{% url 'search' %}" x-ref="searchForm">
                     <div class="flex">
                       <div class="relative grow">
                         {# Search input #}
@@ -464,7 +353,10 @@
                   {# Hidden loading template for API suggestions #}
                   <template x-ref="suggestLoading">
                     <div class="px-3 py-2 text-sm text-gray-400 border-t border-gray-600">
-                      <svg class="inline-block w-4 h-4 mr-1 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg class="inline-block w-4 h-4 mr-1 animate-spin"
+                           xmlns="http://www.w3.org/2000/svg"
+                           fill="none"
+                           viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                       </svg>
@@ -521,16 +413,16 @@
                 {% include "app/icons/x.svg" with classes="w-4 h-4" %}
               </button>
             </div>
-            {# djlint:on #}
-          {% endfor %}
-        </div>
-      </div>
-    {% endif %}
+{# djlint:on #}
+{% endfor %}
+</div>
+</div>
+{% endif %}
 
-    {% block js %}
-    {% endblock js %}
+{% block js %}
+{% endblock js %}
 
-    <script>
+<script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/static/js/serviceworker.js')
@@ -542,9 +434,9 @@
             });
         });
       }
-    </script>
+</script>
 
-    <script src="{% static 'js/mediaStatusDateHandler.js' %}{% get_static_file_mtime 'js/mediaStatusDateHandler.js' %}"></script>
-    <script src="{% static 'js/searchShortcut.js' %}{% get_static_file_mtime 'js/searchShortcut.js' %}"></script>
-  </body>
+<script src="{% static 'js/mediaStatusDateHandler.js' %}{% get_static_file_mtime 'js/mediaStatusDateHandler.js' %}"></script>
+<script src="{% static 'js/searchShortcut.js' %}{% get_static_file_mtime 'js/searchShortcut.js' %}"></script>
+</body>
 </html>
