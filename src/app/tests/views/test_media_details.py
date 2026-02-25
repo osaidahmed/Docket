@@ -1,13 +1,14 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from app.models import (
     MediaTypes,
     Sources,
 )
+from app.services import recent
 
 
 class MediaDetailsViewTests(TestCase):
@@ -114,3 +115,83 @@ class MediaDetailsViewTests(TestCase):
             Sources.TMDB.value,
             [1],
         )
+
+
+@override_settings(REDIS_PREFIX=None)
+class DetailViewTrackingTests(TestCase):
+    """Test that detail views track recently viewed items."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+        recent.redis_client.flushdb()
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_media_details_tracks_view(self, mock_get_metadata):
+        mock_get_metadata.return_value = {
+            "media_id": "238",
+            "title": "Fight Club",
+            "english_title": "",
+            "media_type": MediaTypes.MOVIE.value,
+            "source": Sources.TMDB.value,
+            "image": "http://example.com/image.jpg",
+        }
+
+        self.client.get(
+            reverse(
+                "media_details",
+                kwargs={
+                    "source": Sources.TMDB.value,
+                    "media_type": MediaTypes.MOVIE.value,
+                    "media_id": "238",
+                    "title": "fight-club",
+                },
+            ),
+        )
+
+        results = recent.get_recent(self.user.id)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["title"], "Fight Club")
+        self.assertEqual(results[0]["media_type"], MediaTypes.MOVIE.value)
+        self.assertEqual(results[0]["media_id"], "238")
+
+    @patch("app.providers.tmdb.process_episodes")
+    @patch("app.providers.services.get_media_metadata")
+    def test_season_details_does_not_track(
+        self, mock_get_metadata, mock_process_episodes
+    ):
+        mock_get_metadata.return_value = {
+            "title": "Test TV Show",
+            "media_id": "1668",
+            "source": Sources.TMDB.value,
+            "media_type": MediaTypes.TV.value,
+            "image": "http://example.com/image.jpg",
+            "season/1": {
+                "title": "Season 1",
+                "media_id": "1668",
+                "media_type": MediaTypes.SEASON.value,
+                "source": Sources.TMDB.value,
+                "image": "http://example.com/season.jpg",
+                "episodes": [],
+            },
+        }
+        mock_process_episodes.return_value = []
+
+        self.client.get(
+            reverse(
+                "season_details",
+                kwargs={
+                    "source": Sources.TMDB.value,
+                    "media_id": "1668",
+                    "title": "test-tv-show",
+                    "season_number": 1,
+                },
+            ),
+        )
+
+        results = recent.get_recent(self.user.id)
+        self.assertEqual(len(results), 0)

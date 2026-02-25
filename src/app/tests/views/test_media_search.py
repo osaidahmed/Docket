@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from app.models import (
@@ -12,6 +12,7 @@ from app.models import (
     Sources,
     Status,
 )
+from app.services import recent
 
 
 class MediaSearchViewTests(TestCase):
@@ -678,3 +679,136 @@ class QuickRewatchViewTests(TestCase):
         self.assertTemplateUsed(
             response, "app/components/backlog_rewatch_confirmed.html"
         )
+
+
+@override_settings(REDIS_PREFIX=None)
+class RecentlyViewedSuggestTests(TestCase):
+    """Test the search_suggest_recent view."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+        recent.redis_client.flushdb()
+
+    def test_recently_viewed_returns_results(self):
+        recent.track_view(
+            self.user.id,
+            {
+                "media_type": MediaTypes.MOVIE.value,
+                "media_id": "238",
+                "source": Sources.TMDB.value,
+                "title": "Test Movie",
+                "english_title": "",
+                "image": "http://example.com/img.jpg",
+            },
+        )
+
+        response = self.client.get(
+            reverse("search_suggest_recent") + "?type=all",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "app/components/search_suggest_local.html")
+        self.assertEqual(len(response.context["results"]), 1)
+        self.assertEqual(response.context["results"][0]["title"], "Test Movie")
+
+    def test_recently_viewed_empty_returns_empty_template(self):
+        response = self.client.get(
+            reverse("search_suggest_recent") + "?type=all",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content.decode().strip(), "")
+
+    def test_recently_viewed_respects_type_filter(self):
+        recent.track_view(
+            self.user.id,
+            {
+                "media_type": MediaTypes.MOVIE.value,
+                "media_id": "1",
+                "source": Sources.TMDB.value,
+                "title": "A Movie",
+                "english_title": "",
+                "image": "http://example.com/img.jpg",
+            },
+        )
+        recent.track_view(
+            self.user.id,
+            {
+                "media_type": MediaTypes.ANIME.value,
+                "media_id": "2",
+                "source": Sources.MAL.value,
+                "title": "An Anime",
+                "english_title": "",
+                "image": "http://example.com/img.jpg",
+            },
+        )
+
+        response = self.client.get(
+            reverse("search_suggest_recent") + "?type=anime",
+        )
+
+        self.assertEqual(len(response.context["results"]), 1)
+        self.assertEqual(response.context["results"][0]["media_type"], "anime")
+
+    def test_recently_viewed_type_all_returns_all(self):
+        recent.track_view(
+            self.user.id,
+            {
+                "media_type": MediaTypes.MOVIE.value,
+                "media_id": "1",
+                "source": Sources.TMDB.value,
+                "title": "A Movie",
+                "english_title": "",
+                "image": "http://example.com/img.jpg",
+            },
+        )
+        recent.track_view(
+            self.user.id,
+            {
+                "media_type": MediaTypes.ANIME.value,
+                "media_id": "2",
+                "source": Sources.MAL.value,
+                "title": "An Anime",
+                "english_title": "",
+                "image": "http://example.com/img.jpg",
+            },
+        )
+
+        response = self.client.get(
+            reverse("search_suggest_recent") + "?type=all",
+        )
+
+        self.assertEqual(len(response.context["results"]), 2)
+
+    def test_recently_viewed_requires_auth(self):
+        self.client.logout()
+
+        response = self.client.get(
+            reverse("search_suggest_recent") + "?type=all",
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_recently_viewed_section_title(self):
+        recent.track_view(
+            self.user.id,
+            {
+                "media_type": MediaTypes.MOVIE.value,
+                "media_id": "1",
+                "source": Sources.TMDB.value,
+                "title": "Test",
+                "english_title": "",
+                "image": "http://example.com/img.jpg",
+            },
+        )
+
+        response = self.client.get(
+            reverse("search_suggest_recent") + "?type=all",
+        )
+
+        self.assertContains(response, "Recently Viewed")

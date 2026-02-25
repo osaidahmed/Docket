@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 from app.forms import get_form_class
 from app.models import BasicMedia, Item, Status
 from app.providers import services
-from app.services import backlog
+from app.services import backlog, recent
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +65,15 @@ def _create_media_from_search(request, status):
                 "synopsis": metadata.get("synopsis", ""),
             },
         )
+
+    recent.track_view(request.user.id, {
+        "media_type": media_type,
+        "media_id": media_id,
+        "source": source,
+        "title": item.title,
+        "english_title": item.english_title,
+        "image": item.image,
+    })
 
     model = apps.get_model(app_label="app", model_name=media_type)
     instance = model.objects.create(

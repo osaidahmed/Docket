@@ -44,6 +44,7 @@ from app.views.search import (
     search_parent_tv,
     search_suggest_api,
     search_suggest_local,
+    search_suggest_recent,
 )
 from app.views.stats import (
     service_worker,
@@ -78,6 +79,7 @@ __all__ = [
     "search_parent_tv",
     "search_suggest_api",
     "search_suggest_local",
+    "search_suggest_recent",
     "season_details",
     "service_worker",
     "statistics",

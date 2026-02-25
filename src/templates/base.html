@@ -289,6 +289,7 @@
                          clearTimeout(this.apiTimer);
                          if (q.length < 2) {
                            this.suggestOpen = false;
+                           this.$refs.suggestRecent.innerHTML = '';
                            this.$refs.suggestLocal.innerHTML = '';
                            this.$refs.suggestApi.innerHTML = '';
                            return;
@@ -354,6 +355,23 @@
                          });
                          if (items[this.highlightIndex]) items[this.highlightIndex].scrollIntoView({ block: 'nearest' });
                        },
+                       handleFocus() {
+                         if (this.currentQuery.length >= 2) {
+                           this.suggestOpen = true;
+                         } else if (this.currentQuery.length === 0) {
+                           const url = '{% url "search_suggest_recent" %}?type=' + encodeURIComponent(this.selectedType.value);
+                           fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                             .then(r => r.text())
+                             .then(html => {
+                               if (html.trim()) {
+                                 this.$refs.suggestRecent.innerHTML = html;
+                                 this.$refs.suggestLocal.innerHTML = '';
+                                 this.$refs.suggestApi.innerHTML = '';
+                                 this.suggestOpen = true;
+                               }
+                             });
+                         }
+                       },
                        selectItem(e) {
                          const item = e.target.closest('.suggest-item');
                          if (!item) return;
@@ -379,7 +397,7 @@
                                :placeholder="getPlaceholder()"
                                @input="handleInput($event)"
                                @keydown="handleKeydown($event)"
-                               @focus="if (currentQuery.length >= 2) suggestOpen = true"
+                               @focus="handleFocus()"
                                autocomplete="off"
                                aria-autocomplete="list"
                                :aria-expanded="suggestOpen"
@@ -429,7 +447,7 @@
                        id="suggest-dropdown"
                        role="listbox"
                        aria-label="Search suggestions"
-                       @click.outside="suggestOpen = false"
+                       @click.outside="if (!$refs.searchForm.contains($event.target)) suggestOpen = false"
                        @click="selectItem($event)"
                        x-transition:enter="transition ease-out duration-100"
                        x-transition:enter-start="opacity-0 -translate-y-1"
@@ -438,6 +456,7 @@
                        x-transition:leave-start="opacity-100 translate-y-0"
                        x-transition:leave-end="opacity-0 -translate-y-1"
                        class="absolute z-30 w-full mt-1 bg-input rounded-md shadow-lg border border-gray-600 max-h-80 overflow-auto">
+                    <div x-ref="suggestRecent"></div>
                     <div x-ref="suggestLocal"></div>
                     <div x-ref="suggestApi"></div>
                   </div>

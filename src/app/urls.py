@@ -114,6 +114,11 @@ urlpatterns = [
         views.search_suggest_api,
         name="search_suggest_api",
     ),
+    path(
+        "search/suggest/recent",
+        views.search_suggest_recent,
+        name="search_suggest_recent",
+    ),
     path("statistics", views.statistics, name="statistics"),
     path("serviceworker.js", views.service_worker, name="service_worker"),
 ]

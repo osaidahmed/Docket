@@ -8,6 +8,7 @@ from django.views.decorators.http import require_GET
 from app import config, helpers
 from app.models import TV, MediaTypes, Season, Sources
 from app.providers import services
+from app.services import recent
 
 logger = logging.getLogger(__name__)
 
@@ -202,4 +203,23 @@ def search_suggest_api(request):
         request,
         "app/components/search_suggest_api.html",
         {"results": results, "query": query},
+    )
+
+
+@require_GET
+def search_suggest_recent(request):
+    """Return recently viewed items for the search dropdown on focus."""
+    media_type = request.GET.get("type", "all")
+    media_type_filter = None if media_type == "all" else media_type
+
+    results = recent.get_recent(
+        request.user.id,
+        media_type_filter=media_type_filter,
+        limit=SUGGEST_MAX_RESULTS,
+    )
+
+    return render(
+        request,
+        "app/components/search_suggest_local.html",
+        {"results": results, "section_title": "Recently Viewed"},
     )

@@ -10,6 +10,7 @@ from django.views.decorators.http import require_GET, require_POST
 from app import helpers
 from app.models import BasicMedia, Item, MediaTypes, Sources
 from app.providers import manual, services, tmdb
+from app.services import recent
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,19 @@ logger = logging.getLogger(__name__)
 def media_details(request, source, media_type, media_id, title):  # noqa: ARG001 title for URL
     """Return the details page for a media item."""
     media_metadata = services.get_media_metadata(media_type, media_id, source)
+
+    recent.track_view(
+        request.user.id,
+        {
+            "media_type": media_type,
+            "media_id": media_id,
+            "source": source,
+            "title": media_metadata["title"],
+            "english_title": media_metadata.get("english_title", ""),
+            "image": media_metadata.get("image", ""),
+        },
+    )
+
     user_medias = BasicMedia.objects.filter_media_prefetch(
         request.user,
         media_id,

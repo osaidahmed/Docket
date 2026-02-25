@@ -20,6 +20,7 @@ from app.models import TV, Item, MediaTypes, Season, Status
 # Statuses that represent inactive tracking
 # will be ignored when creating events
 INACTIVE_TRACKING_STATUSES = [
+    Status.PLANNING.value,
     Status.PAUSED.value,
     Status.DROPPED.value,
 ]

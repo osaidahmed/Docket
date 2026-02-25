@@ -283,11 +283,11 @@ class EventManagerTests(TestCase):
         # Get events for the user
         events = Event.objects.get_user_events(self.user, today, next_week)
 
-        # Should include season, movie, and manga events
-        self.assertEqual(events.count(), 4)
+        # Should include season and manga events (movie is Planning, so hidden)
+        self.assertEqual(events.count(), 3)
         self.assertIn(self.season_event, events)
         self.assertIn(self.manga_event1, events)
-        self.assertIn(self.movie_event, events)
+        self.assertNotIn(self.movie_event, events)
         self.assertIn(self.manga_event2, events)
         self.assertNotIn(self.past_event, events)
 
