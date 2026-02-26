@@ -74,7 +74,7 @@
               disabled>{% include "app/icons/chevron-left.svg" with classes="w-5 h-5" %}</button>
     {% endif %}
 
-    {% get_pagination_range data.page data.total_pages 2 as pages %}
+    {% get_pagination_range data.page data.total_pages 2 data.total_exact as pages %}
     {% for page_num in pages %}
       {% if page_num %}
         <a href="?category={{ current_category }}&page={{ page_num }}&layout={{ layout }}{{ extra_params }}"
@@ -106,7 +106,11 @@
   </div>
 
   <div class="text-center text-sm text-gray-400 mt-3">
-    Page {{ data.page }} of {{ data.total_pages }} ({{ data.total_results }} results)
+    {% if data.total_exact == False %}
+      Page {{ data.page }}
+    {% else %}
+      Page {{ data.page }} of {{ data.total_pages }} ({{ data.total_results }} results)
+    {% endif %}
   </div>
 {% endif %}
 {% else %}

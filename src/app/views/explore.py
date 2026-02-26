@@ -10,14 +10,15 @@ from app.providers import services
 def explore(request):
     """Landing page for browsing media by category."""
     enabled_types = request.user.get_enabled_media_types()
+    explorable_types = set(config.get_explorable_types())
     explorable = [
         {
             "media_type": mt,
             "label": MediaTypes(mt).label,
             "categories": config.get_explore_categories(mt),
         }
-        for mt in config.get_explorable_types()
-        if mt in enabled_types
+        for mt in enabled_types
+        if mt in explorable_types
     ]
     return render(request, "app/explore.html", {"explorable_types": explorable})
 

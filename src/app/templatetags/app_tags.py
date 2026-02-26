@@ -412,7 +412,7 @@ def get_range(value):
 
 
 @register.simple_tag
-def get_pagination_range(current_page, total_pages, window):
+def get_pagination_range(current_page, total_pages, window, total_exact=True):  # noqa: FBT002
     """
     Return a list of page numbers to display in pagination.
 
@@ -420,34 +420,44 @@ def get_pagination_range(current_page, total_pages, window):
         current_page: The current page number
         total_pages: Total number of pages
         window: Number of pages to show before and after current page
+        total_exact: Whether total_pages is an exact count or an estimate
 
     Returns:
         A list of page numbers and None values (for ellipses)
     """
-    if total_pages <= 5 + window * 2:
-        # If few pages, show all
-        return list(range(1, total_pages + 1))
-
-    # Calculate left and right boundaries
-    left_boundary = max(2, current_page - window)
-    right_boundary = min(total_pages - 1, current_page + window)
-
-    # Add ellipsis indicators and page numbers
-    result = [1]
+    # Django templates resolve missing dict keys to "" — treat as True
+    if total_exact == "":
+        total_exact = True
 
     second_page = 2
-    # Add left ellipsis if needed
-    if left_boundary > second_page:
-        result.append(None)  # None represents ellipsis
 
-    # Add pages around current page
+    if not total_exact:
+        result = [1]
+        left_boundary = max(second_page, current_page - window)
+        right_boundary = current_page + window
+
+        if left_boundary > second_page:
+            result.append(None)
+        result.extend(range(left_boundary, right_boundary + 1))
+        result.append(None)  # trailing ellipsis = more pages exist
+        return result
+
+    if total_pages <= 5 + window * 2:
+        return list(range(1, total_pages + 1))
+
+    left_boundary = max(second_page, current_page - window)
+    right_boundary = min(total_pages - 1, current_page + window)
+
+    result = [1]
+
+    if left_boundary > second_page:
+        result.append(None)
+
     result.extend(range(left_boundary, right_boundary + 1))
 
-    # Add right ellipsis if needed
     if right_boundary < total_pages - 1:
-        result.append(None)  # None represents ellipsis
+        result.append(None)
 
-    # Add last page if not already included
     if total_pages not in result:
         result.append(total_pages)
 

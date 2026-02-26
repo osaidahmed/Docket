@@ -136,14 +136,17 @@ def browse(media_type, category, page):
 
         if has_next:
             total_results = max(offset + settings.PER_PAGE * 5, len(results))
+            total_exact = False
         else:
             total_results = offset + len(results)
+            total_exact = True
 
         data = helpers.format_search_response(
             page,
             settings.PER_PAGE,
             total_results,
             results,
+            total_exact=total_exact,
         )
 
         cache.set(cache_key, data)
@@ -195,14 +198,17 @@ def browse_seasonal(year, season, page):
 
         if has_next:
             total_results = max(offset + settings.PER_PAGE * 5, len(results))
+            total_exact = False
         else:
             total_results = offset + len(results)
+            total_exact = True
 
         data = helpers.format_search_response(
             page,
             settings.PER_PAGE,
             total_results,
             results,
+            total_exact=total_exact,
         )
 
         cache.set(cache_key, data)

@@ -1,0 +1,10 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "extraPaths": ["src"],
+  "typeCheckingMode": "basic",
+  "reportCallIssue": false,
+  "reportArgumentType": false,
+  "reportPossiblyUnboundVariable": false,
+  "reportAttributeAccessIssue": false
+}

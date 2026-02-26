@@ -7,7 +7,7 @@ from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from app import helpers
+from app import config, helpers
 from app.forms import EpisodeForm, ManualItemForm, get_form_class
 from app.models import BasicMedia, Item, MediaTypes, Season, Sources, Status
 from app.providers import services
@@ -16,13 +16,21 @@ from app.services import backlog
 logger = logging.getLogger(__name__)
 
 
-def _restrict_ongoing_status_choices(form, media_type, media_id, source, season_number):
+def _restrict_ongoing_status_choices(
+    form,
+    media_type,
+    media_id,
+    source,
+    season_number,
+    metadata=None,
+):
     """Remove 'Completed' from status choices for ongoing anime/TV."""
     if media_type not in (MediaTypes.ANIME.value, MediaTypes.TV.value):
         return
-    metadata = services.get_media_metadata(
-        media_type, media_id, source, [season_number]
-    )
+    if metadata is None:
+        metadata = services.get_media_metadata(
+            media_type, media_id, source, [season_number]
+        )
     detail_status = metadata.get("details", {}).get("status", "")
     is_ongoing = (
         metadata.get("is_ongoing")
@@ -33,6 +41,17 @@ def _restrict_ongoing_status_choices(form, media_type, media_id, source, season_
         form.fields["status"].choices = [
             c for c in form.fields["status"].choices if c[0] != Status.COMPLETED.value
         ]
+
+
+def _restrict_announced_form(form, metadata):
+    """Strip interactive fields and limit status for announced/unreleased media."""
+    if not config.is_announced_media(metadata):
+        return
+    for field_name in ("score", "progress", "caught_up", "is_rewatch"):
+        form.fields.pop(field_name, None)
+    form.fields["status"].choices = [
+        c for c in form.fields["status"].choices if c[0] == Status.PLANNING.value
+    ]
 
 
 @require_GET
@@ -74,17 +93,19 @@ def track_modal(
         "instance_id": instance_id,
     }
 
+    metadata = None
     if media:
         title = media.item
         if media_type == MediaTypes.GAME.value:
             initial_data["progress"] = helpers.minutes_to_hhmm(media.progress)
     else:
-        title = services.get_media_metadata(
+        metadata = services.get_media_metadata(
             media_type,
             media_id,
             source,
             [season_number],
-        )["title"]
+        )
+        title = metadata["title"]
         if media_type == MediaTypes.SEASON.value:
             title += f" S{season_number}"
 
@@ -93,8 +114,23 @@ def track_modal(
     if getattr(media, "not_yet_airing", False):
         for field_name in ("score", "progress", "caught_up", "is_rewatch"):
             form.fields.pop(field_name, None)
+        form.fields["status"].choices = [
+            c
+            for c in form.fields["status"].choices
+            if c[0] in (Status.PLANNING.value, Status.DROPPED.value)
+        ]
 
-    _restrict_ongoing_status_choices(form, media_type, media_id, source, season_number)
+    if not media and metadata:
+        _restrict_announced_form(form, metadata)
+
+    _restrict_ongoing_status_choices(
+        form,
+        media_type,
+        media_id,
+        source,
+        season_number,
+        metadata=metadata,
+    )
 
     return render(
         request,

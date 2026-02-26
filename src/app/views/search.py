@@ -23,8 +23,31 @@ SUGGEST_MAX_RESULTS = 5
 def media_search(request):
     """Return the media search page."""
     media_type = request.GET.get("media_type", "all")
-    query = request.GET["q"]
+    query = request.GET["q"].strip()
     layout = request.GET.get("layout", "list")
+
+    if not query:
+        if media_type == "all":
+            return render(
+                request,
+                "app/search_unified.html",
+                {
+                    "grouped_results": [],
+                    "media_type": "all",
+                    "query": "",
+                    "layout": layout,
+                },
+            )
+        return render(
+            request,
+            "app/search.html",
+            {
+                "data": {"results": []},
+                "source": config.get_default_source_name(media_type).value,
+                "media_type": media_type,
+                "layout": layout,
+            },
+        )
 
     if media_type == "all":
         enabled_types = request.user.get_enabled_media_types()

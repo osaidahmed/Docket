@@ -56,12 +56,13 @@ def form_error_messages(form, request):
             )
 
 
-def format_search_response(page, per_page, total_results, results):
+def format_search_response(page, per_page, total_results, results, *, total_exact=True):
     """Format the search response for pagination."""
     return {
         "page": page,
         "total_results": total_results,
         "total_pages": total_results // per_page + 1,
+        "total_exact": total_exact,
         "results": results,
     }
 

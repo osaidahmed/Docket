@@ -329,6 +329,23 @@ SEASON_START_MONTH = {
     "fall": 10,
 }
 
+ANNOUNCED_STATUSES = frozenset(
+    {
+        "Upcoming",  # MAL: not_yet_aired / not_yet_published
+        "Announced",  # TMDB movie
+        "In Production",  # TMDB movie/TV
+        "Post Production",  # TMDB movie
+        "Planned",  # TMDB movie/TV
+        "Rumored",  # TMDB movie
+    }
+)
+
+
+def is_announced_media(metadata):
+    """Return True if the media's status indicates it's not yet released."""
+    status = metadata.get("details", {}).get("status", "")
+    return status in ANNOUNCED_STATUSES
+
 
 def get_current_anime_season():
     """Return the current (year, season) tuple for seasonal anime."""

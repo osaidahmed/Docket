@@ -198,15 +198,18 @@ def annotate_next_event(media_list):
 
         media.next_event = future_events[0] if future_events else None
         non_min_events = [e for e in all_events if not e.is_min_datetime]
-        media.not_yet_airing = bool(all_events) and (
-            (
-                bool(non_min_events)
-                and all(e.datetime > current_time for e in non_min_events)
-            )
-            or (
-                all(e.is_min_datetime for e in all_events)
-                and media.progress == 0
-                and media.status == Status.PLANNING.value
+        media.not_yet_airing = (
+            bool(all_events)
+            and media.progress == 0
+            and (
+                (
+                    bool(non_min_events)
+                    and all(e.datetime > current_time for e in non_min_events)
+                )
+                or (
+                    all(e.is_min_datetime for e in all_events)
+                    and media.status == Status.PLANNING.value
+                )
             )
         )
         media.is_ongoing = any(e.is_min_datetime for e in all_events) or (

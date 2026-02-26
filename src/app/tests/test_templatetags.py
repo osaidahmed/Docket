@@ -393,6 +393,44 @@ class AppTagsTests(TestCase):
         self.assertFalse(app_tags.show_media_score(None, mock_user_hide))
 
 
+class PaginationRangeTests(TestCase):
+    """Test the get_pagination_range template tag."""
+
+    def test_exact_few_pages_shows_all(self):
+        """Test that few pages with exact total shows all page numbers."""
+        self.assertEqual(app_tags.get_pagination_range(1, 3, 2), [1, 2, 3])
+
+    def test_exact_many_pages_shows_window(self):
+        """Test that many pages with exact total shows windowed range."""
+        result = app_tags.get_pagination_range(5, 20, 2)
+        self.assertEqual(result, [1, None, 3, 4, 5, 6, 7, None, 20])
+
+    def test_exact_first_page(self):
+        """Test exact total pagination from the first page."""
+        result = app_tags.get_pagination_range(1, 20, 2)
+        self.assertEqual(result, [1, 2, 3, None, 20])
+
+    def test_exact_last_page(self):
+        """Test exact total pagination from the last page."""
+        result = app_tags.get_pagination_range(20, 20, 2)
+        self.assertEqual(result, [1, None, 18, 19, 20])
+
+    def test_inexact_page_one(self):
+        """Test that inexact total omits last page and ends with ellipsis."""
+        result = app_tags.get_pagination_range(1, 6, 2, total_exact=False)
+        self.assertEqual(result, [1, 2, 3, None])
+
+    def test_inexact_middle_page(self):
+        """Test inexact total from a middle page shows window with ellipses."""
+        result = app_tags.get_pagination_range(5, 11, 2, total_exact=False)
+        self.assertEqual(result, [1, None, 3, 4, 5, 6, 7, None])
+
+    def test_inexact_empty_string_treated_as_exact(self):
+        """Test that empty string (missing dict key) is treated as exact."""
+        result = app_tags.get_pagination_range(1, 3, 2, total_exact="")
+        self.assertEqual(result, [1, 2, 3])
+
+
 class ConfigTests(TestCase):
     """Test config getter functions."""
 

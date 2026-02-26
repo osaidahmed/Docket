@@ -115,7 +115,7 @@
               </button>
             {% endif %}
 
-          {% elif media.status == Status.PLANNING.value %}
+          {% elif media.status == Status.PLANNING.value and not media.not_yet_airing %}
             <button hx-post="{% url 'quick_status_transition' %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                     hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "In progress"}'
@@ -175,7 +175,9 @@
                    class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
           </div>
         {% else %}
-          <input type="hidden" name="score" value="{{ media.score|default_if_none:'' }}">
+          <input type="hidden"
+                 name="score"
+                 value="{{ media.score|default_if_none:'' }}">
         {% endif %}
 
         {% if media.item.media_type != "movie" %}
@@ -207,7 +209,9 @@
             <select name="status"
                     class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent appearance-none">
               {% for value, label in status_choices %}
-                {% if value != "Completed" or not media.is_ongoing %}
+                {% if media.not_yet_airing and value != "Planning" and value != "Dropped" %}
+                {% elif value == "Completed" and media.is_ongoing %}
+                {% else %}
                   <option value="{{ value }}" {% if media.status == value %}selected{% endif %}>{{ label }}</option>
                 {% endif %}
               {% endfor %}

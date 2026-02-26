@@ -7,7 +7,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
-from app import helpers
+from app import config, helpers
 from app.models import BasicMedia, Item, MediaTypes, Sources
 from app.providers import manual, services, tmdb
 from app.services import backlog, recent
@@ -57,6 +57,7 @@ def media_details(request, source, media_type, media_id, title):  # noqa: ARG001
         "media_type": media_type,
         "user_medias": user_medias,
         "current_instance": current_instance,
+        "is_announced": config.is_announced_media(media_metadata),
     }
     return render(request, "app/media_details.html", context)
 

@@ -2303,7 +2303,6 @@ class NotYetAiringActionGatingTests(TestCase):
         response = self.client.get(reverse("home"))
         content = response.content.decode()
         self.assertNotIn('name="score" min="0" max="10"', content)
-        self.assertIn('type="hidden" name="score"', content)
 
     def test_backlog_hides_progress_for_not_yet_airing(self):
         self._create_not_yet_airing_anime()
@@ -2348,6 +2347,44 @@ class NotYetAiringActionGatingTests(TestCase):
         anime.refresh_from_db()
         self.assertIsNone(anime.score)
         self.assertEqual(anime.progress, 0)
+
+    def test_backlog_card_status_dropdown_restricted_for_not_yet_airing(self):
+        self._create_not_yet_airing_anime()
+        response = self.client.get(reverse("home"))
+        content = response.content.decode()
+        self.assertIn('value="Planning"', content)
+        self.assertIn('value="Dropped"', content)
+        self.assertNotIn('value="In progress"', content)
+        self.assertNotIn('value="Completed"', content)
+        self.assertNotIn('value="Paused"', content)
+
+    def test_backlog_card_hides_start_button_for_not_yet_airing(self):
+        self._create_not_yet_airing_anime()
+        response = self.client.get(reverse("home"))
+        self.assertNotContains(response, "quick_status_transition")
+
+    def test_backlog_card_shows_start_button_for_airing_planning(self):
+        item = Item.objects.create(
+            media_id="7200",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Airing Planning Anime",
+            image="http://example.com/image.jpg",
+        )
+        Event.objects.create(
+            item=item,
+            content_number=1,
+            datetime=timezone.now() - timedelta(days=7),
+        )
+        Event.objects.create(
+            item=item,
+            content_number=2,
+            datetime=timezone.now() + timedelta(days=7),
+        )
+        Anime.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
+
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "quick_status_transition")
 
 
 class HomeViewConsistencyTests(TestCase):

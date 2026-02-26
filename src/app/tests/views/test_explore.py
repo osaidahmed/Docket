@@ -613,3 +613,70 @@ class ExploreUpcomingTests(TestCase):
         )
         self.assertFalse(response.context["is_upcoming"])
         self.assertContains(response, "quick_archive")
+
+
+class ExplorePaginationDisplayTests(TestCase):
+    """Test pagination display for exact vs inexact totals."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    @patch("app.providers.services.browse")
+    def test_exact_total_shows_page_count(self, mock_browse):
+        """Exact total should show 'Page X of Y (Z results)'."""
+        mock_browse.return_value = {
+            "page": 1,
+            "total_results": 50,
+            "total_pages": 3,
+            "total_exact": True,
+            "results": [
+                {
+                    "media_id": "1",
+                    "title": "Test Movie",
+                    "media_type": MediaTypes.MOVIE.value,
+                    "source": Sources.TMDB.value,
+                    "image": "http://example.com/image.jpg",
+                    "synopsis": "",
+                },
+            ],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            + "?category=popular",
+        )
+
+        self.assertContains(response, "Page 1 of 3 (50 results)")
+
+    @patch("app.providers.services.browse")
+    def test_inexact_total_hides_page_count(self, mock_browse):
+        """Inexact total should show 'Page X' without count."""
+        mock_browse.return_value = {
+            "page": 1,
+            "total_results": 120,
+            "total_pages": 6,
+            "total_exact": False,
+            "results": [
+                {
+                    "media_id": "1",
+                    "title": "Test Anime",
+                    "media_type": MediaTypes.ANIME.value,
+                    "source": Sources.MAL.value,
+                    "image": "http://example.com/image.jpg",
+                    "synopsis": "",
+                },
+            ],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            + "?category=top_anime",
+        )
+
+        self.assertNotContains(response, "of 6")
+        self.assertNotContains(response, "120 results")

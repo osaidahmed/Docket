@@ -227,6 +227,7 @@ class DetailViewTrackingTests(TestCase):
 
         self.assertContains(response, "quick_add")
         self.assertContains(response, "quick_archive")
+        self.assertNotContains(response, ">Actions<")
 
     @patch("app.providers.services.get_media_metadata")
     def test_detail_page_hides_quick_actions_for_tracked(self, mock_get_metadata):
@@ -266,7 +267,68 @@ class DetailViewTrackingTests(TestCase):
 
         self.assertNotContains(response, "quick_add")
         self.assertNotContains(response, "quick_archive")
-        self.assertNotContains(response, "Add to Backlog")
+        self.assertContains(response, ">Actions<")
+
+
+class DetailAnnouncedMediaTests(TestCase):
+    """Test that detail page gates actions for announced/unreleased media."""
+
+    def setUp(self):
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_detail_page_hides_archive_for_announced(self, mock_get_metadata):
+        mock_get_metadata.return_value = {
+            "media_id": "7000",
+            "title": "Upcoming Anime",
+            "media_type": MediaTypes.ANIME.value,
+            "source": Sources.MAL.value,
+            "image": "http://example.com/image.jpg",
+            "details": {"status": "Upcoming"},
+        }
+
+        response = self.client.get(
+            reverse(
+                "media_details",
+                kwargs={
+                    "source": Sources.MAL.value,
+                    "media_type": MediaTypes.ANIME.value,
+                    "media_id": "7000",
+                    "title": "upcoming-anime",
+                },
+            ),
+        )
+
+        self.assertContains(response, "quick_add")
+        self.assertNotContains(response, "quick_archive")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_detail_page_shows_archive_for_released(self, mock_get_metadata):
+        mock_get_metadata.return_value = {
+            "media_id": "7001",
+            "title": "Released Movie",
+            "media_type": MediaTypes.MOVIE.value,
+            "source": Sources.TMDB.value,
+            "image": "http://example.com/image.jpg",
+            "details": {"status": "Released"},
+        }
+
+        response = self.client.get(
+            reverse(
+                "media_details",
+                kwargs={
+                    "source": Sources.TMDB.value,
+                    "media_type": MediaTypes.MOVIE.value,
+                    "media_id": "7001",
+                    "title": "released-movie",
+                },
+            ),
+        )
+
+        self.assertContains(response, "quick_add")
+        self.assertContains(response, "quick_archive")
 
 
 class DetailScoreGatingTests(TestCase):

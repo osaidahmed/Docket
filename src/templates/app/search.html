@@ -59,7 +59,7 @@
       {% endif %}
 
       {# Page numbers with ellipses #}
-      {% get_pagination_range data.page data.total_pages 2 as pages %}
+      {% get_pagination_range data.page data.total_pages 2 data.total_exact as pages %}
       {% for page_num in pages %}
         {% if page_num %}
           <a href="?q={{ request.GET.q|urlencode }}&media_type={{ media_type }}{% if source %}&source={{ source }}{% endif %}&page={{ page_num }}&layout={{ layout }}"
@@ -88,7 +88,11 @@
 
     {# Page info text #}
     <div class="text-center text-sm text-gray-400 mt-3">
-      Page {{ data.page }} of {{ data.total_pages }} ({{ data.total_results }} results)
+      {% if data.total_exact == False %}
+        Page {{ data.page }}
+      {% else %}
+        Page {{ data.page }} of {{ data.total_pages }} ({{ data.total_results }} results)
+      {% endif %}
     </div>
   {% endif %}
 {% else %}
