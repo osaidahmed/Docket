@@ -18,5 +18,6 @@
     </div>
   </div>
 
-  <div id="explore-results">{% include "app/explore_results.html" %}</div>
+  <div id="explore-results"
+       hx-on:htmx:after-swap="window.scrollTo({top: 0})">{% include "app/explore_results.html" %}</div>
 {% endblock content %}
