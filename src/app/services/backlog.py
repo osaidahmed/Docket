@@ -4,6 +4,7 @@ from django.db.models.functions import RowNumber
 from django.utils import timezone
 
 import users
+from app import config
 from app.models import BasicMedia, MediaTypes, Status
 
 
@@ -51,7 +52,7 @@ def get_backlog(user, sort_by, media_type_filter=None):
                 groups.append(
                     {
                         "media_type": media_type,
-                        "label": MediaTypes(media_type).label,
+                        "label": config.get_plural_label(media_type),
                         "status_groups": status_groups,
                     }
                 )

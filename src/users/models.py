@@ -30,6 +30,15 @@ class HomeSortChoices(models.TextChoices):
     TITLE = "title", "Title"
 
 
+class HomeTruncationChoices(models.TextChoices):
+    """Choices for home page category truncation."""
+
+    THREE = "3", "3"
+    FIVE = "5", "5"
+    TEN = "10", "10"
+    ALL = "0", "All"
+
+
 class MediaSortChoices(models.TextChoices):
     """Choices for media list sort options."""
 
@@ -121,6 +130,12 @@ class User(AbstractUser):
         max_length=20,
         default=HomeSortChoices.UPCOMING,
         choices=HomeSortChoices.choices,
+    )
+
+    home_truncation = models.CharField(
+        max_length=2,
+        default=HomeTruncationChoices.ALL,
+        choices=HomeTruncationChoices.choices,
     )
 
     # Media type preferences: TV Shows
@@ -419,6 +434,10 @@ class User(AbstractUser):
             models.CheckConstraint(
                 name="home_sort_valid",
                 condition=models.Q(home_sort__in=HomeSortChoices.values),
+            ),
+            models.CheckConstraint(
+                name="home_truncation_valid",
+                condition=models.Q(home_truncation__in=HomeTruncationChoices.values),
             ),
             models.CheckConstraint(
                 name="tv_layout_valid",

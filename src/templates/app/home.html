@@ -107,6 +107,12 @@
                 {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
               {% endfor %}
             </div>
+            {% if sg.truncated %}
+              <a href="{% url 'medialist' sg.media_type %}?status={{ sg.status|urlencode }}"
+                 class="block text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2">
+                See all
+              </a>
+            {% endif %}
           </div>
         {% endfor %}
       {% endfor %}

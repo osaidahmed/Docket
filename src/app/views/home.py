@@ -30,6 +30,18 @@ def home(request):
         selected_types or None,
     )
 
+    truncation = int(request.user.home_truncation)
+    if truncation > 0:
+        virtual_types = {"rewatch", "not_yet_airing"}
+        for group in backlog_data["groups"]:
+            if group["media_type"] in virtual_types:
+                continue
+            for sg in group["status_groups"]:
+                if len(sg["items"]) > truncation:
+                    sg["items"] = sg["items"][:truncation]
+                    sg["truncated"] = True
+                    sg["media_type"] = group["media_type"]
+
     archive_open = request.GET.get("view") == "archive"
     archive = backlog_data["archive"]
     if not archive_open:

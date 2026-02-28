@@ -14,7 +14,12 @@ from django_celery_beat.models import PeriodicTask
 
 from app.models import Item, MediaTypes
 from users.forms import NotificationSettingsForm, PasswordChangeForm, UserUpdateForm
-from users.models import DateFormatChoices, QuickWatchDateChoices, TimeFormatChoices
+from users.models import (
+    DateFormatChoices,
+    HomeTruncationChoices,
+    QuickWatchDateChoices,
+    TimeFormatChoices,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +236,7 @@ def preferences(request):
             {
                 "media_types": ordered,
                 "quick_watch_date_choices": QuickWatchDateChoices.choices,
+                "home_truncation_choices": HomeTruncationChoices.choices,
                 "date_format_choices": DateFormatChoices.choices,
                 "time_format_choices": TimeFormatChoices.choices,
                 "color_scheme_choices": request.user.COLOR_SCHEME_CHOICES,
@@ -247,6 +253,10 @@ def preferences(request):
     request.user.quick_watch_date = request.POST.get(
         "quick_watch_date",
         QuickWatchDateChoices.CURRENT_DATE,
+    )
+    request.user.home_truncation = request.POST.get(
+        "home_truncation",
+        HomeTruncationChoices.ALL,
     )
     request.user.progress_bar = "progress_bar" in request.POST
     request.user.hide_completed_recommendations = (
