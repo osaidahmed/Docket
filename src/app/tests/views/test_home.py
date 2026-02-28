@@ -212,7 +212,7 @@ class HomeViewTests(TestCase):
             group["media_type"] for group in response.context["groups"]
         }
         self.assertNotIn(MediaTypes.MOVIE.value, media_types_in_groups)
-        self.assertEqual(response.context["current_type_filter"], "anime")
+        self.assertEqual(response.context["selected_types"], {"anime"})
 
     def test_home_status_group_order(self):
         """Test that status groups appear in fixed order."""
@@ -3291,6 +3291,198 @@ class CaughtUpToggleTests(TestCase):
         self.assertIn("checked", checkbox_context)
 
 
+class MultiSelectFilterTests(TestCase):
+    """Tests for multi-select media type filtering on home page."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+        cls.anime_item = Item.objects.create(
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Test Anime",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=cls.anime_item,
+            user=cls.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+        cls.movie_item = Item.objects.create(
+            media_id="2",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Test Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=cls.movie_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
+        )
+
+        cls.manga_item = Item.objects.create(
+            media_id="3",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Test Manga",
+            image="http://example.com/image.jpg",
+        )
+        Manga.objects.create(
+            item=cls.manga_item,
+            user=cls.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+        self.user.home_default_types = []
+        self.user.save(update_fields=["home_default_types"])
+
+    def test_multi_select_filters_to_selected_types(self):
+        """Comma-separated type param restricts to those types only."""
+        response = self.client.get(reverse("home") + "?type=anime,manga")
+
+        media_types_in_groups = {
+            group["media_type"] for group in response.context["groups"]
+        }
+        self.assertIn(MediaTypes.ANIME.value, media_types_in_groups)
+        self.assertIn(MediaTypes.MANGA.value, media_types_in_groups)
+        self.assertNotIn(MediaTypes.MOVIE.value, media_types_in_groups)
+
+    def test_multi_select_persists_across_requests(self):
+        """Type selection is saved and restored when no param is given."""
+        self.client.get(reverse("home") + "?type=anime,manga")
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.home_default_types, ["anime", "manga"])
+
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.context["selected_types"], {"anime", "manga"})
+
+    def test_all_resets_saved_filter(self):
+        """type=all clears the saved filter to empty list."""
+        self.user.home_default_types = ["anime"]
+        self.user.save(update_fields=["home_default_types"])
+
+        response = self.client.get(reverse("home") + "?type=all")
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.home_default_types, [])
+        self.assertEqual(response.context["selected_types"], set())
+
+    def test_invalid_types_are_dropped(self):
+        """Invalid media types in param are silently ignored."""
+        response = self.client.get(reverse("home") + "?type=anime,invalid,manga")
+
+        self.assertEqual(response.context["selected_types"], {"anime", "manga"})
+
+    def test_show_type_headers_multi_select(self):
+        """Group headers shown when multiple types are selected."""
+        response = self.client.get(reverse("home") + "?type=anime,movie")
+        self.assertTrue(response.context["show_type_headers"])
+
+    def test_hide_type_headers_single_select(self):
+        """Group headers hidden when exactly one type is selected."""
+        response = self.client.get(reverse("home") + "?type=anime")
+        self.assertFalse(response.context["show_type_headers"])
+
+    def test_show_type_headers_all(self):
+        """Group headers shown when no types are selected (all)."""
+        response = self.client.get(reverse("home") + "?type=all")
+        self.assertTrue(response.context["show_type_headers"])
+
+    def test_rewatch_extracted_in_multi_select(self):
+        """Rewatches get own group when multiple types are selected."""
+        rewatch_item = Item.objects.create(
+            media_id="5010",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Multi Rewatch",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=rewatch_item,
+            user=self.user,
+            status=Status.PLANNING.value,
+            is_rewatch=True,
+        )
+
+        response = self.client.get(reverse("home") + "?type=anime,movie")
+        groups = response.context["groups"]
+        media_types = {g["media_type"] for g in groups}
+        self.assertIn("rewatch", media_types)
+
+    def test_sort_dropdown_preserves_multi_select(self):
+        """Sort links include the comma-separated type param."""
+        response = self.client.get(reverse("home") + "?type=anime,manga")
+        self.assertContains(response, "&type=anime,manga")
+
+    def test_default_is_all_types(self):
+        """Fresh user with no saved filter sees all types."""
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.context["selected_types"], set())
+
+    def test_toggle_url_adds_type(self):
+        """Chip toggle URL adds the type when not selected."""
+        response = self.client.get(reverse("home") + "?type=anime")
+        chips = response.context["type_filter_choices"]
+        manga_chip = next(c for c in chips if c["value"] == "manga")
+        self.assertIn("anime", manga_chip["toggle_url"])
+        self.assertIn("manga", manga_chip["toggle_url"])
+
+    def test_toggle_url_removes_type(self):
+        """Chip toggle URL removes the type when already selected."""
+        response = self.client.get(reverse("home") + "?type=anime,manga")
+        chips = response.context["type_filter_choices"]
+        anime_chip = next(c for c in chips if c["value"] == "anime")
+        self.assertIn("manga", anime_chip["toggle_url"])
+        self.assertNotIn("anime", anime_chip["toggle_url"])
+
+    def test_toggle_url_reverts_to_all(self):
+        """Removing the last selected type produces type=all."""
+        response = self.client.get(reverse("home") + "?type=anime")
+        chips = response.context["type_filter_choices"]
+        anime_chip = next(c for c in chips if c["value"] == "anime")
+        self.assertIn("type=all", anime_chip["toggle_url"])
+
+    def test_all_chip_rendered_on_backlog(self):
+        """'All' chip is rendered with correct link on backlog page."""
+        response = self.client.get(reverse("home") + "?type=all")
+        self.assertContains(response, "type=all")
+
+    def test_chips_render_as_links_with_toggle_urls(self):
+        """Filter chips render as <a> tags with server-computed toggle URLs."""
+        response = self.client.get(reverse("home") + "?type=anime")
+        chips = response.context["type_filter_choices"]
+        for chip in chips:
+            html_url = chip["toggle_url"].replace("&", "&amp;")
+            self.assertContains(response, html_url)
+
+    def test_toggle_url_follows_through(self):
+        """Clicking a toggle URL actually produces the right filter."""
+        response = self.client.get(reverse("home") + "?type=anime")
+        chips = response.context["type_filter_choices"]
+        manga_chip = next(c for c in chips if c["value"] == "manga")
+
+        response2 = self.client.get(manga_chip["toggle_url"])
+        self.assertEqual(
+            response2.context["selected_types"],
+            {"anime", "manga"},
+        )
+
+    def test_archive_toggle_urls_include_view_param(self):
+        """Toggle URLs on archive page include view=archive."""
+        response = self.client.get(reverse("home") + "?view=archive")
+        chips = response.context["type_filter_choices"]
+        for chip in chips:
+            self.assertIn("view=archive", chip["toggle_url"])
+
+
 class ArchiveViewTests(TestCase):
     """Tests for the dedicated archive page and archive card editing."""
 
@@ -3777,7 +3969,7 @@ class ArchiveViewTests(TestCase):
     def test_archive_type_filter_chip_links_preserve_view(self):
         """Type filter chips on archive page keep view=archive in URL."""
         response = self.client.get(self._archive_url())
-        self.assertContains(response, "?view=archive&type=")
+        self.assertContains(response, "?view=archive&type=all")
 
 
 class EnrichmentTests(TestCase):

@@ -20,18 +20,28 @@ logger = logging.getLogger(__name__)
 def home(request):
     """Home page with unified backlog."""
     sort_by = request.user.update_preference("home_sort", request.GET.get("sort"))
-    media_type_filter = request.GET.get("type")
+    selected_types = request.user.update_home_type_filter(
+        request.GET.get("type"),
+    )
 
     backlog_data = backlog.get_backlog(
         request.user,
         sort_by,
-        media_type_filter,
+        selected_types or None,
     )
 
     archive_open = request.GET.get("view") == "archive"
     archive = backlog_data["archive"]
     if not archive_open:
         archive = archive[:20]
+
+    selected_set = set(selected_types)
+    type_chips = _get_type_filter_choices(
+        request.user,
+        selected_set,
+        sort_by,
+        archive_open,
+    )
 
     context = {
         "groups": backlog_data["groups"],
@@ -40,20 +50,34 @@ def home(request):
         "archive_open": archive_open,
         "current_sort": sort_by,
         "sort_choices": HomeSortChoices.choices,
-        "current_type_filter": media_type_filter or "all",
-        "type_filter_choices": _get_type_filter_choices(request.user),
+        "selected_types": selected_set,
+        "selected_types_csv": ",".join(selected_types),
+        "show_type_headers": len(selected_types) != 1,
+        "type_filter_choices": type_chips,
         "status_choices": Status.choices,
     }
     return render(request, "app/home.html", context)
 
 
-def _get_type_filter_choices(user):
-    choices = [{"value": "all", "label": "All"}]
-    choices.extend(
-        {"value": mt, "label": config.get_plural_label(mt)}
-        for mt in user.get_enabled_media_types()
-        if mt != MediaTypes.SEASON.value
-    )
+def _get_type_filter_choices(user, selected, sort_by, archive_open):
+    home_url = reverse("home")
+    choices = []
+    for mt in user.get_enabled_media_types():
+        if mt == MediaTypes.SEASON.value:
+            continue
+        toggled = selected - {mt} if mt in selected else selected | {mt}
+        type_param = ",".join(toggled) if toggled else "all"
+        if archive_open:
+            url = f"{home_url}?view=archive&type={type_param}"
+        else:
+            url = f"{home_url}?sort={sort_by}&type={type_param}"
+        choices.append(
+            {
+                "value": mt,
+                "label": config.get_plural_label(mt),
+                "toggle_url": url,
+            }
+        )
     return choices
 
 

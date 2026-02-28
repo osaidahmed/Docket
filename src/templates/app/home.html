@@ -15,9 +15,13 @@
     <h1 class="text-3xl font-bold mb-6">Archive</h1>
 
     <div class="flex flex-wrap gap-2 mb-6">
+      <a href="{% url 'home' %}?view=archive&type=all"
+         class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if not selected_types %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+        All
+      </a>
       {% for chip in type_filter_choices %}
-        <a href="{% url 'home' %}?view=archive{% if chip.value != 'all' %}&type={{ chip.value }}{% endif %}"
-           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if current_type_filter == chip.value %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+        <a href="{{ chip.toggle_url }}"
+           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if chip.value in selected_types %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
           {{ chip.label }}
         </a>
       {% endfor %}
@@ -58,7 +62,7 @@
              x-transition:leave-end="transform opacity-0 scale-95"
              class="absolute right-0 mt-2 py-1 w-48 bg-input rounded-md shadow-lg overflow-hidden z-10 border border-gray-700">
           {% for value, label in sort_choices %}
-            <a href="{% url 'home' %}?sort={{ value }}{% if current_type_filter != 'all' %}&type={{ current_type_filter }}{% endif %}"
+            <a href="{% url 'home' %}?sort={{ value }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}"
                class="block w-full px-4 py-2 text-left text-sm transition-colors {% if current_sort == value %}bg-accent text-white font-medium{% else %}text-gray-300 hover:bg-highlight hover:text-white{% endif %}">
               {{ label }}
             </a>
@@ -68,9 +72,13 @@
     </div>
 
     <div class="flex flex-wrap gap-2 mb-6">
+      <a href="{% url 'home' %}?sort={{ current_sort }}&type=all"
+         class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if not selected_types %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+        All
+      </a>
       {% for chip in type_filter_choices %}
-        <a href="{% url 'home' %}?sort={{ current_sort }}{% if chip.value != 'all' %}&type={{ chip.value }}{% endif %}"
-           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if current_type_filter == chip.value %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+        <a href="{{ chip.toggle_url }}"
+           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if chip.value in selected_types %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
           {{ chip.label }}
         </a>
       {% endfor %}
@@ -78,7 +86,7 @@
 
     {% if groups %}
       {% for group in groups %}
-        {% if current_type_filter == "all" or group.media_type == "not_yet_airing" %}
+        {% if show_type_headers or group.media_type == "not_yet_airing" %}
           <div class="flex items-center gap-2 mt-6 mb-3">
             {% if group.media_type == "rewatch" %}
               {% include "app/icons/repeat.svg" with classes="w-5 h-5 text-gray-400" %}

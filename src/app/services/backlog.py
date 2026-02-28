@@ -58,7 +58,7 @@ def get_backlog(user, sort_by, media_type_filter=None):
 
         archive_all.extend(completed_items)
 
-    if media_type_filter is None:
+    if not media_type_filter or len(media_type_filter) > 1:
         groups = _extract_rewatches(groups, backlog_statuses, sort_by)
 
     groups = _extract_not_yet_airing(groups, backlog_statuses)
@@ -173,15 +173,17 @@ def count_archive(user):
     return count
 
 
-def _get_media_types_to_process(user, specific_media_type):
+def _get_media_types_to_process(user, media_type_filter):
     """Determine which media types to process based on user settings."""
-    if specific_media_type == MediaTypes.TV.value:
-        return [MediaTypes.TV.value, MediaTypes.SEASON.value]
+    if not media_type_filter:
+        return user.get_active_media_types()
 
-    if specific_media_type:
-        return [specific_media_type]
+    active_types = user.get_active_media_types()
+    filter_set = set(media_type_filter)
+    if MediaTypes.TV.value in filter_set:
+        filter_set.add(MediaTypes.SEASON.value)
 
-    return user.get_active_media_types()
+    return [mt for mt in active_types if mt in filter_set]
 
 
 def annotate_next_event(media_list):

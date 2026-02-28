@@ -288,6 +288,9 @@ class User(AbstractUser):
     # Media type ordering
     media_type_order = models.JSONField(default=list, blank=True)
 
+    # Home page default type filter (empty list = all types)
+    home_default_types = models.JSONField(default=list, blank=True)
+
     # Color scheme
     COLOR_SCHEME_CHOICES = [
         ("charcoal", "Charcoal"),
@@ -559,6 +562,23 @@ class User(AbstractUser):
         if new_value != current_value:
             setattr(self, field_name, new_value)
             self.save(update_fields=[field_name])
+
+        return new_value
+
+    def update_home_type_filter(self, raw_param):
+        """Parse, validate, save, and return the home type filter list."""
+        if raw_param is None:
+            return self.home_default_types
+
+        if raw_param == "all":
+            new_value = []
+        else:
+            enabled = set(self.get_enabled_media_types())
+            new_value = [t for t in raw_param.split(",") if t in enabled]
+
+        if new_value != self.home_default_types:
+            self.home_default_types = new_value
+            self.save(update_fields=["home_default_types"])
 
         return new_value
 
