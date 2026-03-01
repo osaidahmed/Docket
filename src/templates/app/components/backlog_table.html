@@ -1,0 +1,31 @@
+{% load app_tags %}
+
+<div class="bg-card rounded-lg overflow-hidden max-w-[calc(100svw-2rem)] lg:max-w-[calc(100svw-4rem)] overflow-x-auto mb-4">
+  <table class="w-full">
+    <thead class="text-left text-gray-400 text-xs uppercase tracking-wider">
+      <tr class="border-b border-gray-700">
+        <th class="p-2 w-15"></th>
+        <th class="p-2 pe-8">Title</th>
+        {% if not hide_type %}
+          <th class="p-2 text-center">Type</th>
+        {% endif %}
+        {% if not is_archive %}
+          <th class="p-2 text-center">Status</th>
+        {% endif %}
+        <th class="p-2 text-center">Progress</th>
+        <th class="p-2 text-center">Score</th>
+        {% if not is_archive %}
+          <th class="p-2 text-center">Next</th>
+        {% else %}
+          <th class="p-2 text-center">End Date</th>
+        {% endif %}
+        <th class="p-2 w-12"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for media in items %}
+        {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -39,6 +39,21 @@ class HomeTruncationChoices(models.TextChoices):
     ALL = "0", "All"
 
 
+class HomeLayoutChoices(models.TextChoices):
+    """Choices for home page layout options."""
+
+    CARDS = "cards", "Cards"
+    GRID = "grid", "Grid"
+    TABLE = "table", "Table"
+
+
+class HomeGroupChoices(models.TextChoices):
+    """Choices for home page grouping options."""
+
+    TYPE = "type", "Type"
+    STATUS = "status", "Status"
+
+
 class MediaSortChoices(models.TextChoices):
     """Choices for media list sort options."""
 
@@ -306,6 +321,21 @@ class User(AbstractUser):
     # Home page default type filter (empty list = all types)
     home_default_types = models.JSONField(default=list, blank=True)
 
+    # Home page layout and grouping
+    home_layout = models.CharField(
+        max_length=20,
+        default=HomeLayoutChoices.CARDS,
+        choices=HomeLayoutChoices.choices,
+    )
+    home_group = models.CharField(
+        max_length=20,
+        default=HomeGroupChoices.TYPE,
+        choices=HomeGroupChoices.choices,
+    )
+
+    # Export preferences
+    export_txt_config = models.JSONField(default=dict, blank=True)
+
     # Color scheme
     COLOR_SCHEME_CHOICES = [
         ("charcoal", "Charcoal"),
@@ -430,6 +460,14 @@ class User(AbstractUser):
             models.CheckConstraint(
                 name="last_search_type_valid",
                 condition=models.Q(last_search_type__in=VALID_SEARCH_TYPES),
+            ),
+            models.CheckConstraint(
+                name="home_layout_valid",
+                condition=models.Q(home_layout__in=HomeLayoutChoices.values),
+            ),
+            models.CheckConstraint(
+                name="home_group_valid",
+                condition=models.Q(home_group__in=HomeGroupChoices.values),
             ),
             models.CheckConstraint(
                 name="home_sort_valid",

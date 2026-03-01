@@ -1,0 +1,92 @@
+{% load app_tags %}
+
+<tr class="hover:bg-input transition-colors cursor-pointer hover-tap"
+    x-data="{ trackOpen: false }">
+  <td class="p-2 relative">
+    <img alt="{{ media }}"
+         class="lazyload min-w-10 w-10 h-10 object-cover rounded-md parent-hover-tap:hidden"
+         data-src="{{ media.item.image }}"
+         src="{{ IMG_NONE }}">
+    <button class="w-10 h-10 bg-accent hover:bg-accent-hover text-white rounded-md transition-colors items-center justify-center hidden cursor-pointer parent-hover-tap:flex"
+            hx-get="{% media_view_url 'track_modal' media.item %}"
+            hx-vals='{"return_url": "{{ request.get_full_path|urlencode }}", "instance_id": "{{ media.id }}"}'
+            hx-target="#{% component_id 'track' media.item media.id %}"
+            hx-trigger="click once"
+            @click="trackOpen = true">{% include "app/icons/edit.svg" with classes="w-4 h-4" %}</button>
+
+    <div x-show="trackOpen"
+         @keydown.escape.window="trackOpen = false"
+         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="w-152 max-h-[90vh] px-4 md:px-0 relative z-60"
+           @click.outside="trackOpen = false">
+        <div id="{% component_id 'track' media.item media.id %}"></div>
+      </div>
+    </div>
+  </td>
+  <td class="p-2 pe-8 font-medium">
+    <div class="min-w-0">
+      <a href="{{ media.item|media_url }}"
+         class="hover:text-accent-soft transition-colors line-clamp-1">{{ media }}</a>
+      {% if media.item.english_title %}
+        <p class="text-xs text-gray-400 line-clamp-1">{{ media.item.english_title }}</p>
+      {% endif %}
+    </div>
+  </td>
+  {% if not hide_type %}
+    <td class="p-2 text-center">
+      <span class="flex items-center justify-center gap-1 text-gray-400">
+        {% icon media.item.media_type is_active=False extra_classes="w-4 h-4" %}
+      </span>
+    </td>
+  {% endif %}
+  {% if not is_archive %}
+    <td class="p-2 text-center text-sm {{ media.status|status_color }}">{{ media.status }}</td>
+  {% endif %}
+  <td class="p-2 text-center text-sm">
+    {{ media.formatted_progress }}{% if media.max_progress %} / {{ media.max_progress }}{% endif %}
+  </td>
+  {% if media.score is not None %}
+    <td class="p-2 text-center">
+      <div class="flex items-center justify-center">
+        {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
+        <span class="text-white text-sm -mt-[3px]">{{ media.formatted_score }}</span>
+      </div>
+    </td>
+  {% else %}
+    <td class="p-2 text-center">
+      <div class="flex items-center justify-center">
+        {% include "app/icons/star.svg" with classes="w-4 h-4 text-gray-400 mr-1 fill-current" %}
+      </div>
+    </td>
+  {% endif %}
+  {% if not is_archive %}
+    <td class="p-2 text-center text-xs whitespace-nowrap">
+      {% if media.next_event and not media.next_event.is_max_datetime %}
+        <span class="text-accent-soft">
+          {% if media.next_event.content_number %}{{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} &bull; {% endif %}{{ media.next_event.datetime|natural_day:user }}
+        </span>
+      {% else %}
+        <span class="text-gray-500">-</span>
+      {% endif %}
+    </td>
+  {% else %}
+    <td class="p-2 text-center text-sm whitespace-nowrap">
+      {% if media.end_date %}
+        {{ media.end_date|date_format:user }}
+      {% else %}
+        <span class="text-gray-500">-</span>
+      {% endif %}
+    </td>
+  {% endif %}
+  <td class="p-2">
+    {% if media.link %}
+      <a href="{{ media.link }}"
+         target="_blank"
+         rel="noopener noreferrer"
+         class="p-1.5 text-gray-400 hover:text-accent-soft transition-colors"
+         title="Open link">
+        {% include "app/icons/external-link.svg" with classes="w-4 h-4" %}
+      </a>
+    {% endif %}
+  </td>
+</tr>

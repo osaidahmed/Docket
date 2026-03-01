@@ -467,8 +467,11 @@ def get_date_key(media_type):
 
 def get_unit(media_type, short):
     """Get the unit of measurement (e.g., episode, chapter)."""
-    unit = get_property(media_type, "unit")
-    return unit[0] if short else unit[1] if unit else None
+    cfg = get_config(media_type)
+    unit = cfg.get("unit")
+    if not unit:
+        return ""
+    return unit[0] if short else unit[1]
 
 
 def get_plural_label(media_type):

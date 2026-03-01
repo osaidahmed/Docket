@@ -8,7 +8,7 @@ from app import config
 from app.models import BasicMedia, MediaTypes, Status
 
 
-def get_backlog(user, sort_by, media_type_filter=None):
+def get_backlog(user, sort_by, media_type_filter=None, group_by="type"):
     """Get grouped backlog items and archive."""
     backlog_statuses = [
         Status.IN_PROGRESS.value,
@@ -18,10 +18,53 @@ def get_backlog(user, sort_by, media_type_filter=None):
 
     media_types = _get_media_types_to_process(user, media_type_filter)
 
-    groups = []
     archive_all = []
-
     wanted_statuses = [*backlog_statuses, Status.COMPLETED.value]
+
+    if group_by == "status":
+        groups = _build_status_groups(
+            user,
+            media_types,
+            backlog_statuses,
+            wanted_statuses,
+            sort_by,
+            archive_all,
+        )
+    else:
+        groups = _build_type_groups(
+            user,
+            media_types,
+            backlog_statuses,
+            wanted_statuses,
+            sort_by,
+            media_type_filter,
+            archive_all,
+        )
+
+    archive_all.sort(
+        key=lambda m: (
+            m.end_date is None,
+            -(m.end_date.timestamp() if m.end_date else 0),
+        ),
+    )
+    return {
+        "groups": groups,
+        "archive": archive_all,
+        "archive_count": len(archive_all),
+    }
+
+
+def _build_type_groups(
+    user,
+    media_types,
+    backlog_statuses,
+    wanted_statuses,
+    sort_by,
+    media_type_filter,
+    archive_all,
+):
+    """Build groups organized by media type, then status."""
+    groups = []
 
     for media_type in media_types:
         media_list = BasicMedia.objects.get_media_list(
@@ -62,19 +105,74 @@ def get_backlog(user, sort_by, media_type_filter=None):
     if not media_type_filter or len(media_type_filter) > 1:
         groups = _extract_rewatches(groups, backlog_statuses, sort_by)
 
-    groups = _extract_not_yet_airing(groups, backlog_statuses)
+    return _extract_not_yet_airing(groups, backlog_statuses)
 
-    archive_all.sort(
-        key=lambda m: (
-            m.end_date is None,
-            -(m.end_date.timestamp() if m.end_date else 0),
-        ),
-    )
-    return {
-        "groups": groups,
-        "archive": archive_all,
-        "archive_count": len(archive_all),
-    }
+
+def _build_status_groups(
+    user,
+    media_types,
+    backlog_statuses,
+    wanted_statuses,
+    sort_by,
+    archive_all,
+):
+    """Build groups organized by status (flat, across all media types)."""
+    all_backlog = []
+
+    for media_type in media_types:
+        media_list = BasicMedia.objects.get_media_list(
+            user=user,
+            media_type=media_type,
+            status_filter=wanted_statuses,
+            sort_filter=None,
+        )
+        backlog_items = [m for m in media_list if m.status in backlog_statuses]
+        completed_items = [m for m in media_list if m.status == Status.COMPLETED.value]
+
+        if backlog_items:
+            BasicMedia.objects.annotate_max_progress(backlog_items, media_type)
+            annotate_next_event(backlog_items)
+
+        all_backlog.extend(backlog_items)
+        archive_all.extend(completed_items)
+
+    # Extract not-yet-airing from flat list
+    nya_items = [m for m in all_backlog if getattr(m, "not_yet_airing", False)]
+    all_backlog = [m for m in all_backlog if not getattr(m, "not_yet_airing", False)]
+
+    groups = []
+    for status_val in backlog_statuses:
+        items = [m for m in all_backlog if m.status == status_val]
+        if items:
+            groups.append(
+                {
+                    "media_type": f"status_{status_val}",
+                    "label": status_val,
+                    "status_groups": [
+                        {
+                            "status": status_val,
+                            "items": _sort_in_progress_media(items, sort_by),
+                        }
+                    ],
+                }
+            )
+
+    if nya_items:
+        nya_items.sort(
+            key=lambda m: (
+                m.next_event is None,
+                m.next_event.datetime if m.next_event else None,
+            )
+        )
+        groups.append(
+            {
+                "media_type": "not_yet_airing",
+                "label": "Not Yet Airing",
+                "status_groups": [{"status": "Planning", "items": nya_items}],
+            }
+        )
+
+    return groups
 
 
 def _extract_rewatches(groups, backlog_statuses, sort_by):

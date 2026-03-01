@@ -11,7 +11,13 @@ from app import config
 from app.models import BasicMedia, MediaTypes, Status
 from app.services import backlog
 from app.templatetags import app_tags
-from users.models import HomeSortChoices, MediaSortChoices, MediaStatusChoices
+from users.models import (
+    HomeGroupChoices,
+    HomeLayoutChoices,
+    HomeSortChoices,
+    MediaSortChoices,
+    MediaStatusChoices,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +26,8 @@ logger = logging.getLogger(__name__)
 def home(request):
     """Home page with unified backlog."""
     sort_by = request.user.update_preference("home_sort", request.GET.get("sort"))
+    layout = request.user.update_preference("home_layout", request.GET.get("layout"))
+    group_by = request.user.update_preference("home_group", request.GET.get("group"))
     selected_types = request.user.update_home_type_filter(
         request.GET.get("type"),
     )
@@ -28,10 +36,11 @@ def home(request):
         request.user,
         sort_by,
         selected_types or None,
+        group_by=group_by,
     )
 
     truncation = int(request.user.home_truncation)
-    if truncation > 0:
+    if truncation > 0 and group_by == "type":
         virtual_types = {"rewatch", "not_yet_airing"}
         for group in backlog_data["groups"]:
             if group["media_type"] in virtual_types:
@@ -53,6 +62,8 @@ def home(request):
         selected_set,
         sort_by,
         archive_open,
+        layout,
+        group_by,
     )
 
     context = {
@@ -62,6 +73,10 @@ def home(request):
         "archive_open": archive_open,
         "current_sort": sort_by,
         "sort_choices": HomeSortChoices.choices,
+        "current_layout": layout,
+        "layout_choices": HomeLayoutChoices.choices,
+        "current_group": group_by,
+        "group_choices": HomeGroupChoices.choices,
         "selected_types": selected_set,
         "selected_types_csv": ",".join(selected_types),
         "show_type_headers": len(selected_types) != 1,
@@ -71,8 +86,16 @@ def home(request):
     return render(request, "app/home.html", context)
 
 
-def _get_type_filter_choices(user, selected, sort_by, archive_open):
+def _get_type_filter_choices(
+    user,
+    selected,
+    sort_by,
+    archive_open,
+    layout,
+    group_by,
+):
     home_url = reverse("home")
+    extra = f"&layout={layout}&group={group_by}"
     choices = []
     for mt in user.get_enabled_media_types():
         if mt == MediaTypes.SEASON.value:
@@ -80,9 +103,9 @@ def _get_type_filter_choices(user, selected, sort_by, archive_open):
         toggled = selected - {mt} if mt in selected else selected | {mt}
         type_param = ",".join(toggled) if toggled else "all"
         if archive_open:
-            url = f"{home_url}?view=archive&type={type_param}"
+            url = f"{home_url}?view=archive&type={type_param}{extra}"
         else:
-            url = f"{home_url}?sort={sort_by}&type={type_param}"
+            url = f"{home_url}?sort={sort_by}&type={type_param}{extra}"
         choices.append(
             {
                 "value": mt,
