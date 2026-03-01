@@ -29,6 +29,11 @@ from app.views.explore import (
     explore,
     explore_type,
 )
+from app.views.export import (
+    export_media,
+    export_media_txt,
+    print_media,
+)
 from app.views.history import (
     delete_history_record,
     history_modal,
@@ -60,6 +65,8 @@ __all__ = [
     "episode_save",
     "explore",
     "explore_type",
+    "export_media",
+    "export_media_txt",
     "history_modal",
     "home",
     "media_delete",
@@ -67,6 +74,7 @@ __all__ = [
     "media_list",
     "media_save",
     "media_search",
+    "print_media",
     "progress_edit",
     "quick_add",
     "quick_archive",

@@ -9,6 +9,21 @@ register_converter(converters.SourceChecker, "source")
 urlpatterns = [
     path("", views.home, name="home"),
     path("medialist/<media_type:media_type>", views.media_list, name="medialist"),
+    path(
+        "medialist/<media_type:media_type>/export/",
+        views.export_media,
+        name="export_media",
+    ),
+    path(
+        "medialist/<media_type:media_type>/export/txt/",
+        views.export_media_txt,
+        name="export_media_txt",
+    ),
+    path(
+        "medialist/<media_type:media_type>/print/",
+        views.print_media,
+        name="print_media",
+    ),
     path("search", views.media_search, name="search"),
     path("explore", views.explore, name="explore"),
     path(

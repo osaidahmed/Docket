@@ -1,0 +1,87 @@
+{% load app_tags %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ media_type_plural }} - Yamtrack</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        margin: 2rem;
+        color: #111;
+        font-size: 12px;
+      }
+      h1 { font-size: 18px; margin-bottom: 4px; }
+      .meta { color: #666; font-size: 11px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #ddd; }
+      th { font-weight: 600; background: #f5f5f5; }
+      .no-print { margin-bottom: 16px; }
+      .no-print button {
+        padding: 8px 16px;
+        background: #4f46e5;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-right: 8px;
+      }
+      @media print {
+        body { margin: 0; }
+        .no-print { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="no-print">
+      <button onclick="window.print()">Print</button>
+      <button onclick="window.close()">Close</button>
+    </div>
+
+    <h1>{{ media_type_plural }}</h1>
+    <p class="meta">
+      {{ total_count }} items{% if current_status != "All" %} &middot; {{ current_status }}{% endif %}
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Title</th>
+          <th>Score</th>
+          {% if media_type != "movie" %}<th>Progress</th>{% endif %}
+          <th>Status</th>
+          <th>Start Date</th>
+          <th>End Date</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for media in media_list %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>
+              {{ media.item.title }}
+              {% if media.item.english_title %}<br><small>{{ media.item.english_title }}</small>{% endif %}
+            </td>
+            <td>{% if media.score is not None %}{{ media.formatted_score }}{% endif %}</td>
+            {% if media_type != "movie" %}
+              <td>{{ media.formatted_progress }}{% if media.max_progress %} / {{ media.max_progress }}{% endif %}</td>
+            {% endif %}
+            <td>{{ media.status }}</td>
+            <td>{% if media.start_date %}{{ media.start_date|date:"Y-m-d" }}{% endif %}</td>
+            <td>{% if media.end_date %}{{ media.end_date|date:"Y-m-d" }}{% endif %}</td>
+            <td>{{ media.notes|truncatewords:20 }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <script>
+      window.addEventListener('load', function() {
+        window.print();
+      });
+    </script>
+  </body>
+</html>

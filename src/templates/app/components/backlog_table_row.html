@@ -43,7 +43,8 @@
     <td class="p-2 text-center text-sm {{ media.status|status_color }}">{{ media.status }}</td>
   {% endif %}
   <td class="p-2 text-center text-sm">
-    {{ media.formatted_progress }}{% if media.max_progress %} / {{ media.max_progress }}{% endif %}
+    {{ media.formatted_progress }}
+    {% if media.max_progress %}/ {{ media.max_progress }}{% endif %}
   </td>
   {% if media.score is not None %}
     <td class="p-2 text-center">
@@ -63,7 +64,10 @@
     <td class="p-2 text-center text-xs whitespace-nowrap">
       {% if media.next_event and not media.next_event.is_max_datetime %}
         <span class="text-accent-soft">
-          {% if media.next_event.content_number %}{{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} &bull; {% endif %}{{ media.next_event.datetime|natural_day:user }}
+          {% if media.next_event.content_number %}
+            {{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} &bull;
+          {% endif %}
+          {{ media.next_event.datetime|natural_day:user }}
         </span>
       {% else %}
         <span class="text-gray-500">-</span>
@@ -84,9 +88,7 @@
          target="_blank"
          rel="noopener noreferrer"
          class="p-1.5 text-gray-400 hover:text-accent-soft transition-colors"
-         title="Open link">
-        {% include "app/icons/external-link.svg" with classes="w-4 h-4" %}
-      </a>
+         title="Open link">{% include "app/icons/external-link.svg" with classes="w-4 h-4" %}</a>
     {% endif %}
   </td>
 </tr>

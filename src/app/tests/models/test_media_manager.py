@@ -492,13 +492,13 @@ class MediaManagerTests(TestCase):
         """Test the _get_media_types_to_process function."""
         media_types = backlog._get_media_types_to_process(
             self.user,
-            MediaTypes.ANIME.value,
+            [MediaTypes.ANIME.value],
         )
         self.assertEqual(media_types, [MediaTypes.ANIME.value])
 
         media_types = backlog._get_media_types_to_process(
             self.user,
-            MediaTypes.TV.value,
+            [MediaTypes.TV.value],
         )
         self.assertEqual(
             media_types,

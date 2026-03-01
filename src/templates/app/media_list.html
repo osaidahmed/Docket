@@ -130,6 +130,131 @@
              title="Table View"
              @click="layout = 'table'">{% include "app/icons/table.svg" with classes="w-5 h-5" %}</a>
         </div>
+
+        <!-- Export -->
+        <div class="relative" x-data="{ open: false, txtOpen: false }">
+          <button class="flex items-center px-4 py-2 bg-input rounded-md hover:bg-highlight transition-colors cursor-pointer"
+                  @click="open = !open"
+                  type="button">
+            {% include "app/icons/export.svg" with classes="w-4 h-4 mr-2" %}
+            <span class="text-sm">Export</span>
+            {% include "app/icons/chevron-down.svg" with classes="w-4 h-4 ml-2" %}
+          </button>
+
+          <div class="absolute right-0 z-10 mt-2 py-1 w-48 bg-input rounded-md shadow-lg overflow-hidden border border-gray-700"
+               x-cloak
+               x-show="open"
+               @click.outside="open = false"
+               x-transition:enter="transition ease-out duration-100"
+               x-transition:enter-start="transform opacity-0 scale-95"
+               x-transition:enter-end="transform opacity-100 scale-100"
+               x-transition:leave="transition ease-in duration-75"
+               x-transition:leave-start="transform opacity-100 scale-100"
+               x-transition:leave-end="transform opacity-0 scale-95">
+            <a :href="`{% url 'export_media' media_type %}?format=csv${search ? '&search=' + encodeURIComponent(search) : ''}`"
+               class="block px-4 py-2 text-sm text-gray-300 hover:bg-highlight hover:text-white transition-colors"
+               @click="open = false">CSV</a>
+            <a :href="`{% url 'export_media' media_type %}?format=json${search ? '&search=' + encodeURIComponent(search) : ''}`"
+               class="block px-4 py-2 text-sm text-gray-300 hover:bg-highlight hover:text-white transition-colors"
+               @click="open = false">JSON</a>
+            <a :href="`{% url 'export_media' media_type %}?format=md${search ? '&search=' + encodeURIComponent(search) : ''}`"
+               class="block px-4 py-2 text-sm text-gray-300 hover:bg-highlight hover:text-white transition-colors"
+               @click="open = false">Markdown</a>
+            <button class="block w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-highlight hover:text-white transition-colors cursor-pointer"
+                    @click="open = false; txtOpen = true"
+                    type="button">TXT (Custom)</button>
+            <hr class="border-gray-700 my-1">
+            <a :href="`{% url 'print_media' media_type %}${search ? '?search=' + encodeURIComponent(search) : ''}`"
+               target="_blank"
+               class="block px-4 py-2 text-sm text-gray-300 hover:bg-highlight hover:text-white transition-colors"
+               @click="open = false">Print / PDF</a>
+          </div>
+
+          {# TXT Export Modal #}
+          <div x-cloak
+               x-show="txtOpen"
+               @keydown.escape.window="txtOpen = false"
+               class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div class="bg-card rounded-lg p-6 w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto"
+                 @click.outside="txtOpen = false">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-white">Export as TXT</h2>
+                <button class="text-gray-400 hover:text-white cursor-pointer"
+                        @click="txtOpen = false"
+                        type="button">{% include "app/icons/x.svg" with classes="w-5 h-5" %}</button>
+              </div>
+
+              <form method="post" action="{% url 'export_media_txt' media_type %}">
+                {% csrf_token %}
+                <input type="hidden" name="search" :value="search">
+
+                <div class="mb-4">
+                  <label class="block text-sm font-medium mb-1 text-gray-300"
+                         for="export-template">Template</label>
+                  <textarea id="export-template"
+                            name="template"
+                            rows="3"
+                            class="w-full p-2 bg-input rounded-md text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent font-mono text-sm">{{ export_txt_template }}</textarea>
+                </div>
+
+                <div class="mb-4">
+                  <label class="block text-sm font-medium mb-1 text-gray-300"
+                         for="export-separator">Item Separator</label>
+                  <input id="export-separator"
+                         name="separator"
+                         type="text"
+                         value="{{ export_txt_separator }}"
+                         class="w-full p-2 bg-input rounded-md text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent font-mono text-sm">
+                  <p class="text-xs text-gray-500 mt-1">Use \n for newline, \t for tab</p>
+                </div>
+
+                <div class="mb-4">
+                  <p class="text-sm font-medium mb-2 text-gray-300">Available placeholders</p>
+                  <div class="flex flex-wrap gap-1" id="export-placeholders">
+                    {% with placeholder_class="px-2 py-1 text-xs bg-input rounded border border-gray-600 text-gray-300 hover:text-white hover:border-accent cursor-pointer transition-colors" %}
+                      <button type="button" class="{{ placeholder_class }}" data-field="title">{title}</button>
+                      <button type="button"
+                              class="{{ placeholder_class }}"
+                              data-field="english_title">{english_title}</button>
+                      <button type="button" class="{{ placeholder_class }}" data-field="score">{score}</button>
+                      <button type="button" class="{{ placeholder_class }}" data-field="progress">{progress}</button>
+                      <button type="button"
+                              class="{{ placeholder_class }}"
+                              data-field="max_progress">{max_progress}</button>
+                      <button type="button" class="{{ placeholder_class }}" data-field="status">{status}</button>
+                      <button type="button" class="{{ placeholder_class }}" data-field="start_date">{start_date}</button>
+                      <button type="button" class="{{ placeholder_class }}" data-field="end_date">{end_date}</button>
+                      <button type="button" class="{{ placeholder_class }}" data-field="notes">{notes}</button>
+                      <button type="button" class="{{ placeholder_class }}" data-field="link">{link}</button>
+                      <button type="button" class="{{ placeholder_class }}" data-field="is_rewatch">{is_rewatch}</button>
+                      <button type="button" class="{{ placeholder_class }}" data-field="caught_up">{caught_up}</button>
+                      <button type="button" class="{{ placeholder_class }}" data-field="source">{source}</button>
+                    {% endwith %}
+                  </div>
+                  <script>
+                    document.getElementById('export-placeholders').addEventListener('click', function(e) {
+                      var btn = e.target.closest('[data-field]');
+                      if (!btn) return;
+                      var t = document.getElementById('export-template');
+                      t.value += '{' + btn.dataset.field + '}';
+                      t.focus();
+                    });
+                  </script>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                  <button type="button"
+                          class="px-4 py-2 text-gray-300 hover:text-white transition-colors cursor-pointer"
+                          @click="txtOpen = false">Cancel</button>
+                  <button type="submit"
+                          class="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover cursor-pointer transition-colors">
+                    Download
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

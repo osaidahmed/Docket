@@ -6,12 +6,8 @@
       <tr class="border-b border-gray-700">
         <th class="p-2 w-15"></th>
         <th class="p-2 pe-8">Title</th>
-        {% if not hide_type %}
-          <th class="p-2 text-center">Type</th>
-        {% endif %}
-        {% if not is_archive %}
-          <th class="p-2 text-center">Status</th>
-        {% endif %}
+        {% if not hide_type %}<th class="p-2 text-center">Type</th>{% endif %}
+        {% if not is_archive %}<th class="p-2 text-center">Status</th>{% endif %}
         <th class="p-2 text-center">Progress</th>
         <th class="p-2 text-center">Score</th>
         {% if not is_archive %}

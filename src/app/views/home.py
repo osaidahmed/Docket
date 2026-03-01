@@ -191,6 +191,12 @@ def media_list(request, media_type):
         "current_status": status_filter,
         "sort_choices": MediaSortChoices.choices,
         "status_choices": MediaStatusChoices.choices,
+        "export_txt_template": (request.user.export_txt_config or {}).get(
+            "template", "{title} - {score} ({status})"
+        ),
+        "export_txt_separator": (request.user.export_txt_config or {}).get(
+            "separator", "\\n"
+        ),
     }
 
     if request.headers.get("HX-Request"):

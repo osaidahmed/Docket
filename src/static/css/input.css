@@ -193,3 +193,11 @@
   font-size: 15px;
   margin-top: 3px;
 }
+
+@media print {
+  nav,
+  .sidebar,
+  .no-print {
+    display: none !important;
+  }
+}
