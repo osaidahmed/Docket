@@ -212,6 +212,23 @@ def quick_rewatch(request):
     )
 
 
+def _render_medialist_card(request, media):
+    """Render a media list card for medialist context responses."""
+    BasicMedia.objects.annotate_max_progress(
+        [media],
+        media.item.media_type,
+    )
+    backlog.annotate_next_event([media])
+    return render(
+        request,
+        "app/components/media_list_card.html",
+        {
+            "media": media,
+            "edit_status_choices": Status.choices,
+        },
+    )
+
+
 @require_POST
 def quick_complete(request):
     """Mark a backlog item as completed via HTMX."""
@@ -377,6 +394,75 @@ def quick_catch_up(request):
     )
 
 
+def _backlog_save_valid(
+    request, media, media_type, instance_id, source_context,
+    *, old_status, rewatch_changed, rewatch_cancelled,
+):
+    """Handle backlog_save when the form is valid."""
+    if rewatch_cancelled or media.status == Status.DROPPED.value:
+        response = render(request, "app/components/backlog_dropped.html")
+        if rewatch_cancelled or source_context == "medialist":
+            response["HX-Refresh"] = "true"
+        return response
+
+    if source_context == "archive":
+        if media.status == old_status:
+            media = BasicMedia.objects.get_media_prefetch(
+                request.user, media_type, instance_id,
+            )
+        response = render(
+            request,
+            "app/components/backlog_card_archived.html",
+            {"media": media, "status_choices": Status.choices},
+        )
+        if media.status != old_status or rewatch_changed:
+            response["HX-Refresh"] = "true"
+        return response
+
+    if source_context == "medialist":
+        media = BasicMedia.objects.get_media_prefetch(
+            request.user, media_type, instance_id,
+        )
+        response = _render_medialist_card(request, media)
+        if media.status != old_status or rewatch_changed:
+            response["HX-Refresh"] = "true"
+        return response
+
+    if media.status == Status.COMPLETED.value:
+        media = BasicMedia.objects.get_media_prefetch(
+            request.user, media_type, instance_id,
+        )
+        archive_count = backlog.count_archive(request.user)
+        return render(
+            request,
+            "app/components/backlog_completed.html",
+            {
+                "media": media,
+                "archive_count": archive_count,
+                "status_choices": Status.choices,
+            },
+        )
+
+    if media.status != old_status or rewatch_changed:
+        response = render(
+            request,
+            "app/components/backlog_card.html",
+            {"media": media, "status_choices": Status.choices},
+        )
+        response["HX-Refresh"] = "true"
+        return response
+
+    media = BasicMedia.objects.get_media_prefetch(
+        request.user, media_type, instance_id,
+    )
+    backlog.annotate_next_event([media])
+    return render(
+        request,
+        "app/components/backlog_card.html",
+        {"media": media, "status_choices": Status.choices},
+    )
+
+
 @require_POST
 def backlog_save(request):
     """Save inline edits from backlog card."""
@@ -398,7 +484,6 @@ def backlog_save(request):
     if form.is_valid():
         form.save()
         logger.info("%s updated from backlog.", form.instance)
-        rewatch_changed = media.is_rewatch != old_is_rewatch
 
         rewatch_cancelled = (
             old_is_rewatch
@@ -418,67 +503,23 @@ def backlog_save(request):
         if rewatch_cancelled:
             media.delete()
 
-        if rewatch_cancelled or media.status == Status.DROPPED.value:
-            response = render(
-                request,
-                "app/components/backlog_dropped.html",
-            )
-            if rewatch_cancelled or source_context == "medialist":
-                response["HX-Refresh"] = "true"
-            return response
-
-        if source_context == "archive":
-            if media.status == old_status:
-                media = BasicMedia.objects.get_media_prefetch(
-                    request.user,
-                    media_type,
-                    instance_id,
-                )
-            response = render(
-                request,
-                "app/components/backlog_card_archived.html",
-                {"media": media, "status_choices": Status.choices},
-            )
-            if media.status != old_status or rewatch_changed:
-                response["HX-Refresh"] = "true"
-            return response
-
-        if media.status == Status.COMPLETED.value:
-            media = BasicMedia.objects.get_media_prefetch(
-                request.user,
-                media_type,
-                instance_id,
-            )
-            archive_count = backlog.count_archive(request.user)
-            return render(
-                request,
-                "app/components/backlog_completed.html",
-                {
-                    "media": media,
-                    "archive_count": archive_count,
-                    "status_choices": Status.choices,
-                },
-            )
-
-        if media.status != old_status or rewatch_changed:
-            response = render(
-                request,
-                "app/components/backlog_card.html",
-                {"media": media, "status_choices": Status.choices},
-            )
-            response["HX-Refresh"] = "true"
-            return response
-
-        media = BasicMedia.objects.get_media_prefetch(
-            request.user,
-            media_type,
-            instance_id,
+        return _backlog_save_valid(
+            request, media, media_type, instance_id, source_context,
+            old_status=old_status,
+            rewatch_changed=media.is_rewatch != old_is_rewatch,
+            rewatch_cancelled=rewatch_cancelled,
         )
-        backlog.annotate_next_event([media])
+
+    if source_context == "medialist":
         return render(
             request,
-            "app/components/backlog_card.html",
-            {"media": media, "status_choices": Status.choices},
+            "app/components/media_list_card.html",
+            {
+                "media": media,
+                "edit_status_choices": Status.choices,
+                "form_errors": form.errors,
+                "show_edit": True,
+            },
         )
 
     card_template = (

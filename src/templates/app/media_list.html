@@ -121,6 +121,11 @@
 
         <!-- Layout Toggle -->
         <div class="flex rounded-md overflow-hidden border border-gray-700">
+          <a :href="`{% url 'medialist' media_type %}?${search ? 'search=' + search + '&' : ''}${status !== 'all' ? 'status=' + status + '&' : ''}${sort !== 'score' ? 'sort=' + sort + '&' : ''}layout=cards`"
+             class="p-2 cursor-pointer"
+             :class="layout === 'cards' ? 'bg-accent text-white' : 'bg-input hover:bg-highlight'"
+             title="Cards View"
+             @click="layout = 'cards'">{% include "app/icons/list.svg" with classes="w-5 h-5" %}</a>
           <a :href="`{% url 'medialist' media_type %}?${search ? 'search=' + search + '&' : ''}${status !== 'all' ? 'status=' + status + '&' : ''}${sort !== 'score' ? 'sort=' + sort + '&' : ''}layout=grid`"
              class="p-2 cursor-pointer"
              :class="layout === 'grid' ? 'bg-accent text-white' : 'bg-input hover:bg-highlight'"
@@ -279,7 +284,7 @@
       </div>
     {% elif current_layout == "grid" %}
       <div class="media-grid">{% include "app/components/media_grid_items.html" %}</div>
-    {% else %}
+    {% elif current_layout == "table" %}
       <div class="bg-card p-4 rounded-lg overflow-hidden max-w-[calc(100svw-4rem)] overflow-x-scroll">
         <table class="w-full bg-card">
           <thead class="text-left text-gray-400 text-sm">
@@ -290,14 +295,22 @@
               {% if media_type != MediaTypes.MOVIE.value %}<th class="p-2 text-center">Progress</th>{% endif %}
               {% if media_type == MediaTypes.TV.value %}<th class="p-2 text-center">Last Watched</th>{% endif %}
               <th class="p-2 text-center">Status</th>
+              {% if media_type != MediaTypes.MOVIE.value and media_type != MediaTypes.TV.value %}
+                <th class="p-2 text-center">Next</th>
+              {% endif %}
               <th class="p-2 text-center">Start Date</th>
               <th class="p-2 text-center">End Date</th>
+              <th class="p-2"></th>
             </tr>
           </thead>
           <tbody>
             {% include "app/components/media_table_items.html" %}
           </tbody>
         </table>
+      </div>
+    {% else %}
+      <div id="media-cards-list" class="space-y-3">
+        {% include "app/components/media_cards_items.html" %}
       </div>
     {% endif %}
 

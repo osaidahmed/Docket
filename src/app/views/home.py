@@ -207,6 +207,7 @@ def media_list(request, media_type):
         "export_txt_separator": (request.user.export_txt_config or {}).get(
             "separator", "\\n"
         ),
+        "edit_status_choices": Status.choices,
     }
 
     if request.headers.get("HX-Request"):

@@ -68,7 +68,22 @@
       {% if media_type == MediaTypes.TV.value %}<td class="p-2 text-center">{{ media.last_watched }}</td>{% endif %}
     {% endif %}
 
-    <td class="p-2 text-center">{{ media.status|media_status_readable }}</td>
+    <td class="p-2 text-center text-sm {{ media.status|status_color }}">{{ media.status|media_status_readable }}</td>
+
+    {% if media_type != MediaTypes.MOVIE.value and media_type != MediaTypes.TV.value %}
+      <td class="p-2 text-center text-xs whitespace-nowrap">
+        {% if media.next_event and not media.next_event.is_max_datetime %}
+          <span class="text-accent-soft">
+            {% if media.next_event.content_number %}
+              {{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} &bull;
+            {% endif %}
+            {{ media.next_event.datetime|natural_day:user }}
+          </span>
+        {% else %}
+          <span class="text-gray-500">-</span>
+        {% endif %}
+      </td>
+    {% endif %}
 
     {% if media.start_date %}
       <td class="p-2 text-center">{{ media.start_date|date_format:user }}</td>
@@ -85,5 +100,15 @@
         <span class="text-gray-500">-</span>
       </td>
     {% endif %}
+
+    <td class="p-2">
+      {% if media.link %}
+        <a href="{{ media.link }}"
+           target="_blank"
+           rel="noopener noreferrer"
+           class="p-1.5 text-gray-400 hover:text-accent-soft transition-colors"
+           title="Open link">{% include "app/icons/external-link.svg" with classes="w-4 h-4" %}</a>
+      {% endif %}
+    </td>
   </tr>
 {% endfor %}
