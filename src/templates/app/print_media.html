@@ -41,7 +41,8 @@
 
     <h1>{{ media_type_plural }}</h1>
     <p class="meta">
-      {{ total_count }} items{% if current_status != "All" %} &middot; {{ current_status }}{% endif %}
+      {{ total_count }} items
+      {% if current_status != "All" %}&middot; {{ current_status }}{% endif %}
     </p>
 
     <table>
@@ -63,15 +64,27 @@
             <td>{{ forloop.counter }}</td>
             <td>
               {{ media.item.title }}
-              {% if media.item.english_title %}<br><small>{{ media.item.english_title }}</small>{% endif %}
+              {% if media.item.english_title %}
+                <br>
+                <small>{{ media.item.english_title }}</small>
+              {% endif %}
             </td>
-            <td>{% if media.score is not None %}{{ media.formatted_score }}{% endif %}</td>
+            <td>
+              {% if media.score is not None %}{{ media.formatted_score }}{% endif %}
+            </td>
             {% if media_type != "movie" %}
-              <td>{{ media.formatted_progress }}{% if media.max_progress %} / {{ media.max_progress }}{% endif %}</td>
+              <td>
+                {{ media.formatted_progress }}
+                {% if media.max_progress %}/ {{ media.max_progress }}{% endif %}
+              </td>
             {% endif %}
             <td>{{ media.status }}</td>
-            <td>{% if media.start_date %}{{ media.start_date|date:"Y-m-d" }}{% endif %}</td>
-            <td>{% if media.end_date %}{{ media.end_date|date:"Y-m-d" }}{% endif %}</td>
+            <td>
+              {% if media.start_date %}{{ media.start_date|date:"Y-m-d" }}{% endif %}
+            </td>
+            <td>
+              {% if media.end_date %}{{ media.end_date|date:"Y-m-d" }}{% endif %}
+            </td>
             <td>{{ media.notes|truncatewords:20 }}</td>
           </tr>
         {% endfor %}

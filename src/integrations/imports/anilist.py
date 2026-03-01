@@ -40,7 +40,7 @@ def get_token(request):
         )
     except services.ProviderAPIError as error:
         if error.status_code == requests.codes.unauthorized:
-            msg = "Invalid Anilist secret key."
+            msg = "Invalid AniList secret key."
             raise MediaImportError(msg) from error
         raise
 

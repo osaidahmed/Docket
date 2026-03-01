@@ -228,7 +228,7 @@
                      type="text">
               <div class="group absolute right-2 top-1/2 -translate-y-1/2">
                 {% include "app/icons/info.svg" with classes="w-4 h-4 text-gray-400" %}
-                <div class="absolute bottom-full mb-2 w-60 p-2 bg-card rounded-md text-xs text-gray-300 shadow-lg border border-gray-600  invisible group-hover:visible">
+                <div class="absolute bottom-full mb-2 w-60 p-2 bg-card rounded-md text-xs text-gray-300 shadow-lg border border-gray-600 invisible group-hover:visible">
                   Find it on your Kitsu profile URL:
                   <br>
                   kitsu.app/users/<span class="text-accent-soft">1234567</span>
@@ -252,7 +252,7 @@
                title="View CSV format documentation">{% include "app/icons/info.svg" with classes="w-4 h-4" %}</a>
           </div>
           <p class="text-sm text-gray-400 mb-3"
-             x-text="importFrequency === 'once' ? 'Import from YamTrack backup' : 'File uploads are not available for periodic imports'">
+             x-text="importFrequency === 'once' ? 'Import from Yamtrack backup' : 'File uploads are not available for periodic imports'">
           </p>
           <form method="post"
                 action="{% url 'import_yamtrack' %}"
@@ -320,7 +320,7 @@
                      type="text">
               <div class="group absolute right-2 top-1/2 -translate-y-1/2">
                 {% include "app/icons/info.svg" with classes="w-4 h-4 text-gray-400" %}
-                <div class="absolute bottom-full mb-2 w-60 p-2 bg-card rounded-md text-xs text-gray-300 shadow-lg border border-gray-600  invisible group-hover:visible">
+                <div class="absolute bottom-full mb-2 w-60 p-2 bg-card rounded-md text-xs text-gray-300 shadow-lg border border-gray-600 invisible group-hover:visible">
                   Find it on your Steam account details page under your username.
                   <br>
                   <br>

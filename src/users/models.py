@@ -57,7 +57,7 @@ class HomeGroupChoices(models.TextChoices):
 class MediaSortChoices(models.TextChoices):
     """Choices for media list sort options."""
 
-    SCORE = "score", "Rating"
+    SCORE = "score", "Score"
     TITLE = "title", "Title"
     PROGRESS = "progress", "Progress"
     START_DATE = "start_date", "Start Date"
@@ -78,6 +78,7 @@ class MediaStatusChoices(models.TextChoices):
 class LayoutChoices(models.TextChoices):
     """Choices for media list layout options."""
 
+    CARDS = "cards", "Cards"
     GRID = "grid", "Grid"
     TABLE = "table", "Table"
 

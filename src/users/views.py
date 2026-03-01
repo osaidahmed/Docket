@@ -196,9 +196,9 @@ def test_notification(request):
 
         # Send test notification
         result = apobj.notify(
-            title="YamTrack Test Notification",
+            title="Yamtrack Test Notification",
             body=(
-                "This is a test notification from YamTrack. "
+                "This is a test notification from Yamtrack. "
                 "If you're seeing this, your notifications are working correctly!"
             ),
         )
@@ -379,7 +379,7 @@ def update_plex_usernames(request):
     if cleaned_usernames != request.user.plex_usernames:
         request.user.plex_usernames = cleaned_usernames
         request.user.save(update_fields=["plex_usernames"])
-        messages.success(request, "Plex usernames updated successfully")
+        messages.success(request, "Plex usernames updated successfully.")
 
     return redirect("integrations")
 

@@ -3,8 +3,6 @@ import io
 import json
 from collections import defaultdict
 
-from app.models import MediaTypes
-
 EXPORT_FIELDS = [
     "title",
     "english_title",
@@ -29,20 +27,14 @@ def serialize_media_list(media_list, media_type):
         row = {
             "title": media.item.title,
             "english_title": media.item.english_title or "",
-            "score": (
-                str(media.formatted_score) if media.score is not None else ""
-            ),
+            "score": (str(media.formatted_score) if media.score is not None else ""),
             "progress": media.formatted_progress,
-            "max_progress": (
-                str(media.max_progress) if media.max_progress else ""
-            ),
+            "max_progress": (str(media.max_progress) if media.max_progress else ""),
             "status": media.status,
             "start_date": (
                 media.start_date.strftime("%Y-%m-%d") if media.start_date else ""
             ),
-            "end_date": (
-                media.end_date.strftime("%Y-%m-%d") if media.end_date else ""
-            ),
+            "end_date": (media.end_date.strftime("%Y-%m-%d") if media.end_date else ""),
             "notes": media.notes or "",
             "link": media.link or "",
             "is_rewatch": "Yes" if media.is_rewatch else "No",
@@ -83,8 +75,7 @@ def format_markdown(rows):
     lines.append("| " + " | ".join("---" for _ in headers) + " |")
     for row in rows:
         cells = [
-            str(row.get(h, "")).replace("|", "\\|").replace("\n", " ")
-            for h in headers
+            str(row.get(h, "")).replace("|", "\\|").replace("\n", " ") for h in headers
         ]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)

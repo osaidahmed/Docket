@@ -33,7 +33,7 @@ SOURCES_CONFIG = {
         "logo": static("img/simkl-logo.png"),
     },
     "yamtrack": {
-        "name": "YamTrack",
+        "name": "Yamtrack",
         "logo": static("favicon/apple-touch-icon.png"),
     },
     "hltb": {
@@ -41,7 +41,7 @@ SOURCES_CONFIG = {
         "logo": static("img/hltb-logo.png"),
     },
     "imdb": {
-        "name": "IMDB",
+        "name": "IMDb",
         "logo": static("img/imdb-logo.png"),
     },
     "steam": {
@@ -49,7 +49,7 @@ SOURCES_CONFIG = {
         "logo": static("img/steam-logo.ico"),
     },
     "goodreads": {
-        "name": "GoodReads",
+        "name": "Goodreads",
         "logo": static("img/logo-goodreads.svg"),
     },
 }

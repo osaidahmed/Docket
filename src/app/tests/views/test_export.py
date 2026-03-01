@@ -26,9 +26,7 @@ class ExportMediaViewTests(TestCase):
             Movie.objects.create(
                 item=item,
                 user=cls.user,
-                status=(
-                    Status.COMPLETED.value if i < 3 else Status.IN_PROGRESS.value
-                ),
+                status=(Status.COMPLETED.value if i < 3 else Status.IN_PROGRESS.value),
                 progress=1 if i < 3 else 0,
                 score=i * 3,
             )
@@ -109,7 +107,7 @@ class ExportMediaViewTests(TestCase):
         )
         self.assertRegex(
             response["Content-Disposition"],
-            r'movies_\d{4}-\d{2}-\d{2}\.csv',
+            r"movies_\d{4}-\d{2}-\d{2}\.csv",
         )
 
     def test_export_empty_list(self):
@@ -183,9 +181,7 @@ class ExportTxtViewTests(TestCase):
             {"template": "{title} - {status}", "separator": "---"},
         )
         self.user.refresh_from_db()
-        self.assertEqual(
-            self.user.export_txt_config["template"], "{title} - {status}"
-        )
+        self.assertEqual(self.user.export_txt_config["template"], "{title} - {status}")
         self.assertEqual(self.user.export_txt_config["separator"], "---")
 
     def test_export_txt_newline_escape(self):
@@ -234,9 +230,7 @@ class PrintMediaViewTests(TestCase):
             Movie.objects.create(
                 item=item,
                 user=cls.user,
-                status=(
-                    Status.COMPLETED.value if i < 3 else Status.IN_PROGRESS.value
-                ),
+                status=(Status.COMPLETED.value if i < 3 else Status.IN_PROGRESS.value),
             )
 
     def setUp(self):

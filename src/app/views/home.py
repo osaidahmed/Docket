@@ -181,12 +181,22 @@ def media_list(request, media_type):
         media_type,
     )
 
+    if media_type != MediaTypes.TV.value:
+        backlog.annotate_next_event(media_page.object_list)
+
+    if layout == "grid":
+        layout_class = ".media-grid"
+    elif layout == "table":
+        layout_class = "tbody"
+    else:
+        layout_class = "#media-cards-list"
+
     context = {
         "media_type": media_type,
         "media_type_plural": app_tags.media_type_readable_plural(media_type).lower(),
         "media_list": media_page,
         "current_layout": layout,
-        "layout_class": ".media-grid" if layout == "grid" else "tbody",
+        "layout_class": layout_class,
         "current_sort": sort_filter,
         "current_status": status_filter,
         "sort_choices": MediaSortChoices.choices,
@@ -206,8 +216,10 @@ def media_list(request, media_type):
             return response
         if layout == "grid":
             template_name = "app/components/media_grid_items.html"
-        else:
+        elif layout == "table":
             template_name = "app/components/media_table_items.html"
+        else:
+            template_name = "app/components/media_cards_items.html"
     else:
         template_name = "app/media_list.html"
 

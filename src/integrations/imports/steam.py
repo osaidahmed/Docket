@@ -137,18 +137,18 @@ class SteamImporter:
                     msg = "Steam API rate limit exceeded. Please try again later."
                     raise MediaImportError(msg) from e
                 if e.response.status_code == requests.codes.forbidden:
-                    msg = "Steam profile is private or invalid"
+                    msg = "Steam profile is private or invalid."
                     raise MediaImportError(msg) from e
                 if e.response.status_code == requests.codes.bad_request:
                     msg = "Bad request to Steam API. Please check the Steam ID."
                     raise MediaImportError(msg) from e
                 if e.response.status_code == requests.codes.unauthorized:
-                    msg = "Invalid Steam API key"
+                    msg = "Invalid Steam API key."
                     raise MediaImportError(msg) from e
                 msg = f"Steam API error: {e.response.status_code}"
                 raise MediaImportError(msg) from e
 
-        msg = "Steam API request failed after all retries"
+        msg = "Steam API request failed after all retries."
         raise MediaImportUnexpectedError(msg)
 
     def _process_game(self, game_data):

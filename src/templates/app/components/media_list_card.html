@@ -1,6 +1,6 @@
 {% load app_tags %}
 
-<div id="backlog-card-{{ media.item.media_type }}-{{ media.id }}" class="bg-card rounded-lg hover:bg-input transition-colors duration-200" x-data="{ editing:
+<div id="medialist-card-{{ media.item.media_type }}-{{ media.id }}" class="bg-card rounded-lg hover:bg-input transition-colors duration-200" x-data="{ editing:
   {% if show_edit %}
     true
   {% else %}
@@ -32,11 +32,16 @@
           {% endif %}
 
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-400">
-            <span class="flex items-center gap-1">
-              {% icon media.item.media_type is_active=False extra_classes="w-4 h-4" %}
-              {{ media.item.media_type|media_type_readable }}
-            </span>
             <span class="flex items-center gap-1 {{ media.status|status_color }}">{{ media.status|media_status_readable }}</span>
+            {% if media.score is not None %}
+              <span class="flex items-center gap-1">
+                {% include "app/icons/star.svg" with classes="w-3.5 h-3.5 text-yellow-400 fill-current" %}
+                {{ media.formatted_score }}
+              </span>
+            {% endif %}
+            {% if media.item.media_type != "movie" %}
+              <span>{{ media.formatted_progress }}{% if media.max_progress %} / {{ media.max_progress }}{% endif %}</span>
+            {% endif %}
           </div>
 
           {% if media.next_event and not media.next_event.is_max_datetime %}
@@ -67,76 +72,6 @@
           <button @click="editing = !editing"
                   class="p-2 text-gray-400 hover:text-accent-soft transition-colors cursor-pointer"
                   title="Edit">{% include "app/icons/edit-flat.svg" with classes="w-5 h-5" %}</button>
-
-          {% if media.status == Status.IN_PROGRESS.value %}
-            {% if not media.not_yet_airing and media.item.media_type|has_caught_up and media.next_event and not media.next_event.is_max_datetime %}
-              {% if media.is_caught_up %}
-                <div class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-gray-300 rounded-full text-sm font-medium">
-                  {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
-                  Caught Up
-                </div>
-              {% else %}
-                <button hx-post="{% url 'quick_catch_up' %}"
-                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                        hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
-                        hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
-                        hx-swap="outerHTML"
-                        class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-sm font-medium cursor-pointer">
-                  {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
-                  Caught Up?
-                </button>
-              {% endif %}
-            {% elif not media.not_yet_airing and media.item.media_type|has_caught_up and media.is_ongoing %}
-              {% if media.is_caught_up %}
-                <div class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-gray-300 rounded-full text-sm font-medium">
-                  {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
-                  Caught Up
-                </div>
-              {% else %}
-                <button hx-post="{% url 'quick_catch_up' %}"
-                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                        hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
-                        hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
-                        hx-swap="outerHTML"
-                        class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-sm font-medium cursor-pointer">
-                  {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
-                  Caught Up?
-                </button>
-              {% endif %}
-            {% else %}
-              <button hx-post="{% url 'quick_complete' %}"
-                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                      hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
-                      hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
-                      hx-swap="outerHTML"
-                      class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-sm font-medium cursor-pointer">
-                {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
-                Done
-              </button>
-            {% endif %}
-
-          {% elif media.status == Status.PLANNING.value and not media.not_yet_airing %}
-            <button hx-post="{% url 'quick_status_transition' %}"
-                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "In progress"}'
-                    hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
-                    hx-swap="outerHTML"
-                    class="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-full hover:bg-accent-hover transition-all duration-200 text-sm font-medium cursor-pointer">
-              {% include "app/icons/states/in-progress.svg" with classes="w-4 h-4" %}
-              Start
-            </button>
-
-          {% elif media.status == Status.PAUSED.value %}
-            <button hx-post="{% url 'quick_status_transition' %}"
-                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "Planning"}'
-                    hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
-                    hx-swap="outerHTML"
-                    class="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 text-white rounded-full hover:bg-sky-500 transition-all duration-200 text-sm font-medium cursor-pointer">
-              {% include "app/icons/states/planning.svg" with classes="w-4 h-4" %}
-              Plan
-            </button>
-          {% endif %}
         </div>
       </div>
     </div>
@@ -145,13 +80,14 @@
   <div x-show="editing" x-transition class="border-t border-gray-700 p-4">
     <form hx-post="{% url 'backlog_save' %}"
           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-          hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
+          hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
           hx-swap="outerHTML">
 
       <input type="hidden" name="media_id" value="{{ media.item.media_id }}">
       <input type="hidden" name="source" value="{{ media.item.source }}">
       <input type="hidden" name="media_type" value="{{ media.item.media_type }}">
       <input type="hidden" name="instance_id" value="{{ media.id }}">
+      <input type="hidden" name="source_context" value="medialist">
 
       {% if form_errors %}
         <div class="mb-3 p-2 bg-red-900/30 rounded text-red-400 text-sm">
@@ -208,7 +144,7 @@
           <div class="relative">
             <select name="status"
                     class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent appearance-none">
-              {% for value, label in status_choices %}
+              {% for value, label in edit_status_choices %}
                 {% if media.not_yet_airing and value != "Planning" and value != "Dropped" %}
                 {% elif value == "Completed" and media.is_ongoing %}
                 {% else %}
@@ -264,10 +200,10 @@
             <div class="flex items-center gap-2">
               <input type="checkbox"
                      name="caught_up"
-                     id="caught-up-{{ media.item.media_type }}-{{ media.id }}"
+                     id="ml-caught-up-{{ media.item.media_type }}-{{ media.id }}"
                      {% if media.caught_up %}checked{% endif %}
                      class="w-4 h-4 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0">
-              <label for="caught-up-{{ media.item.media_type }}-{{ media.id }}"
+              <label for="ml-caught-up-{{ media.item.media_type }}-{{ media.id }}"
                      class="text-sm text-gray-400">Caught Up</label>
             </div>
           {% endif %}
@@ -275,10 +211,10 @@
             <div class="flex items-center gap-2">
               <input type="checkbox"
                      name="is_rewatch"
-                     id="is-rewatch-{{ media.item.media_type }}-{{ media.id }}"
+                     id="ml-is-rewatch-{{ media.item.media_type }}-{{ media.id }}"
                      {% if media.is_rewatch %}checked{% endif %}
                      class="w-4 h-4 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0">
-              <label for="is-rewatch-{{ media.item.media_type }}-{{ media.id }}"
+              <label for="ml-is-rewatch-{{ media.item.media_type }}-{{ media.id }}"
                      class="text-sm text-gray-400">{{ media.item.media_type|repeat_label }}</label>
             </div>
           {% endif %}
@@ -303,8 +239,8 @@
           </button>
           <button hx-post="{% url 'quick_drop' %}"
                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
-                  hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
+                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                  hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
                   hx-swap="outerHTML"
                   class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white hover:bg-red-500 rounded-md text-sm font-medium cursor-pointer transition-colors">
             {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}

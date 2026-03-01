@@ -97,9 +97,7 @@ def export_media_txt(request, media_type):
     plural_label = config.get_plural_label(media_type).lower()
     now = timezone.localtime().strftime("%Y-%m-%d")
     response = HttpResponse(content, content_type="text/plain")
-    response["Content-Disposition"] = (
-        f'attachment; filename="{plural_label}_{now}.txt"'
-    )
+    response["Content-Disposition"] = f'attachment; filename="{plural_label}_{now}.txt"'
 
     logger.info(
         "User %s exported %d %s as TXT",

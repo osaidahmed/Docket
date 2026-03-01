@@ -47,7 +47,7 @@ def send_releases():
     result = send_notifications(
         events=events,
         users=users,
-        title="🔔 YamTrack: New Releases Available! 🔔",
+        title="🔔 Yamtrack: New Releases Available! 🔔",
     )
 
     # Mark events as notified
@@ -102,7 +102,7 @@ def send_daily_digest():
     if not events.exists():
         return "No releases scheduled for today"
 
-    title = "📆 YamTrack: Today's Releases 📆"
+    title = "📆 Yamtrack: Today's Releases 📆"
 
     result = send_notifications(
         events=events,
@@ -433,7 +433,8 @@ def format_notification(releases):
         if media_type == MediaTypes.SEASON.value:
             notification_body.append(f"{icon}  TV Shows")
         else:
-            notification_body.append(f"{icon}  {media_type.upper()}")
+            label = app_tags.media_type_readable_plural(media_type)
+            notification_body.append(f"{icon}  {label}")
 
         for event in media_events:
             if event.is_sentinel_time:

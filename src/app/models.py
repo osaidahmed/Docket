@@ -61,7 +61,7 @@ class MediaTypes(models.TextChoices):
     GAME = "game", "Game"
     BOOK = "book", "Book"
     COMIC = "comic", "Comic"
-    BOARDGAME = "boardgame", "Boardgame"
+    BOARDGAME = "boardgame", "Board Game"
 
 
 class Item(CalendarTriggerMixin, models.Model):

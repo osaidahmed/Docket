@@ -80,7 +80,10 @@ class CustomDurationField(forms.CharField):
             self._validate_minutes(minutes)
             return hours * 60 + minutes
         except ValueError as e:
-            msg = "Invalid time played format. Please use hh:mm, [n]h [n]min or [n]h[n]min format."  # noqa: E501
+            msg = (
+                "Invalid time played format. "
+                "Please use hh:mm, 5h 30min, or 5h30min format."
+            )
             raise forms.ValidationError(msg) from e
 
 
@@ -149,7 +152,7 @@ class ManualItemForm(forms.ModelForm):
                 if not parent:
                     self.add_error(
                         "parent_tv",
-                        "Parent TV show is required for seasons",
+                        "Parent TV show is required for seasons.",
                     )
                     return cleaned_data
                 cleaned_data["title"] = parent.item.title
@@ -159,7 +162,7 @@ class ManualItemForm(forms.ModelForm):
                 if not parent:
                     self.add_error(
                         "parent_season",
-                        "Parent season is required for episodes",
+                        "Parent season is required for episodes.",
                     )
                     return cleaned_data
                 cleaned_data["title"] = parent.item.title
@@ -167,7 +170,7 @@ class ManualItemForm(forms.ModelForm):
         else:
             # For standalone media, title is required
             if not cleaned_data.get("title"):
-                self.add_error("title", "Title is required for this media type")
+                self.add_error("title", "Title is required for this media type.")
             cleaned_data["season_number"] = None
             cleaned_data["episode_number"] = None
 

@@ -103,7 +103,7 @@ class ProviderAPIError(Exception):
         )
         if details:
             message += f": {details}"
-        message += ". Check the logs for more details."
+        message += ". Please try again later."
         super().__init__(message)
 
 

@@ -714,8 +714,8 @@ class NotificationTests(TestCase):
         notification_text = format_notification(releases)
 
         # Verify text contains expected content
-        self.assertIn("ANIME", notification_text)
-        self.assertIn("MANGA", notification_text)
+        self.assertIn("Anime", notification_text)
+        self.assertIn("Manga", notification_text)
         self.assertIn("TV Shows", notification_text)
         self.assertIn("Test Anime", notification_text)
         self.assertIn("Test Manga", notification_text)
@@ -728,10 +728,10 @@ class NotificationTests(TestCase):
         notification_text = format_notification(releases)
 
         # Verify text contains expected content
-        self.assertIn("ANIME", notification_text)
+        self.assertIn("Anime", notification_text)
         self.assertIn("Test Anime", notification_text)
         self.assertIn("E5", notification_text)
-        self.assertNotIn("MANGA", notification_text)
+        self.assertNotIn("Manga", notification_text)
         self.assertNotIn("Test Manga", notification_text)
 
     @patch("events.notifications.send_notifications")

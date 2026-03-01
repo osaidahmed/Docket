@@ -135,7 +135,7 @@ def import_simkl_private(request):
 
     if frequency == "once":
         tasks.import_simkl.delay(token=enc_token, user_id=request.user.id, mode=mode)
-        messages.info(request, "The task to import media from Simkl has been queued.")
+        messages.info(request, "The task to import media from SIMKL has been queued.")
     else:
         helpers.create_import_schedule(
             oauth_callback["username"],
@@ -222,7 +222,7 @@ def import_anilist_private(request):
             username=username,
             token=enc_token,
         )
-        messages.info(request, "AniList import queued.")
+        messages.info(request, "The task to import media from AniList has been queued.")
     else:
         helpers.create_import_schedule(
             username=username,
@@ -254,7 +254,7 @@ def import_anilist_public(request):
             mode=mode,
             username=username,
         )
-        messages.info(request, "AniList import queued.")
+        messages.info(request, "The task to import media from AniList has been queued.")
     else:
         helpers.create_import_schedule(
             username=username,
@@ -366,11 +366,11 @@ def import_steam(request):
 
 
 def import_imdb(request):
-    """View for importing data from IMDB."""
+    """View for importing data from IMDb."""
     file = request.FILES.get("imdb_csv")
 
     if not file:
-        messages.error(request, "IMDB CSV file is required.")
+        messages.error(request, "IMDb CSV file is required.")
         return redirect("import_data")
 
     mode = request.POST["mode"]
@@ -381,18 +381,18 @@ def import_imdb(request):
     )
     messages.info(
         request,
-        "The task to import media from IMDB CSV file has been queued.",
+        "The task to import media from IMDb CSV file has been queued.",
     )
     return redirect("import_data")
 
 
 @require_POST
 def import_goodreads(request):
-    """View for importing books data from GoodReads CSV."""
+    """View for importing books data from Goodreads CSV."""
     file = request.FILES.get("goodreads_csv")
 
     if not file:
-        messages.error(request, "GoodReads CSV file is required.")
+        messages.error(request, "Goodreads CSV file is required.")
         return redirect("import_data")
 
     mode = request.POST["mode"]
@@ -403,7 +403,7 @@ def import_goodreads(request):
     )
     messages.info(
         request,
-        "The task to import media from GoodReads CSV file has been queued.",
+        "The task to import media from Goodreads CSV file has been queued.",
     )
     return redirect("import_data")
 
