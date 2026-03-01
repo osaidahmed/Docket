@@ -34,6 +34,7 @@ TESTED_BACKLOG_ACTIONS = {
     "quick_catch_up",
     "quick_rewatch",
     "quick_status_transition",
+    "quick_untrack",
     "backlog_save",
 }
 

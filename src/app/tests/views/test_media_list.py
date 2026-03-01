@@ -88,6 +88,59 @@ class MediaListViewTests(TestCase):
         self.assertEqual(self.user.movie_sort, "score")
         self.assertEqual(self.user.movie_layout, "table")
 
+    def test_dropped_items_appear_in_media_list(self):
+        """Test that dropped items appear when filtering by Dropped status."""
+        dropped_item = Item.objects.create(
+            media_id="999",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Dropped Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=dropped_item,
+            user=self.user,
+            status=Status.DROPPED.value,
+        )
+
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value]) + "?status=Dropped",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["current_status"],
+            Status.DROPPED.value,
+        )
+        self.assertEqual(response.context["media_list"].paginator.count, 1)
+        self.assertContains(response, "Dropped Movie")
+
+    def test_dropped_items_appear_in_htmx_partial(self):
+        """Test that dropped items appear in HTMX partial responses."""
+        dropped_item = Item.objects.create(
+            media_id="998",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="HTMX Dropped Movie",
+            image="http://example.com/image.jpg",
+        )
+        Movie.objects.create(
+            item=dropped_item,
+            user=self.user,
+            status=Status.DROPPED.value,
+        )
+
+        headers = {"HTTP_HX_REQUEST": "true", "HTTP_HX_TARGET": "media-cards-list"}
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value])
+            + "?status=Dropped&layout=cards",
+            **headers,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "app/components/media_cards_items.html")
+        self.assertContains(response, "HTMX Dropped Movie")
+
     def test_media_list_htmx_request(self):
         """Test the media list view with HTMX request."""
         headers = {"HTTP_HX_REQUEST": "true"}
@@ -129,3 +182,61 @@ class MediaListViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Attack on Titan")
+
+
+class QuickUntrackTests(TestCase):
+    """Test the quick_untrack action."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def test_quick_untrack_deletes_media(self):
+        """Test that quick_untrack deletes the media entry."""
+        item = Item.objects.create(
+            media_id="777",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Movie to Untrack",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.DROPPED.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_untrack"),
+            {"media_type": MediaTypes.MOVIE.value, "instance_id": movie.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Movie.objects.filter(id=movie.id).exists())
+
+    def test_quick_untrack_renders_banner(self):
+        """Test that quick_untrack renders the untracked banner template."""
+        item = Item.objects.create(
+            media_id="776",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Another Untrack Movie",
+            image="http://example.com/image.jpg",
+        )
+        movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.DROPPED.value,
+        )
+
+        response = self.client.post(
+            reverse("quick_untrack"),
+            {"media_type": MediaTypes.MOVIE.value, "instance_id": movie.id},
+        )
+
+        self.assertTemplateUsed(response, "app/components/backlog_untracked.html")
+        self.assertContains(response, "Untracked")

@@ -7,6 +7,7 @@ from app.views.actions import (
     quick_drop,
     quick_rewatch,
     quick_status_transition,
+    quick_untrack,
 )
 from app.views.add_by_link import (
     add_by_link,
@@ -83,6 +84,7 @@ __all__ = [
     "quick_drop",
     "quick_rewatch",
     "quick_status_transition",
+    "quick_untrack",
     "search_parent_season",
     "search_parent_tv",
     "search_suggest_api",

@@ -84,6 +84,7 @@ urlpatterns = [
         name="quick_status_transition",
     ),
     path("backlog_save", views.backlog_save, name="backlog_save"),
+    path("quick_untrack", views.quick_untrack, name="quick_untrack"),
     path("media_delete", views.media_delete, name="media_delete"),
     path("episode_save", views.episode_save, name="episode_save"),
     path(

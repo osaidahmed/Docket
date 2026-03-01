@@ -72,6 +72,19 @@
           <button @click="editing = !editing"
                   class="p-2 text-gray-400 hover:text-accent-soft transition-colors cursor-pointer"
                   title="Edit">{% include "app/icons/edit-flat.svg" with classes="w-5 h-5" %}</button>
+
+          {% if media.status == Status.DROPPED.value %}
+            <button hx-post="{% url 'quick_untrack' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                    hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Untrack this item? This will remove all your tracking data."
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-full hover:bg-red-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+              {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
+              Untrack
+            </button>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -222,31 +235,45 @@
       {% endif %}
 
       <div class="flex justify-between mt-3">
-        <div x-show="!confirmDrop">
+        {% if media.status == Status.DROPPED.value %}
           <button type="button"
-                  @click="confirmDrop = true"
-                  class="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md text-sm font-medium cursor-pointer transition-colors">
-            {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
-            Drop
-          </button>
-        </div>
-        <div x-show="confirmDrop" class="flex items-center gap-2">
-          <span class="text-sm text-gray-400">Drop this?</span>
-          <button type="button"
-                  @click="confirmDrop = false"
-                  class="px-3 py-1.5 text-gray-400 hover:text-white rounded-md text-sm font-medium cursor-pointer transition-colors">
-            Cancel
-          </button>
-          <button hx-post="{% url 'quick_drop' %}"
+                  hx-post="{% url 'quick_untrack' %}"
                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
                   hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
                   hx-swap="outerHTML"
-                  class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white hover:bg-red-500 rounded-md text-sm font-medium cursor-pointer transition-colors">
+                  hx-confirm="Untrack this item? This will remove all your tracking data."
+                  class="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md text-sm font-medium cursor-pointer transition-colors">
             {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
-            Drop
+            Untrack
           </button>
-        </div>
+        {% else %}
+          <div x-show="!confirmDrop">
+            <button type="button"
+                    @click="confirmDrop = true"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md text-sm font-medium cursor-pointer transition-colors">
+              {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
+              Drop
+            </button>
+          </div>
+          <div x-show="confirmDrop" class="flex items-center gap-2">
+            <span class="text-sm text-gray-400">Drop this?</span>
+            <button type="button"
+                    @click="confirmDrop = false"
+                    class="px-3 py-1.5 text-gray-400 hover:text-white rounded-md text-sm font-medium cursor-pointer transition-colors">
+              Cancel
+            </button>
+            <button hx-post="{% url 'quick_drop' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                    hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
+                    hx-swap="outerHTML"
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white hover:bg-red-500 rounded-md text-sm font-medium cursor-pointer transition-colors">
+              {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
+              Drop
+            </button>
+          </div>
+        {% endif %}
         <button type="submit"
                 class="px-4 py-1.5 bg-accent text-white rounded-md hover:bg-accent-hover text-sm font-medium cursor-pointer">
           Save

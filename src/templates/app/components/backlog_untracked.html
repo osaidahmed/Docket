@@ -1,0 +1,8 @@
+{% load app_tags %}
+
+<div class="bg-gray-700/50 rounded-lg p-4 text-center text-gray-300 text-sm font-medium"
+     x-data
+     x-init="setTimeout(() => $el.remove(), 1500)">
+  {% include "app/icons/circle-x.svg" with classes="w-5 h-5 inline mr-1" %}
+  Untracked
+</div>

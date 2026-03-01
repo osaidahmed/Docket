@@ -265,6 +265,26 @@ def quick_drop(request):
     )
 
 
+@require_POST
+def quick_untrack(request):
+    """Untrack (delete) a dropped media item via HTMX."""
+    media_type = request.POST["media_type"]
+    instance_id = request.POST["instance_id"]
+
+    media = BasicMedia.objects.get_media(
+        request.user,
+        media_type,
+        instance_id,
+    )
+    media.delete()
+    logger.info("%s untracked successfully.", media)
+
+    return render(
+        request,
+        "app/components/backlog_untracked.html",
+    )
+
+
 ALLOWED_TRANSITIONS = {
     Status.PLANNING.value: Status.IN_PROGRESS.value,
     Status.PAUSED.value: Status.PLANNING.value,
@@ -403,7 +423,7 @@ def backlog_save(request):
                 request,
                 "app/components/backlog_dropped.html",
             )
-            if rewatch_cancelled:
+            if rewatch_cancelled or source_context == "medialist":
                 response["HX-Refresh"] = "true"
             return response
 
