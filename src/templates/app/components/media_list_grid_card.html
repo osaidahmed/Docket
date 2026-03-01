@@ -124,6 +124,87 @@
          class="text-sm font-semibold text-white hover:text-accent-soft transition duration-300 line-clamp-1 text-center"
          title="{{ media }}">{{ media }}</a>
     </div>
+    {% if media.status == Status.IN_PROGRESS.value %}
+      {% if not media.not_yet_airing and media.item.media_type|has_caught_up and media.next_event and not media.next_event.is_max_datetime %}
+        {% if media.is_caught_up %}
+          <div class="flex justify-center px-2 pb-1">
+            <div class="flex items-center gap-1 px-2 py-1 bg-gray-600 text-gray-300 rounded-full text-xs font-medium">
+              {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
+              Caught Up
+            </div>
+          </div>
+        {% else %}
+          <div class="flex justify-center px-2 pb-1">
+            <button hx-post="{% url 'quick_catch_up' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                    hx-swap="none"
+                    class="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-xs font-medium cursor-pointer"
+                    hx-on::after-request="location.reload()">
+              {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
+              Caught Up?
+            </button>
+          </div>
+        {% endif %}
+      {% elif not media.not_yet_airing and media.item.media_type|has_caught_up and media.is_ongoing %}
+        {% if media.is_caught_up %}
+          <div class="flex justify-center px-2 pb-1">
+            <div class="flex items-center gap-1 px-2 py-1 bg-gray-600 text-gray-300 rounded-full text-xs font-medium">
+              {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
+              Caught Up
+            </div>
+          </div>
+        {% else %}
+          <div class="flex justify-center px-2 pb-1">
+            <button hx-post="{% url 'quick_catch_up' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                    hx-swap="none"
+                    class="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-xs font-medium cursor-pointer"
+                    hx-on::after-request="location.reload()">
+              {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
+              Caught Up?
+            </button>
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="flex justify-center px-2 pb-1">
+          <button hx-post="{% url 'quick_complete' %}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                  hx-swap="none"
+                  class="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-xs font-medium cursor-pointer"
+                  hx-on::after-request="location.reload()">
+            {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
+            Done
+          </button>
+        </div>
+      {% endif %}
+    {% elif media.status == Status.PLANNING.value and not media.not_yet_airing %}
+      <div class="flex justify-center px-2 pb-1">
+        <button hx-post="{% url 'quick_status_transition' %}"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "In progress", "source_context": "medialist"}'
+                hx-swap="none"
+                class="flex items-center gap-1 px-2 py-1 bg-accent text-white rounded-full hover:bg-accent-hover transition-all duration-200 text-xs font-medium cursor-pointer"
+                hx-on::after-request="location.reload()">
+          {% include "app/icons/states/in-progress.svg" with classes="w-3.5 h-3.5" %}
+          Start
+        </button>
+      </div>
+    {% elif media.status == Status.PAUSED.value %}
+      <div class="flex justify-center px-2 pb-1">
+        <button hx-post="{% url 'quick_status_transition' %}"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "Planning", "source_context": "medialist"}'
+                hx-swap="none"
+                class="flex items-center gap-1 px-2 py-1 bg-sky-600 text-white rounded-full hover:bg-sky-500 transition-all duration-200 text-xs font-medium cursor-pointer"
+                hx-on::after-request="location.reload()">
+          {% include "app/icons/states/planning.svg" with classes="w-3.5 h-3.5" %}
+          Plan
+        </button>
+      </div>
+    {% endif %}
     <div id="progress-{{ media.item.media_type }}-{{ media.id }}">
       {% include "app/components/progress_changer.html" with media=media user=user csrf_token=csrf_token MediaTypes=MediaTypes only %}
     </div>

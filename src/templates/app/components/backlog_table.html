@@ -20,8 +20,19 @@
     </thead>
     <tbody>
       {% for media in items %}
-        {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
+        {% if not truncated_at or forloop.counter <= truncated_at %}
+          {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
+        {% endif %}
       {% endfor %}
     </tbody>
+    {% if truncated_at %}
+      <tbody x-show="expanded" x-cloak id="see-all-{{ see_all_type }}-{{ see_all_status|slugify }}">
+        {% for media in items %}
+          {% if forloop.counter > truncated_at %}
+            {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    {% endif %}
   </table>
 </div>

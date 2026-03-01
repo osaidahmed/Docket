@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db.models import Prefetch
@@ -324,7 +325,9 @@ class MediaManagerTests(TestCase):
             for season in season_list:
                 list(season.episodes.all())
 
-    def test_sort_media_list(self):
+    @patch.object(Season, "_forward_fill_planning_seasons")
+    @patch.object(Season, "_backfill_prior_seasons")
+    def test_sort_media_list(self, *_):
         """Test the _sort_media_list method."""
         manager = MediaManager()
 

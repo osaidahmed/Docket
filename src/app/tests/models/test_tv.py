@@ -24,6 +24,14 @@ class TVModel(TestCase):
     @classmethod
     def setUpTestData(cls):
         """Create a user and a season with episodes."""
+        with (
+            patch.object(Season, "_backfill_prior_seasons"),
+            patch.object(Season, "_forward_fill_planning_seasons"),
+        ):
+            cls._create_test_data()
+
+    @classmethod
+    def _create_test_data(cls):
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -155,6 +163,14 @@ class TVStatusTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         """Create test data."""
+        with (
+            patch.object(Season, "_backfill_prior_seasons"),
+            patch.object(Season, "_forward_fill_planning_seasons"),
+        ):
+            cls._create_test_data()
+
+    @classmethod
+    def _create_test_data(cls):
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -246,7 +262,9 @@ class TVStatusTests(TestCase):
         for season in self.tv.seasons.all():
             self.assertTrue(season.episodes.exists())
 
-    def test_dropped_status_marks_in_progress_seasons_dropped(self):
+    @patch.object(Season, "_forward_fill_planning_seasons")
+    @patch.object(Season, "_backfill_prior_seasons")
+    def test_dropped_status_marks_in_progress_seasons_dropped(self, *_):
         """Test setting status to DROPPED marks in-progress seasons as dropped."""
         season3_item = Item.objects.create(
             media_id="123",

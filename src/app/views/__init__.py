@@ -44,6 +44,7 @@ from app.views.home import (
     home,
     media_list,
     progress_edit,
+    recommendations_section,
 )
 from app.views.search import (
     media_search,
@@ -87,6 +88,7 @@ __all__ = [
     "quick_rewatch",
     "quick_status_transition",
     "quick_untrack",
+    "recommendations_section",
     "search_parent_season",
     "search_parent_tv",
     "search_suggest_api",

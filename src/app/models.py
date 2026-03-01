@@ -30,7 +30,7 @@ import app
 import events
 import users
 from app import providers
-from app.mixins import CalendarTriggerMixin
+from app.mixins import CalendarTriggerMixin, disable_fetch_releases
 
 logger = logging.getLogger(__name__)
 
@@ -1128,6 +1128,8 @@ class Season(Media):
 
         if self.tracker.has_changed("status"):
             if self.status == Status.COMPLETED.value:
+                self._backfill_prior_seasons()
+
                 season_metadata = providers.services.get_media_metadata(
                     MediaTypes.SEASON.value,
                     self.item.media_id,
@@ -1148,22 +1150,25 @@ class Season(Media):
                 ):
                     self.related_tv._start_next_available_season()
 
+            elif self.status == Status.IN_PROGRESS.value:
+                self._backfill_prior_seasons()
+
+                if self.related_tv.status != Status.IN_PROGRESS.value:
+                    self.related_tv.status = Status.IN_PROGRESS.value
+                    bulk_update_with_history(
+                        [self.related_tv],
+                        TV,
+                        fields=["status"],
+                    )
+
+            elif self.status == Status.PLANNING.value:
+                self._forward_fill_planning_seasons()
+
             elif (
                 self.status == Status.DROPPED.value
                 and self.related_tv.status != Status.DROPPED.value
             ):
                 self.related_tv.status = Status.DROPPED.value
-                bulk_update_with_history(
-                    [self.related_tv],
-                    TV,
-                    fields=["status"],
-                )
-
-            elif (
-                self.status == Status.IN_PROGRESS.value
-                and self.related_tv.status != Status.IN_PROGRESS.value
-            ):
-                self.related_tv.status = Status.IN_PROGRESS.value
                 bulk_update_with_history(
                     [self.related_tv],
                     TV,
@@ -1429,6 +1434,123 @@ class Season(Media):
 
         return item
 
+    def _backfill_prior_seasons(self):
+        """Complete all prior seasons when season N is completed or started."""
+        season_number = self.item.season_number
+        if season_number <= 1:
+            return
+
+        tv_metadata = providers.services.get_media_metadata(
+            MediaTypes.TV.value,
+            self.item.media_id,
+            self.item.source,
+        )
+
+        prior_season_numbers = [
+            s["season_number"]
+            for s in tv_metadata["related"]["seasons"]
+            if 0 < s["season_number"] < season_number
+        ]
+        if not prior_season_numbers:
+            return
+
+        tv_with_seasons_metadata = providers.services.get_media_metadata(
+            "tv_with_seasons",
+            self.item.media_id,
+            self.item.source,
+            prior_season_numbers,
+        )
+
+        seasons_to_create = []
+        seasons_to_update = []
+
+        with disable_fetch_releases():
+            for sn in prior_season_numbers:
+                season_metadata = tv_with_seasons_metadata[f"season/{sn}"]
+                item, _ = Item.objects.get_or_create(
+                    media_id=self.item.media_id,
+                    source=self.item.source,
+                    media_type=MediaTypes.SEASON.value,
+                    season_number=sn,
+                    defaults={
+                        "title": self.item.title,
+                        "image": season_metadata["image"],
+                    },
+                )
+
+                try:
+                    existing = Season.objects.get(item=item, user=self.user)
+                    if existing.status != Status.COMPLETED.value:
+                        existing.status = Status.COMPLETED.value
+                        seasons_to_update.append(existing)
+                except Season.DoesNotExist:
+                    seasons_to_create.append(
+                        Season(
+                            item=item,
+                            score=None,
+                            status=Status.COMPLETED.value,
+                            notes="",
+                            related_tv=self.related_tv,
+                            user=self.user,
+                        )
+                    )
+
+            if seasons_to_create:
+                bulk_create_with_history(seasons_to_create, Season)
+            if seasons_to_update:
+                bulk_update_with_history(seasons_to_update, Season, ["status"])
+
+            episodes_to_create = []
+            for season_instance in seasons_to_create + seasons_to_update:
+                season_metadata = tv_with_seasons_metadata[
+                    f"season/{season_instance.item.season_number}"
+                ]
+                episodes_to_create.extend(
+                    season_instance.get_remaining_eps(season_metadata)
+                )
+            if episodes_to_create:
+                bulk_create_with_history(episodes_to_create, Episode)
+
+    def _forward_fill_planning_seasons(self):
+        """Create remaining seasons as PLANNING when a season is set to PLANNING."""
+        tv_metadata = providers.services.get_media_metadata(
+            MediaTypes.TV.value,
+            self.item.media_id,
+            self.item.source,
+        )
+
+        season_number = self.item.season_number
+        seasons_to_create = []
+
+        for season_data in tv_metadata["related"]["seasons"]:
+            sn = season_data["season_number"]
+            if sn <= season_number or sn == 0:
+                continue
+
+            item, _ = Item.objects.get_or_create(
+                media_id=self.item.media_id,
+                source=self.item.source,
+                media_type=MediaTypes.SEASON.value,
+                season_number=sn,
+                defaults={
+                    "title": self.item.title,
+                    "image": season_data["image"],
+                },
+            )
+
+            if not Season.objects.filter(item=item, user=self.user).exists():
+                seasons_to_create.append(
+                    Season(
+                        item=item,
+                        user=self.user,
+                        related_tv=self.related_tv,
+                        status=Status.PLANNING.value,
+                    )
+                )
+
+        if seasons_to_create:
+            bulk_create_with_history(seasons_to_create, Season)
+
 
 class Episode(models.Model):
     """Model for episodes of a season."""
@@ -1549,6 +1671,8 @@ class Anime(Media):
             if is_ongoing:
                 self.status = Status.IN_PROGRESS.value
                 self.caught_up = True
+                if metadata["max_progress"]:
+                    self.progress = metadata["max_progress"]
             elif metadata["max_progress"]:
                 self.progress = metadata["max_progress"]
 

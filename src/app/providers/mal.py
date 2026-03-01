@@ -12,7 +12,7 @@ from app.providers import services
 
 logger = logging.getLogger(__name__)
 base_url = "https://api.myanimelist.net/v2"
-base_fields = "title,alternative_titles,main_picture,media_type,start_date,end_date,synopsis,status,genres,mean,num_scoring_users,recommendations"  # noqa: E501
+base_fields = "title,alternative_titles,main_picture,media_type,start_date,end_date,synopsis,status,genres,mean,num_scoring_users,recommendations{node{alternative_titles}}"  # noqa: E501
 
 
 def handle_error(error):
@@ -224,7 +224,7 @@ def anime(media_id):
     if data is None:
         url = f"{base_url}/anime/{media_id}"
         params = {
-            "fields": f"{base_fields},num_episodes,average_episode_duration,studios,start_season,broadcast,source,related_anime",  # noqa: E501
+            "fields": f"{base_fields},num_episodes,average_episode_duration,studios,start_season,broadcast,source,related_anime{{node{{alternative_titles}}}}",  # noqa: E501
         }
 
         try:
@@ -296,7 +296,7 @@ def manga(media_id):
     if data is None:
         url = f"{base_url}/manga/{media_id}"
         params = {
-            "fields": f"{base_fields},num_chapters,related_manga,recommendations",
+            "fields": f"{base_fields},num_chapters,related_manga{{node{{alternative_titles}}}}",  # noqa: E501
         }
 
         try:

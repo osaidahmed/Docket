@@ -38,3 +38,12 @@ def create_task_result_on_publish(sender=None, headers=None, body=None, **kwargs
         task_args=headers.get("argsrepr", ""),
         task_kwargs=headers.get("kwargsrepr", ""),
     )
+
+
+def invalidate_recommendations_cache(sender, instance, **kwargs):  # noqa: ARG001
+    """Clear cached recommendations when a media item is saved or deleted."""
+    from django.core.cache import cache  # noqa: PLC0415
+
+    from app.services.recommendations import get_cache_key  # noqa: PLC0415
+
+    cache.delete(get_cache_key(instance.user_id, instance.item.media_type))

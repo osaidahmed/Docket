@@ -3,7 +3,7 @@
 {% if media %}
   {% if media.status == Status.COMPLETED.value or media.status == Status.DROPPED.value %}
     {% if not has_active %}
-      <div class="flex items-center gap-1.5">
+      <div class="flex flex-col items-center gap-1.5">
         <a href="{{ item|media_url }}"
            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-800 hover:bg-gray-700 transition-colors {{ media.status|status_color }}">
           <div class="w-4 h-4">
@@ -57,7 +57,7 @@
     </a>
   {% endif %}
 {% else %}
-  <div class="flex items-center gap-1.5">
+  <div class="flex flex-col items-center gap-1.5">
     <button hx-post="{% url 'quick_add' %}"
             hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
             hx-vals='{"media_id": "{{ item.media_id }}", "source": "{{ item.source }}", "media_type": "{{ item.media_type }}"}'

@@ -81,7 +81,73 @@
                   class="p-2 text-gray-400 hover:text-accent-soft transition-colors cursor-pointer"
                   title="Edit">{% include "app/icons/edit-flat.svg" with classes="w-5 h-5" %}</button>
 
-          {% if media.status == Status.DROPPED.value %}
+          {% if media.status == Status.IN_PROGRESS.value %}
+            {% if not media.not_yet_airing and media.item.media_type|has_caught_up and media.next_event and not media.next_event.is_max_datetime %}
+              {% if media.is_caught_up %}
+                <div class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-gray-300 rounded-full text-sm font-medium">
+                  {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
+                  Caught Up
+                </div>
+              {% else %}
+                <button hx-post="{% url 'quick_catch_up' %}"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                        hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
+                        hx-swap="outerHTML"
+                        class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+                  {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
+                  Caught Up?
+                </button>
+              {% endif %}
+            {% elif not media.not_yet_airing and media.item.media_type|has_caught_up and media.is_ongoing %}
+              {% if media.is_caught_up %}
+                <div class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-gray-300 rounded-full text-sm font-medium">
+                  {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
+                  Caught Up
+                </div>
+              {% else %}
+                <button hx-post="{% url 'quick_catch_up' %}"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                        hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
+                        hx-swap="outerHTML"
+                        class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+                  {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
+                  Caught Up?
+                </button>
+              {% endif %}
+            {% else %}
+              <button hx-post="{% url 'quick_complete' %}"
+                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                      hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
+                      hx-swap="outerHTML"
+                      class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+                {% include "app/icons/circle-check.svg" with classes="w-4 h-4" %}
+                Done
+              </button>
+            {% endif %}
+          {% elif media.status == Status.PLANNING.value and not media.not_yet_airing %}
+            <button hx-post="{% url 'quick_status_transition' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "In progress", "source_context": "medialist"}'
+                    hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
+                    hx-swap="outerHTML"
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-full hover:bg-accent-hover transition-all duration-200 text-sm font-medium cursor-pointer">
+              {% include "app/icons/states/in-progress.svg" with classes="w-4 h-4" %}
+              Start
+            </button>
+          {% elif media.status == Status.PAUSED.value %}
+            <button hx-post="{% url 'quick_status_transition' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "Planning", "source_context": "medialist"}'
+                    hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
+                    hx-swap="outerHTML"
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 text-white rounded-full hover:bg-sky-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+              {% include "app/icons/states/planning.svg" with classes="w-4 h-4" %}
+              Plan
+            </button>
+          {% elif media.status == Status.DROPPED.value %}
             <button hx-post="{% url 'quick_untrack' %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                     hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'

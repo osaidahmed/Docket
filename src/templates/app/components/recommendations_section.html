@@ -1,0 +1,29 @@
+{% load app_tags %}
+
+{% if active_recs or full_recs %}
+  <div id="recommendations-section" class="mt-12 space-y-10">
+    {% if active_recs %}
+      <section>
+        <h2 class="text-xl font-bold mb-4 text-white">Recommended for You</h2>
+        <p class="text-sm text-gray-400 mb-4">Based on what you're currently watching</p>
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-4 [&_.line-clamp-1]:line-clamp-2 [&_.p-3]:p-2">
+          {% for item in active_recs %}
+            {% include "app/components/media_card.html" with item=item title=item.title from_search=True from_grid=True %}
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    {% if full_recs %}
+      <section>
+        <h2 class="text-xl font-bold mb-4 text-white">Discover More</h2>
+        <p class="text-sm text-gray-400 mb-4">Based on your full collection</p>
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-4 [&_.line-clamp-1]:line-clamp-2 [&_.p-3]:p-2">
+          {% for item in full_recs %}
+            {% include "app/components/media_card.html" with item=item title=item.title from_search=True from_grid=True %}
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
+{% endif %}

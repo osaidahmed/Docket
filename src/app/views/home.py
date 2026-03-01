@@ -1,5 +1,6 @@
 import logging
 
+from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db.models import prefetch_related_objects
 from django.http import HttpResponse
@@ -10,6 +11,7 @@ from django.views.decorators.http import require_GET, require_POST
 from app import config
 from app.models import BasicMedia, MediaTypes, Status
 from app.services import backlog
+from app.services import recommendations as recs_service
 from app.templatetags import app_tags
 from users.models import (
     HomeGroupChoices,
@@ -47,8 +49,7 @@ def home(request):
                 continue
             for sg in group["status_groups"]:
                 if len(sg["items"]) > truncation:
-                    sg["items"] = sg["items"][:truncation]
-                    sg["truncated"] = True
+                    sg["truncated_at"] = truncation
                     sg["media_type"] = group["media_type"]
 
     archive_open = request.GET.get("view") == "archive"
@@ -219,6 +220,7 @@ def media_list(request, media_type):
             "separator", "\\n"
         ),
         "edit_status_choices": Status.choices,
+        "supports_recommendations": config.supports_recommendations(media_type),
     }
 
     if request.headers.get("HX-Request"):
@@ -236,3 +238,32 @@ def media_list(request, media_type):
         template_name = "app/media_list.html"
 
     return render(request, template_name, context)
+
+
+@require_GET
+def recommendations_section(request, media_type):
+    """Return the recommendations section for a media type."""
+    if not config.supports_recommendations(media_type):
+        return HttpResponse("")
+
+    cache_key = recs_service.get_cache_key(request.user.id, media_type)
+    result = cache.get(cache_key)
+
+    if result is None:
+        result = recs_service.compute_recommendations(request.user.id, media_type)
+
+    return _render_recommendations(request, result, media_type)
+
+
+def _render_recommendations(request, result, media_type):
+    if not result["active"] and not result["full"]:
+        return HttpResponse("")
+    return render(
+        request,
+        "app/components/recommendations_section.html",
+        {
+            "active_recs": result["active"],
+            "full_recs": result["full"],
+            "media_type": media_type,
+        },
+    )

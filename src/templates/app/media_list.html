@@ -151,6 +151,13 @@
                 title="Select items"
                 type="button">{% include "app/icons/circle-check.svg" with classes="w-5 h-5" %}</button>
 
+        {% if supports_recommendations %}
+          <button @click="document.getElementById('recommendations-section')?.scrollIntoView({ behavior: 'smooth' })"
+                  class="p-2 rounded-md cursor-pointer bg-input hover:bg-highlight transition-colors"
+                  title="Jump to recommendations"
+                  type="button">{% include "app/icons/star.svg" with classes="w-5 h-5" %}</button>
+        {% endif %}
+
         <!-- Export -->
         <div class="relative" x-data="{ open: false, txtOpen: false }">
           <button class="flex items-center px-4 py-2 bg-input rounded-md hover:bg-highlight transition-colors cursor-pointer"
@@ -399,6 +406,7 @@
                 </span>
               </th>
               <th class="p-2"></th>
+              <th class="p-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -500,5 +508,11 @@
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-hover"></div>
       </div>
     </div>
+
+    {% if supports_recommendations %}
+      <div hx-get="{% url 'recommendations_section' media_type %}"
+           hx-trigger="revealed"
+           hx-swap="outerHTML"></div>
+    {% endif %}
   </div>
 {% endblock content %}

@@ -75,6 +75,7 @@ MEDIA_TYPE_CONFIG = {
         "svg_icon": """
             <rect width="20" height="15" x="2" y="7" rx="2" ry="2"/>
             <polyline points="17 2 12 7 7 2"/>""",
+        "supports_recommendations": True,
         "explore_categories": [
             {"slug": "trending", "label": "Trending"},
             {"slug": "popular", "label": "Popular"},
@@ -123,6 +124,7 @@ MEDIA_TYPE_CONFIG = {
             <path d="M17 7.5h4"/>
             <path d="M17 16.5h4"/>""",
         "date_key": "release_date",
+        "supports_recommendations": True,
         "explore_categories": [
             {"slug": "trending", "label": "Trending"},
             {"slug": "popular", "label": "Popular"},
@@ -144,6 +146,7 @@ MEDIA_TYPE_CONFIG = {
         "unit": ("E", "Episode"),
         "date_key": "end_date",
         "plural_label": "Anime",
+        "supports_recommendations": True,
         "explore_categories": [
             {"slug": "all", "label": "Top Rated"},
             {"slug": "airing", "label": "Currently Airing"},
@@ -170,6 +173,7 @@ MEDIA_TYPE_CONFIG = {
         "date_key": "end_date",
         "unit": ("#", "Chapter"),
         "plural_label": "Manga",
+        "supports_recommendations": True,
         "explore_categories": [
             {"slug": "all", "label": "Top Rated"},
             {"slug": "bypopularity", "label": "Most Popular"},
@@ -200,6 +204,7 @@ MEDIA_TYPE_CONFIG = {
         "date_key": "release_date",
         "supports_repeat": False,
         "supports_caught_up": False,
+        "supports_recommendations": True,
         "explore_categories": [
             {"slug": "popular", "label": "Popular"},
             {"slug": "top_rated", "label": "Top Rated"},
@@ -240,6 +245,7 @@ MEDIA_TYPE_CONFIG = {
             <path d="M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1
             5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z"/>""",
         "unit": ("#", "Issue"),
+        "supports_recommendations": True,
         "explore_categories": [
             {"slug": "recent", "label": "Recently Added"},
             {"slug": "updated", "label": "Recently Updated"},
@@ -490,6 +496,12 @@ def supports_caught_up(media_type):
     """Return whether the media type supports caught-up tracking."""
     cfg = get_config(media_type)
     return cfg.get("supports_caught_up", True)
+
+
+def supports_recommendations(media_type):
+    """Return whether the media type has provider-backed recommendations."""
+    cfg = get_config(media_type)
+    return cfg.get("supports_recommendations", False)
 
 
 def get_status_config(status):

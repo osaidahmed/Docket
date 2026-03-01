@@ -156,38 +156,57 @@
         {% endif %}
 
         {% for sg in group.status_groups %}
-          {# Status sub-header -- only when grouping by type #}
-          {% if current_group == "type" %}
-            <h3 class="text-sm font-medium uppercase tracking-wider mb-2 {{ sg.status|status_color }}">{{ sg.status }}</h3>
-          {% endif %}
-
-          {# Items -- dispatch by layout #}
-          {% if current_layout == "grid" %}
-            <div class="media-grid mb-4">
-              {% for media in sg.items %}
-                {% include "app/components/backlog_grid_card.html" with media=media %}
-              {% endfor %}
-            </div>
-          {% elif current_layout == "table" %}
+          <div {% if sg.truncated_at %}x-data="{ expanded: false }"{% endif %}>
+            {# Status sub-header -- only when grouping by type #}
             {% if current_group == "type" %}
-              {% include "app/components/backlog_table.html" with items=sg.items hide_type=True %}
-            {% else %}
-              {% include "app/components/backlog_table.html" with items=sg.items %}
+              <h3 class="text-sm font-medium uppercase tracking-wider mb-2 {{ sg.status|status_color }}">{{ sg.status }}</h3>
             {% endif %}
-          {% else %}
-            <div class="space-y-3 mb-4">
-              {% for media in sg.items %}
-                {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
-              {% endfor %}
-            </div>
-          {% endif %}
 
-          {% if sg.truncated and sg.media_type %}
-            <a href="{% url 'medialist' sg.media_type %}?status={{ sg.status|urlencode }}&temp=1"
-               class="block text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2">
-              See all
-            </a>
-          {% endif %}
+            {# Items -- dispatch by layout #}
+            {% if current_layout == "grid" %}
+              <div class="media-grid mb-4">
+                {% for media in sg.items %}
+                  {% if sg.truncated_at and forloop.counter > sg.truncated_at %}
+                    <div x-show="expanded"
+                         x-cloak
+                         {% if forloop.counter0 == sg.truncated_at %}id="see-all-{{ group.media_type }}-{{ sg.status|slugify }}"{% endif %}>
+                      {% include "app/components/backlog_grid_card.html" with media=media %}
+                    </div>
+                  {% else %}
+                    {% include "app/components/backlog_grid_card.html" with media=media %}
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% elif current_layout == "table" %}
+              {% if current_group == "type" %}
+                {% include "app/components/backlog_table.html" with items=sg.items hide_type=True truncated_at=sg.truncated_at see_all_type=group.media_type see_all_status=sg.status %}
+              {% else %}
+                {% include "app/components/backlog_table.html" with items=sg.items truncated_at=sg.truncated_at see_all_type=group.media_type see_all_status=sg.status %}
+              {% endif %}
+            {% else %}
+              <div class="space-y-3 mb-4">
+                {% for media in sg.items %}
+                  {% if sg.truncated_at and forloop.counter > sg.truncated_at %}
+                    <div x-show="expanded"
+                         x-cloak
+                         {% if forloop.counter0 == sg.truncated_at %}id="see-all-{{ group.media_type }}-{{ sg.status|slugify }}"{% endif %}>
+                      {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
+                    </div>
+                  {% else %}
+                    {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            {% if sg.truncated_at %}
+              <button x-show="!expanded"
+                      @click="expanded = true; $nextTick(() => { const el = document.getElementById('see-all-{{ group.media_type }}-{{ sg.status|slugify }}'); if (el && el.getBoundingClientRect().top > window.innerHeight) el.scrollIntoView({ behavior: 'smooth', block: 'start' }) })"
+                      class="block w-full text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2 cursor-pointer">
+                See all
+              </button>
+            {% endif %}
+          </div>
         {% endfor %}
       {% endfor %}
     {% else %}

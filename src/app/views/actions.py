@@ -237,6 +237,7 @@ def quick_complete(request):
     """Mark a backlog item as completed via HTMX."""
     media_type = request.POST["media_type"]
     instance_id = request.POST["instance_id"]
+    source_context = request.POST.get("source_context")
 
     media = BasicMedia.objects.get_media(
         request.user,
@@ -251,6 +252,11 @@ def quick_complete(request):
         media_type,
         instance_id,
     )
+
+    if source_context == "medialist":
+        response = _render_medialist_card(request, media)
+        response["HX-Refresh"] = "true"
+        return response
 
     archive_count = backlog.count_archive(request.user)
 
@@ -317,6 +323,7 @@ def quick_status_transition(request):
     media_type = request.POST["media_type"]
     instance_id = request.POST["instance_id"]
     target_status = request.POST["target_status"]
+    source_context = request.POST.get("source_context")
 
     media = BasicMedia.objects.get_media(
         request.user,
@@ -340,6 +347,11 @@ def quick_status_transition(request):
     )
     backlog.annotate_next_event([media])
 
+    if source_context == "medialist":
+        response = _render_medialist_card(request, media)
+        response["HX-Refresh"] = "true"
+        return response
+
     response = render(
         request,
         "app/components/backlog_card.html",
@@ -354,12 +366,14 @@ def quick_catch_up(request):
     """Update progress to the latest aired episode."""
     media_type = request.POST["media_type"]
     instance_id = request.POST["instance_id"]
+    source_context = request.POST.get("source_context")
 
     media = BasicMedia.objects.get_media_prefetch(
         request.user,
         media_type,
         instance_id,
     )
+    BasicMedia.objects.annotate_max_progress([media], media_type)
     backlog.annotate_next_event([media])
 
     if media.next_event and media.next_event.content_number is not None:
@@ -381,6 +395,13 @@ def quick_catch_up(request):
         )
         backlog.annotate_next_event([media])
     else:
+        metadata = services.get_media_metadata(
+            media.item.media_type,
+            media.item.media_id,
+            media.item.source,
+        )
+        if metadata["max_progress"]:
+            media.progress = metadata["max_progress"]
         media.caught_up = True
         media.save()
         media = BasicMedia.objects.get_media_prefetch(
@@ -389,6 +410,11 @@ def quick_catch_up(request):
             instance_id,
         )
         backlog.annotate_next_event([media])
+
+    if source_context == "medialist":
+        response = _render_medialist_card(request, media)
+        response["HX-Refresh"] = "true"
+        return response
 
     return render(
         request,
