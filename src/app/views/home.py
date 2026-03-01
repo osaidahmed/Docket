@@ -159,6 +159,7 @@ def media_list(request, media_type):
         request.GET.get("status"),
     )
     search_query = request.GET.get("search", "")
+    sort_dir = request.GET.get("sort_dir")
     page = request.GET.get("page", 1)
 
     if not status_filter:
@@ -170,6 +171,7 @@ def media_list(request, media_type):
         status_filter=status_filter,
         sort_filter=sort_filter,
         search=search_query,
+        sort_dir=sort_dir,
     )
 
     items_per_page = 32
@@ -191,6 +193,12 @@ def media_list(request, media_type):
     else:
         layout_class = "#media-cards-list"
 
+    effective_sort_dir = (
+        sort_dir
+        if sort_dir in ("asc", "desc")
+        else BasicMedia.objects._DEFAULT_SORT_DIRS.get(sort_filter, "desc")
+    )
+
     context = {
         "media_type": media_type,
         "media_type_plural": app_tags.media_type_readable_plural(media_type).lower(),
@@ -198,6 +206,7 @@ def media_list(request, media_type):
         "current_layout": layout,
         "layout_class": layout_class,
         "current_sort": sort_filter,
+        "current_sort_dir": effective_sort_dir,
         "current_status": status_filter,
         "sort_choices": MediaSortChoices.choices,
         "status_choices": MediaStatusChoices.choices,

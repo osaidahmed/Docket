@@ -4,6 +4,8 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{{ media_type_plural }} list - Yamtrack">
+    <meta name="keywords" content="yamtrack, media, {{ media_type_plural }}">
     <title>{{ media_type_plural }} - Yamtrack</title>
     <style>
       body {
@@ -42,7 +44,7 @@
     <h1>{{ media_type_plural }}</h1>
     <p class="meta">
       {{ total_count }} items
-      {% if current_status != "All" %}&middot; {{ current_status }}{% endif %}
+      {% if current_status != "All" %}· {{ current_status }}{% endif %}
     </p>
 
     <table>

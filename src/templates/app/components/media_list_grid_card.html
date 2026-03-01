@@ -1,8 +1,16 @@
 {% load app_tags %}
 
 <div class="bg-card rounded-lg overflow-hidden shadow-lg transition-all duration-300"
+     :class="{ 'ring-2 ring-accent': selecting && selected.includes('{{ media.id }}') }"
+     data-bulk-id="{{ media.id }}"
      x-data="{ trackOpen: false, listsOpen: false, historyOpen: false }">
   <div class="relative">
+    <div x-show="selecting" @click.stop class="absolute top-2 left-2 z-30">
+      <input type="checkbox"
+             :checked="selected.includes('{{ media.id }}')"
+             @click="toggleItem('{{ media.id }}', $event)"
+             class="w-5 h-5 rounded bg-gray-900/80 border-gray-500 text-accent focus:ring-accent focus:ring-offset-0 cursor-pointer">
+    </div>
     <a href="{{ media.item|media_url }}">
       <img alt="{{ media }}"
            class="lazyload w-full aspect-2/3 {% if media.item.image != IMG_NONE %}object-cover{% endif %}"
@@ -19,7 +27,7 @@
           {% else %}
             Release
           {% endif %}
-          &bull; {{ media.next_event.datetime|natural_day:user }}
+          • {{ media.next_event.datetime|natural_day:user }}
         </span>
       </div>
     {% endif %}

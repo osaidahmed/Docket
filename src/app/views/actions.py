@@ -1,12 +1,15 @@
 import logging
+from decimal import Decimal, InvalidOperation
 
 from django.apps import apps
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from simple_history.utils import bulk_update_with_history
 
 from app.forms import get_form_class
+from app.mixins import disable_fetch_releases
 from app.models import BasicMedia, Item, Status
 from app.providers import services
 from app.services import backlog, recent
@@ -395,8 +398,15 @@ def quick_catch_up(request):
 
 
 def _backlog_save_valid(
-    request, media, media_type, instance_id, source_context,
-    *, old_status, rewatch_changed, rewatch_cancelled,
+    request,
+    media,
+    media_type,
+    instance_id,
+    source_context,
+    *,
+    old_status,
+    rewatch_changed,
+    rewatch_cancelled,
 ):
     """Handle backlog_save when the form is valid."""
     if rewatch_cancelled or media.status == Status.DROPPED.value:
@@ -408,7 +418,9 @@ def _backlog_save_valid(
     if source_context == "archive":
         if media.status == old_status:
             media = BasicMedia.objects.get_media_prefetch(
-                request.user, media_type, instance_id,
+                request.user,
+                media_type,
+                instance_id,
             )
         response = render(
             request,
@@ -421,7 +433,9 @@ def _backlog_save_valid(
 
     if source_context == "medialist":
         media = BasicMedia.objects.get_media_prefetch(
-            request.user, media_type, instance_id,
+            request.user,
+            media_type,
+            instance_id,
         )
         response = _render_medialist_card(request, media)
         if media.status != old_status or rewatch_changed:
@@ -430,7 +444,9 @@ def _backlog_save_valid(
 
     if media.status == Status.COMPLETED.value:
         media = BasicMedia.objects.get_media_prefetch(
-            request.user, media_type, instance_id,
+            request.user,
+            media_type,
+            instance_id,
         )
         archive_count = backlog.count_archive(request.user)
         return render(
@@ -453,7 +469,9 @@ def _backlog_save_valid(
         return response
 
     media = BasicMedia.objects.get_media_prefetch(
-        request.user, media_type, instance_id,
+        request.user,
+        media_type,
+        instance_id,
     )
     backlog.annotate_next_event([media])
     return render(
@@ -504,7 +522,11 @@ def backlog_save(request):
             media.delete()
 
         return _backlog_save_valid(
-            request, media, media_type, instance_id, source_context,
+            request,
+            media,
+            media_type,
+            instance_id,
+            source_context,
             old_status=old_status,
             rewatch_changed=media.is_rewatch != old_is_rewatch,
             rewatch_cancelled=rewatch_cancelled,
@@ -537,3 +559,74 @@ def backlog_save(request):
             "show_edit": True,
         },
     )
+
+
+MAX_SCORE = 10
+
+
+def _bulk_status(items, value):
+    """Change status on multiple items, preserving model hooks."""
+    if value not in dict(Status.choices):
+        return HttpResponseBadRequest("Invalid status.")
+    now = timezone.now().replace(second=0, microsecond=0)
+    with disable_fetch_releases():
+        for item in items:
+            item.status = value
+            if value == Status.IN_PROGRESS.value and not item.start_date:
+                item.start_date = now
+            item.save()
+    return None
+
+
+def _bulk_score(items, model, value):
+    """Set score on multiple items via bulk update."""
+    try:
+        score_val = Decimal(value) if value else None
+    except (InvalidOperation, ValueError):
+        return HttpResponseBadRequest("Invalid score.")
+    if score_val is not None and not (0 <= score_val <= MAX_SCORE):
+        return HttpResponseBadRequest("Score must be between 0 and 10.")
+    for item in items:
+        item.score = score_val
+    bulk_update_with_history(items, model, fields=["score"])
+    return None
+
+
+_BULK_ACTIONS = {"status", "score", "delete"}
+
+
+@require_POST
+def bulk_action(request):
+    """Apply a bulk action to multiple media items."""
+    media_type = request.POST["media_type"]
+    instance_ids = [x for x in request.POST.get("instance_ids", "").split(",") if x]
+    action = request.POST["action"]
+    value = request.POST.get("value", "")
+
+    if not instance_ids or action not in _BULK_ACTIONS:
+        return HttpResponseBadRequest("Invalid request.")
+
+    model = apps.get_model(app_label="app", model_name=media_type)
+    items = list(model.objects.filter(id__in=instance_ids, user=request.user))
+
+    if not items:
+        return HttpResponseBadRequest("No valid items found.")
+
+    if action == "status":
+        error = _bulk_status(items, value)
+    elif action == "score":
+        error = _bulk_score(items, model, value)
+    else:
+        model.objects.filter(
+            id__in=instance_ids,
+            user=request.user,
+        ).delete()
+        error = None
+
+    if error:
+        return error
+
+    logger.info("Bulk %s on %d %s items.", action, len(items), media_type)
+    response = HttpResponse("")
+    response["HX-Refresh"] = "true"
+    return response

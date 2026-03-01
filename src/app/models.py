@@ -233,7 +233,15 @@ class MediaManager(models.Manager):
         """Return list of historical model names."""
         return [f"historical{media_type}" for media_type in MediaTypes.values]
 
-    def get_media_list(self, user, media_type, status_filter, sort_filter, search=None):
+    def get_media_list(
+        self,
+        user,
+        media_type,
+        status_filter,
+        sort_filter,
+        search=None,
+        sort_dir=None,
+    ):
         """Get media list based on filters, sorting and search."""
         model = apps.get_model(app_label="app", model_name=media_type)
         queryset = model.objects.filter(user=user.id)
@@ -265,7 +273,12 @@ class MediaManager(models.Manager):
         queryset = self._apply_prefetch_related(queryset, media_type)
 
         if sort_filter:
-            return self._sort_media_list(queryset, sort_filter, media_type)
+            return self._sort_media_list(
+                queryset,
+                sort_filter,
+                media_type,
+                sort_dir,
+            )
         return queryset
 
     def _apply_prefetch_related(self, queryset, media_type):
@@ -301,128 +314,143 @@ class MediaManager(models.Manager):
 
         return base_queryset
 
-    def _sort_media_list(self, queryset, sort_filter, media_type=None):
+    _DEFAULT_SORT_DIRS = {
+        "score": "desc",
+        "title": "asc",
+        "progress": "desc",
+        "status": "asc",
+        "start_date": "asc",
+        "end_date": "desc",
+    }
+
+    def _sort_media_list(
+        self,
+        queryset,
+        sort_filter,
+        media_type=None,
+        sort_dir=None,
+    ):
         """Sort media list using SQL sorting with annotations for calculated fields."""
+        if sort_dir not in ("asc", "desc"):
+            sort_dir = self._DEFAULT_SORT_DIRS.get(sort_filter, "desc")
+
         if media_type == MediaTypes.TV.value:
-            return self._sort_tv_media_list(queryset, sort_filter)
+            return self._sort_tv_media_list(queryset, sort_filter, sort_dir)
         if media_type == MediaTypes.SEASON.value:
-            return self._sort_season_media_list(queryset, sort_filter)
+            return self._sort_season_media_list(queryset, sort_filter, sort_dir)
 
-        return self._sort_generic_media_list(queryset, sort_filter)
+        return self._sort_generic_media_list(queryset, sort_filter, sort_dir)
 
-    def _sort_tv_media_list(self, queryset, sort_filter):
+    def _sort_tv_media_list(self, queryset, sort_filter, sort_dir="desc"):
         """Sort TV media list based on the sort criteria."""
+        ascending = sort_dir == "asc"
+        title_order = models.functions.Lower("item__title")
+
         if sort_filter == "start_date":
-            # Annotate with the minimum start_date from related seasons/episodes
             queryset = queryset.annotate(
                 calculated_start_date=models.Min(
                     "seasons__episodes__end_date",
                     filter=models.Q(seasons__item__season_number__gt=0),
                 ),
             )
-            return queryset.order_by(
-                models.F("calculated_start_date").asc(nulls_last=True),
-                models.functions.Lower("item__title"),
+            order = (
+                models.F("calculated_start_date").asc(nulls_last=True)
+                if ascending
+                else models.F("calculated_start_date").desc(nulls_last=True)
             )
+            return queryset.order_by(order, title_order)
 
         if sort_filter == "end_date":
-            # Annotate with the maximum end_date from related seasons/episodes
             queryset = queryset.annotate(
                 calculated_end_date=models.Max(
                     "seasons__episodes__end_date",
                     filter=models.Q(seasons__item__season_number__gt=0),
                 ),
             )
-            return queryset.order_by(
-                models.F("calculated_end_date").desc(nulls_last=True),
-                models.functions.Lower("item__title"),
+            order = (
+                models.F("calculated_end_date").asc(nulls_last=True)
+                if ascending
+                else models.F("calculated_end_date").desc(nulls_last=True)
             )
+            return queryset.order_by(order, title_order)
 
         if sort_filter == "progress":
-            # Annotate with the sum of episodes watched (excluding season 0)
             queryset = queryset.annotate(
-                # Count episodes in regular seasons (season_number > 0)
                 calculated_progress=models.Count(
                     "seasons__episodes",
                     filter=models.Q(seasons__item__season_number__gt=0),
                 ),
             )
-            return queryset.order_by(
-                "-calculated_progress",
-                models.functions.Lower("item__title"),
-            )
+            order = "calculated_progress" if ascending else "-calculated_progress"
+            return queryset.order_by(order, title_order)
 
-        # Default to generic sorting
-        return self._sort_generic_media_list(queryset, sort_filter)
+        return self._sort_generic_media_list(queryset, sort_filter, sort_dir)
 
-    def _sort_season_media_list(self, queryset, sort_filter):
+    def _sort_season_media_list(self, queryset, sort_filter, sort_dir="desc"):
         """Sort Season media list based on the sort criteria."""
+        ascending = sort_dir == "asc"
+        title_order = models.functions.Lower("item__title")
+
         if sort_filter == "start_date":
-            # Annotate with the minimum end_date from related episodes
             queryset = queryset.annotate(
                 calculated_start_date=models.Min("episodes__end_date"),
             )
-            return queryset.order_by(
-                models.F("calculated_start_date").asc(nulls_last=True),
-                models.functions.Lower("item__title"),
+            order = (
+                models.F("calculated_start_date").asc(nulls_last=True)
+                if ascending
+                else models.F("calculated_start_date").desc(nulls_last=True)
             )
+            return queryset.order_by(order, title_order)
 
         if sort_filter == "end_date":
-            # Annotate with the maximum end_date from related episodes
             queryset = queryset.annotate(
                 calculated_end_date=models.Max("episodes__end_date"),
             )
-            return queryset.order_by(
-                models.F("calculated_end_date").desc(nulls_last=True),
-                models.functions.Lower("item__title"),
+            order = (
+                models.F("calculated_end_date").asc(nulls_last=True)
+                if ascending
+                else models.F("calculated_end_date").desc(nulls_last=True)
             )
+            return queryset.order_by(order, title_order)
 
         if sort_filter == "progress":
-            # Annotate with the maximum episode number
             queryset = queryset.annotate(
                 calculated_progress=models.Max("episodes__item__episode_number"),
             )
-            return queryset.order_by(
-                "-calculated_progress",
-                models.functions.Lower("item__title"),
-            )
+            order = "calculated_progress" if ascending else "-calculated_progress"
+            return queryset.order_by(order, title_order)
 
-        # Default to generic sorting
-        return self._sort_generic_media_list(queryset, sort_filter)
+        return self._sort_generic_media_list(queryset, sort_filter, sort_dir)
 
-    def _sort_generic_media_list(self, queryset, sort_filter):
+    def _sort_generic_media_list(self, queryset, sort_filter, sort_dir="desc"):
         """Apply generic sorting logic for all media types."""
-        # Handle sorting by date fields with special null handling
+        ascending = sort_dir == "asc"
+        title_order = models.functions.Lower("item__title")
+
+        if sort_filter == "title":
+            return queryset.order_by(
+                title_order if ascending else title_order.desc(),
+            )
+
         if sort_filter in ("start_date", "end_date"):
-            # For start_date, sort ascending (earliest first)
-            if sort_filter == "start_date":
-                return queryset.order_by(
-                    models.F(sort_filter).asc(nulls_last=True),
-                    models.functions.Lower("item__title"),
-                )
-            # For other date fields, sort descending (latest first)
-            return queryset.order_by(
-                models.F(sort_filter).desc(nulls_last=True),
-                models.functions.Lower("item__title"),
+            order = (
+                models.F(sort_filter).asc(nulls_last=True)
+                if ascending
+                else models.F(sort_filter).desc(nulls_last=True)
             )
+            return queryset.order_by(order, title_order)
 
-        # Handle sorting by Item fields
         item_fields = [f.name for f in Item._meta.fields]
-        if sort_filter in item_fields:
-            if sort_filter == "title":
-                # Case-insensitive title sorting
-                return queryset.order_by(models.functions.Lower("item__title"))
-            # Default sorting for other Item fields
-            return queryset.order_by(
-                f"-item__{sort_filter}",
-                models.functions.Lower("item__title"),
-            )
-
-        # Default sorting by media field
-        return queryset.order_by(
-            models.F(sort_filter).desc(nulls_last=True),
-            models.functions.Lower("item__title"),
+        field_ref = (
+            f"item__{sort_filter}" if sort_filter in item_fields else sort_filter
         )
+
+        order = (
+            models.F(field_ref).asc(nulls_last=True)
+            if ascending
+            else models.F(field_ref).desc(nulls_last=True)
+        )
+        return queryset.order_by(order, title_order)
 
     def annotate_max_progress(self, media_list, media_type):
         """Annotate max_progress for all media items."""

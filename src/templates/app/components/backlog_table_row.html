@@ -65,7 +65,7 @@
       {% if media.next_event and not media.next_event.is_max_datetime %}
         <span class="text-accent-soft">
           {% if media.next_event.content_number %}
-            {{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} &bull;
+            {{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} •
           {% endif %}
           {{ media.next_event.datetime|natural_day:user }}
         </span>

@@ -1,5 +1,6 @@
 from app.views.actions import (
     backlog_save,
+    bulk_action,
     quick_add,
     quick_archive,
     quick_catch_up,
@@ -61,6 +62,7 @@ __all__ = [
     "add_by_link",
     "add_by_link_process",
     "backlog_save",
+    "bulk_action",
     "create_entry",
     "delete_history_record",
     "episode_save",

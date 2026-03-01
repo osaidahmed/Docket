@@ -2,8 +2,16 @@
 
 {% for media in media_list %}
   <tr class="hover:bg-input transition-colors cursor-pointer hover-tap"
+      :class="{ 'bg-accent/10': selecting && selected.includes('{{ media.id }}') }"
+      data-bulk-id="{{ media.id }}"
       x-data="{ trackOpen: false }"
       {% if forloop.last and media_list.has_next %} hx-get="{% url 'medialist' media_type %}?page={{ media_list.next_page_number }}" hx-trigger="revealed threshold:200px" hx-swap="afterend" hx-include="#filter-form" hx-indicator="#loading-indicator" {% endif %}>
+    <td x-show="selecting" class="p-2" @click.stop>
+      <input type="checkbox"
+             :checked="selected.includes('{{ media.id }}')"
+             @click="toggleItem('{{ media.id }}', $event)"
+             class="w-5 h-5 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0 cursor-pointer">
+    </td>
     <td class="p-2 relative">
       <img alt="{{ media.item }}"
            class="lazyload min-w-10 w-10 h-10 object-cover rounded-md parent-hover-tap:hidden"
@@ -75,7 +83,7 @@
         {% if media.next_event and not media.next_event.is_max_datetime %}
           <span class="text-accent-soft">
             {% if media.next_event.content_number %}
-              {{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} &bull;
+              {{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} •
             {% endif %}
             {{ media.next_event.datetime|natural_day:user }}
           </span>

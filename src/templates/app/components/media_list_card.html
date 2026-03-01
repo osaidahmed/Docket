@@ -1,6 +1,6 @@
 {% load app_tags %}
 
-<div id="medialist-card-{{ media.item.media_type }}-{{ media.id }}" class="bg-card rounded-lg hover:bg-input transition-colors duration-200" x-data="{ editing:
+<div id="medialist-card-{{ media.item.media_type }}-{{ media.id }}" data-bulk-id="{{ media.id }}" class="bg-card rounded-lg hover:bg-input transition-colors duration-200" :class="{ 'ring-2 ring-accent': selecting && selected.includes('{{ media.id }}') }" x-data="{ editing:
   {% if show_edit %}
     true
   {% else %}
@@ -8,6 +8,12 @@
   {% endif %}
   , confirmDrop: false }">
   <div class="flex items-start p-4 gap-4">
+    <div x-show="selecting" class="flex items-center shrink-0" @click.stop>
+      <input type="checkbox"
+             :checked="selected.includes('{{ media.id }}')"
+             @click="toggleItem('{{ media.id }}', $event)"
+             class="w-5 h-5 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0 cursor-pointer">
+    </div>
     <div class="shrink-0">
       <a href="{{ media.item|media_url }}">
         <img alt="{{ media }}"
@@ -40,7 +46,9 @@
               </span>
             {% endif %}
             {% if media.item.media_type != "movie" %}
-              <span>{{ media.formatted_progress }}{% if media.max_progress %} / {{ media.max_progress }}{% endif %}</span>
+              <span>{{ media.formatted_progress }}
+                {% if media.max_progress %}/ {{ media.max_progress }}{% endif %}
+              </span>
             {% endif %}
           </div>
 
