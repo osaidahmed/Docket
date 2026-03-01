@@ -154,9 +154,11 @@ def media_list(request, media_type):
         f"{media_type}_sort",
         request.GET.get("sort"),
     )
-    status_filter = request.user.update_preference(
-        f"{media_type}_status",
-        request.GET.get("status"),
+    status_param = request.GET.get("status")
+    status_filter = (
+        status_param
+        if request.GET.get("temp") and status_param
+        else request.user.update_preference(f"{media_type}_status", status_param)
     )
     search_query = request.GET.get("search", "")
     sort_dir = request.GET.get("sort_dir")

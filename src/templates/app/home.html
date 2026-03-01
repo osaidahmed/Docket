@@ -183,7 +183,7 @@
           {% endif %}
 
           {% if sg.truncated and sg.media_type %}
-            <a href="{% url 'medialist' sg.media_type %}?status={{ sg.status|urlencode }}"
+            <a href="{% url 'medialist' sg.media_type %}?status={{ sg.status|urlencode }}&temp=1"
                class="block text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2">
               See all
             </a>

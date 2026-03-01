@@ -15,6 +15,7 @@ class ExportMediaViewTests(TestCase):
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
+        completed_count = 2
         for i in range(1, 4):
             item = Item.objects.create(
                 media_id=str(100 + i),
@@ -23,11 +24,14 @@ class ExportMediaViewTests(TestCase):
                 title=f"Export Movie {i}",
                 image="http://example.com/image.jpg",
             )
+            is_completed = i <= completed_count
             Movie.objects.create(
                 item=item,
                 user=cls.user,
-                status=(Status.COMPLETED.value if i < 3 else Status.IN_PROGRESS.value),
-                progress=1 if i < 3 else 0,
+                status=(
+                    Status.COMPLETED.value if is_completed else Status.IN_PROGRESS.value
+                ),
+                progress=1 if is_completed else 0,
                 score=i * 3,
             )
 
@@ -219,6 +223,7 @@ class PrintMediaViewTests(TestCase):
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
+        completed_count = 2
         for i in range(1, 4):
             item = Item.objects.create(
                 media_id=str(300 + i),
@@ -230,7 +235,11 @@ class PrintMediaViewTests(TestCase):
             Movie.objects.create(
                 item=item,
                 user=cls.user,
-                status=(Status.COMPLETED.value if i < 3 else Status.IN_PROGRESS.value),
+                status=(
+                    Status.COMPLETED.value
+                    if i <= completed_count
+                    else Status.IN_PROGRESS.value
+                ),
             )
 
     def setUp(self):

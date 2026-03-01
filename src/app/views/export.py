@@ -40,7 +40,7 @@ def export_media(request, media_type):
 
     search_query = request.GET.get("search", "")
     media_list = _get_filtered_media(request.user, media_type, search_query)
-    rows = export_service.serialize_media_list(media_list, media_type)
+    rows = export_service.serialize_media_list(media_list)
 
     plural_label = config.get_plural_label(media_type).lower()
     now = timezone.localtime().strftime("%Y-%m-%d")
@@ -91,7 +91,7 @@ def export_media_txt(request, media_type):
     request.user.save(update_fields=["export_txt_config"])
 
     media_list = _get_filtered_media(request.user, media_type, search_query)
-    rows = export_service.serialize_media_list(media_list, media_type)
+    rows = export_service.serialize_media_list(media_list)
     content = export_service.format_txt(rows, template, separator)
 
     plural_label = config.get_plural_label(media_type).lower()

@@ -6,6 +6,8 @@ from app.services.export import format_csv, format_json, format_markdown, format
 
 
 class FormatCsvTests(TestCase):
+    """Test CSV formatter."""
+
     def test_basic(self):
         rows = [
             {"title": "Movie A", "score": "8.5", "status": "Completed"},
@@ -28,6 +30,8 @@ class FormatCsvTests(TestCase):
 
 
 class FormatJsonTests(TestCase):
+    """Test JSON formatter."""
+
     def test_basic(self):
         rows = [{"title": "Movie A"}, {"title": "Movie B"}]
         result = format_json(rows)
@@ -46,6 +50,8 @@ class FormatJsonTests(TestCase):
 
 
 class FormatMarkdownTests(TestCase):
+    """Test Markdown formatter."""
+
     def test_basic(self):
         rows = [
             {"title": "Movie A", "score": "8"},
@@ -72,6 +78,8 @@ class FormatMarkdownTests(TestCase):
 
 
 class FormatTxtTests(TestCase):
+    """Test TXT formatter."""
+
     def test_basic(self):
         rows = [
             {"title": "Movie A", "score": "8.5", "status": "Completed"},

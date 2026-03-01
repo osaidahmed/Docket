@@ -20,7 +20,7 @@ EXPORT_FIELDS = [
 ]
 
 
-def serialize_media_list(media_list, media_type):
+def serialize_media_list(media_list):
     """Convert an annotated media list to a list of export dicts."""
     rows = []
     for media in media_list:
