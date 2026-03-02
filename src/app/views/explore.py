@@ -1,9 +1,11 @@
+from django.apps import apps
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_GET
 
 from app import config, helpers
 from app.models import MediaTypes
 from app.providers import services
+from app.services.recommendations import _add_title_variants, _matches_cross_media
 
 
 @require_GET
@@ -52,10 +54,35 @@ def explore_type(request, media_type):
         year = None
         season_name = None
 
+    hide_watched_anime = (
+        media_type == MediaTypes.MANGA.value
+        and request.GET.get("hide_watched_anime") == "1"
+    )
+
+    if hide_watched_anime and data.get("results"):
+        cross_media_titles = set()
+        anime_model = apps.get_model(app_label="app", model_name=MediaTypes.ANIME.value)
+        anime_items = anime_model.objects.filter(
+            user=request.user
+        ).select_related("item")
+        for m in anime_items:
+            _add_title_variants(cross_media_titles, m.item.title)
+            if m.item.english_title:
+                _add_title_variants(cross_media_titles, m.item.english_title)
+        data["results"] = [
+            r for r in data["results"]
+            if not _matches_cross_media(
+                r.get("title", "").strip().lower(), cross_media_titles
+            )
+        ]
+
     if data.get("results"):
         data["results"] = helpers.enrich_items_with_user_data(
             request, data["results"], "explore"
         )
+
+    if hide_watched_anime:
+        extra_params += "&hide_watched_anime=1"
 
     context = {
         "data": data,
@@ -64,6 +91,8 @@ def explore_type(request, media_type):
         "current_category": category,
         "layout": layout,
         "extra_params": extra_params,
+        "hide_watched_anime": hide_watched_anime,
+        "is_manga": media_type == MediaTypes.MANGA.value,
         "is_upcoming": config.is_upcoming_category(
             media_type, category, year, season_name
         ),

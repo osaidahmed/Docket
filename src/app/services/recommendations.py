@@ -7,7 +7,7 @@ from django.apps import apps
 from django.conf import settings
 from django.core.cache import cache
 
-from app.models import Status
+from app.models import MediaTypes, Status
 from app.providers import services as provider_services
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,25 @@ def get_progress_key(user_id, media_type):
 def get_progress(user_id, media_type):
     """Return current computation progress, or None if not running."""
     return cache.get(get_progress_key(user_id, media_type))
+
+
+def _add_title_variants(title_set, title):
+    """Add normalized title and base title (before first colon) to the set."""
+    norm = title.strip().lower()
+    title_set.add(norm)
+    if ":" in norm:
+        title_set.add(norm.split(":")[0].strip())
+
+
+def _matches_cross_media(title, cross_media_titles):
+    """Check if a title matches any cross-media title (exact or base)."""
+    if not cross_media_titles:
+        return False
+    if title in cross_media_titles:
+        return True
+    if ":" in title:
+        return title.split(":")[0].strip() in cross_media_titles
+    return False
 
 
 def compute_recommendations(user_id, media_type):
@@ -94,6 +113,15 @@ def compute_recommendations(user_id, media_type):
         )
 
     seen_titles = set()
+    cross_media_titles = set()
+
+    if media_type == MediaTypes.MANGA.value:
+        anime_model = apps.get_model(app_label="app", model_name=MediaTypes.ANIME.value)
+        anime_items = anime_model.objects.filter(user_id=user_id).select_related("item")
+        for m in anime_items:
+            _add_title_variants(cross_media_titles, m.item.title)
+            if m.item.english_title:
+                _add_title_variants(cross_media_titles, m.item.english_title)
 
     def _dedup(candidates, limit):
         result = []
@@ -103,6 +131,8 @@ def compute_recommendations(user_id, media_type):
             rec = rec_details[key]
             norm_title = rec.get("title", "").strip().lower()
             if norm_title in seen_titles:
+                continue
+            if _matches_cross_media(norm_title, cross_media_titles):
                 continue
             seen_titles.add(norm_title)
             shown_keys.add(key)
