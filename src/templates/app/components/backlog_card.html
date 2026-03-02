@@ -8,6 +8,11 @@
   {% endif %}
   , confirmDrop: false }">
   <div class="flex items-start p-4 gap-4">
+    {% if media.is_pinned %}
+      <div class="drag-handle flex items-center cursor-grab active:cursor-grabbing shrink-0 text-gray-500 hover:text-gray-300 -ml-1">
+        {% include "app/icons/grip-vertical.svg" with classes="w-5 h-5" %}
+      </div>
+    {% endif %}
     <div class="shrink-0">
       <a href="{{ media.item|media_url }}">
         <img alt="{{ media }}"
@@ -52,6 +57,31 @@
               </span>
             </div>
           {% endif %}
+
+          {% if media.collapsed_seasons %}
+            <div x-data="{ showSeasons: false }" class="mt-1">
+              <button @click="showSeasons = !showSeasons"
+                      class="text-xs text-gray-400 hover:text-accent-soft transition-colors cursor-pointer flex items-center gap-1">
+                +{{ media.collapsed_seasons|length }} more season{{ media.collapsed_seasons|length|pluralize }}
+                <span x-text="showSeasons ? '\u25BE' : '\u25B8'"></span>
+              </button>
+              <div x-show="showSeasons" x-cloak class="ml-2 mt-1.5 space-y-1.5">
+                {% for season in media.collapsed_seasons %}
+                  <div class="flex items-center justify-between gap-2 p-2 bg-input rounded text-sm">
+                    <span class="text-gray-300">{{ season }}</span>
+                    <button hx-post="{% url 'quick_status_transition' %}"
+                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                            hx-vals='{"media_type": "{{ season.item.media_type }}", "instance_id": "{{ season.id }}", "target_status": "In progress"}'
+                            hx-swap="none"
+                            class="flex items-center gap-1 px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors text-xs font-medium cursor-pointer shrink-0">
+                      {% include "app/icons/states/in-progress.svg" with classes="w-3 h-3" %}
+                      Start
+                    </button>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
         </div>
 
         <div class="flex items-center gap-1.5 shrink-0">
@@ -67,6 +97,17 @@
           <button @click="editing = !editing"
                   class="p-2 text-gray-400 hover:text-accent-soft transition-colors cursor-pointer"
                   title="Edit">{% include "app/icons/edit-flat.svg" with classes="w-5 h-5" %}</button>
+
+          {% if media.status == Status.PLANNING.value and not media.not_yet_airing %}
+            <button hx-post="{% url 'toggle_pin' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                    hx-swap="none"
+                    class="p-2 transition-colors cursor-pointer {% if media.is_pinned %}text-accent-soft hover:text-gray-400{% else %}text-gray-400 hover:text-accent-soft{% endif %}"
+                    title="{% if media.is_pinned %}Unpin{% else %}Pin{% endif %}">
+              {% include "app/icons/pin.svg" with classes="w-5 h-5" %}
+            </button>
+          {% endif %}
 
           {% if media.status == Status.IN_PROGRESS.value %}
             {% if not media.not_yet_airing and media.item.media_type|has_caught_up and media.next_event and not media.next_event.is_max_datetime %}
@@ -280,6 +321,17 @@
                      class="w-4 h-4 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0">
               <label for="is-rewatch-{{ media.item.media_type }}-{{ media.id }}"
                      class="text-sm text-gray-400">{{ media.item.media_type|repeat_label }}</label>
+            </div>
+          {% endif %}
+          {% if media.status == Status.PLANNING.value %}
+            <div class="flex items-center gap-2">
+              <input type="checkbox"
+                     name="is_pinned"
+                     id="is-pinned-{{ media.item.media_type }}-{{ media.id }}"
+                     {% if media.is_pinned %}checked{% endif %}
+                     class="w-4 h-4 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0">
+              <label for="is-pinned-{{ media.item.media_type }}-{{ media.id }}"
+                     class="text-sm text-gray-400">Pinned</label>
             </div>
           {% endif %}
         </div>

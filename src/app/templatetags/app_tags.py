@@ -156,6 +156,15 @@ def media_past_verb(media_type):
 
 
 @register.filter
+def media_verb_ing(media_type):
+    """Return the present participle of the verb for the media type."""
+    verb = config.get_verb(media_type, past_tense=False)
+    if verb.endswith("e"):
+        return verb[:-1] + "ing"
+    return verb + "ing"
+
+
+@register.filter
 def has_caught_up(media_type):
     """Return True if the media type supports the caught-up concept."""
     return config.supports_caught_up(media_type)

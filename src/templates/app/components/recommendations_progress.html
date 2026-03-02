@@ -1,0 +1,19 @@
+<div id="recommendations-section"
+     hx-get="{% url 'recommendations_section' media_type %}"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     class="text-center py-12">
+  <div class="inline-flex justify-center items-center mb-4">
+    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-hover"></div>
+  </div>
+  <p class="text-white text-lg mb-2">Computing recommendations...</p>
+  <div class="w-64 mx-auto bg-gray-700 rounded-full h-2 mt-4">
+    <div class="bg-accent h-2 rounded-full transition-all duration-500"
+         style="width: {{ progress_pct }}%"></div>
+  </div>
+  {% if progress_total > 0 %}
+    <p class="text-sm text-gray-400 mt-2">{{ progress_current }} / {{ progress_total }} items processed</p>
+  {% else %}
+    <p class="text-sm text-gray-400 mt-2">Starting...</p>
+  {% endif %}
+</div>

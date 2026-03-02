@@ -9,6 +9,8 @@ from app.views.actions import (
     quick_rewatch,
     quick_status_transition,
     quick_untrack,
+    save_pin_order,
+    toggle_pin,
 )
 from app.views.add_by_link import (
     add_by_link,
@@ -89,6 +91,7 @@ __all__ = [
     "quick_status_transition",
     "quick_untrack",
     "recommendations_section",
+    "save_pin_order",
     "search_parent_season",
     "search_parent_tv",
     "search_suggest_api",
@@ -98,6 +101,7 @@ __all__ = [
     "service_worker",
     "statistics",
     "sync_metadata",
+    "toggle_pin",
     "track_modal",
     "update_media_score",
 ]

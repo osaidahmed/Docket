@@ -144,6 +144,26 @@ def progress_edit(request, media_type, instance_id):
     )
 
 
+def _split_pinned_from_queryset(queryset, status_filter):
+    """Separate pinned Planning items from the main queryset."""
+    if status_filter != Status.PLANNING.value:
+        return queryset, []
+    pinned = list(queryset.filter(pin_order__isnull=False).order_by("pin_order"))
+    rest = queryset.filter(pin_order__isnull=True)
+    return rest, pinned
+
+
+def _annotate_media_list(page_items, pinned_list, media_type):
+    """Annotate max_progress and next_event on page items and pinned list."""
+    BasicMedia.objects.annotate_max_progress(page_items, media_type)
+    if pinned_list:
+        BasicMedia.objects.annotate_max_progress(pinned_list, media_type)
+    if media_type != MediaTypes.TV.value:
+        backlog.annotate_next_event(page_items)
+        if pinned_list:
+            backlog.annotate_next_event(pinned_list)
+
+
 @require_GET
 def media_list(request, media_type):
     """Return the media list page."""
@@ -177,17 +197,15 @@ def media_list(request, media_type):
         sort_dir=sort_dir,
     )
 
+    media_queryset, pinned_list = _split_pinned_from_queryset(
+        media_queryset, status_filter
+    )
+
     items_per_page = 32
     paginator = Paginator(media_queryset, items_per_page)
     media_page = paginator.get_page(page)
 
-    BasicMedia.objects.annotate_max_progress(
-        media_page.object_list,
-        media_type,
-    )
-
-    if media_type != MediaTypes.TV.value:
-        backlog.annotate_next_event(media_page.object_list)
+    _annotate_media_list(media_page.object_list, pinned_list, media_type)
 
     if layout == "grid":
         layout_class = ".media-grid"
@@ -221,12 +239,21 @@ def media_list(request, media_type):
         ),
         "edit_status_choices": Status.choices,
         "supports_recommendations": config.supports_recommendations(media_type),
+        "pinned_list": pinned_list,
+        "active_tab": request.GET.get("tab", "collection"),
     }
 
     if request.headers.get("HX-Request"):
         if request.headers.get("HX-Target") == "empty_list":
             response = HttpResponse()
             response["HX-Redirect"] = reverse("medialist", args=[media_type])
+            return response
+        is_pagination = int(page) > 1
+        if not is_pagination and (
+            pinned_list or status_filter == Status.PLANNING.value
+        ):
+            response = HttpResponse()
+            response["HX-Redirect"] = request.get_full_path()
             return response
         if layout == "grid":
             template_name = "app/components/media_grid_items.html"
@@ -246,24 +273,50 @@ def recommendations_section(request, media_type):
     if not config.supports_recommendations(media_type):
         return HttpResponse("")
 
-    cache_key = recs_service.get_cache_key(request.user.id, media_type)
+    user_id = request.user.id
+    cache_key = recs_service.get_cache_key(user_id, media_type)
     result = cache.get(cache_key)
 
-    if result is None:
-        result = recs_service.compute_recommendations(request.user.id, media_type)
+    if result is not None:
+        return _render_recommendations(request, result, media_type)
 
-    return _render_recommendations(request, result, media_type)
+    progress = recs_service.get_progress(user_id, media_type)
+    if progress is None:
+        from app.tasks import compute_recommendations_task  # noqa: PLC0415
+
+        progress = {"current": 0, "total": 0}
+        cache.set(
+            recs_service.get_progress_key(user_id, media_type),
+            progress,
+            recs_service.PROGRESS_TIMEOUT,
+        )
+        compute_recommendations_task.delay(user_id, media_type)
+
+    pct = (
+        round(progress["current"] / progress["total"] * 100)
+        if progress["total"] > 0
+        else 0
+    )
+    return render(
+        request,
+        "app/components/recommendations_progress.html",
+        {
+            "media_type": media_type,
+            "progress_current": progress["current"],
+            "progress_total": progress["total"],
+            "progress_pct": pct,
+        },
+    )
 
 
 def _render_recommendations(request, result, media_type):
-    if not result["active"] and not result["full"]:
-        return HttpResponse("")
     return render(
         request,
         "app/components/recommendations_section.html",
         {
             "active_recs": result["active"],
             "full_recs": result["full"],
+            "genre_sections": result.get("genres", []),
             "media_type": media_type,
         },
     )

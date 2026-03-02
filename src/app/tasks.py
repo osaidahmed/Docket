@@ -23,10 +23,14 @@ def compute_recommendations_task(user_id, media_type):
         from django.conf import settings  # noqa: PLC0415
         from django.core.cache import cache  # noqa: PLC0415
 
-        from app.services.recommendations import get_cache_key  # noqa: PLC0415
+        from app.services.recommendations import (  # noqa: PLC0415
+            get_cache_key,
+            get_progress_key,
+        )
 
         cache.set(
             get_cache_key(user_id, media_type),
-            {"active": [], "full": []},
+            {"active": [], "full": [], "genres": []},
             settings.CACHE_TIMEOUT,
         )
+        cache.delete(get_progress_key(user_id, media_type))

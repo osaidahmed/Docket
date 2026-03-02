@@ -1,11 +1,11 @@
 {% load app_tags %}
 
-{% if active_recs or full_recs %}
-  <div id="recommendations-section" class="mt-12 space-y-10">
+{% if active_recs or full_recs or genre_sections %}
+  <div id="recommendations-section" class="space-y-10">
     {% if active_recs %}
       <section>
         <h2 class="text-xl font-bold mb-4 text-white">Recommended for You</h2>
-        <p class="text-sm text-gray-400 mb-4">Based on what you're currently watching</p>
+        <p class="text-sm text-gray-400 mb-4">Based on what you're currently {{ media_type|media_verb_ing }}</p>
         <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-4 [&_.line-clamp-1]:line-clamp-2 [&_.p-3]:p-2">
           {% for item in active_recs %}
             {% include "app/components/media_card.html" with item=item title=item.title from_search=True from_grid=True %}
@@ -25,5 +25,22 @@
         </div>
       </section>
     {% endif %}
+
+    {% for section in genre_sections %}
+      <section>
+        <h2 class="text-xl font-bold mb-4 text-white">{{ section.name }}</h2>
+        <p class="text-sm text-gray-400 mb-4">Based on your {{ section.name }} collection</p>
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-4 [&_.line-clamp-1]:line-clamp-2 [&_.p-3]:p-2">
+          {% for item in section.recs %}
+            {% include "app/components/media_card.html" with item=item title=item.title from_search=True from_grid=True %}
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <div id="recommendations-section" class="text-center py-12 text-gray-400">
+    <p class="text-lg mb-2">No recommendations yet</p>
+    <p class="text-sm">Track more items to get personalized suggestions</p>
   </div>
 {% endif %}

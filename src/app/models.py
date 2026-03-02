@@ -711,6 +711,7 @@ class Media(models.Model):
             "link",
             "caught_up",
             "is_rewatch",
+            "pin_order",
         ],
     )
 
@@ -741,6 +742,7 @@ class Media(models.Model):
     link = models.URLField(blank=True, default="")
     caught_up = models.BooleanField(default=False)
     is_rewatch = models.BooleanField(default=False)
+    pin_order = models.PositiveIntegerField(null=True, default=None, blank=True)
 
     class Meta:
         """Meta options for the model."""
@@ -811,6 +813,11 @@ class Media(models.Model):
     def formatted_progress(self):
         """Return the progress of the media in a formatted string."""
         return str(self.progress)
+
+    @property
+    def is_pinned(self):
+        """Whether this item has a pin order set."""
+        return self.pin_order is not None
 
     def increase_progress(self):
         """Increase the progress of the media by one."""

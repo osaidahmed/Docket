@@ -119,6 +119,18 @@
       {% endif %}
     </td>
     <td class="p-2">
+      {% if media.status == Status.PLANNING.value and not media.not_yet_airing %}
+        <button hx-post="{% url 'toggle_pin' %}"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                hx-swap="none"
+                class="p-1.5 transition-colors cursor-pointer {% if media.is_pinned %}text-accent-soft{% else %}text-gray-400 hover:text-accent-soft{% endif %}"
+                title="{% if media.is_pinned %}Unpin{% else %}Pin{% endif %}">
+          {% include "app/icons/pin.svg" with classes="w-4 h-4" %}
+        </button>
+      {% endif %}
+    </td>
+    <td class="p-2">
       {% if media.status == Status.IN_PROGRESS.value %}
         {% if not media.not_yet_airing and media.item.media_type|has_caught_up and media.next_event and not media.next_event.is_max_datetime %}
           {% if media.is_caught_up %}

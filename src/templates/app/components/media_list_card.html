@@ -6,7 +6,7 @@
   {% else %}
     false
   {% endif %}
-  , confirmDrop: false }">
+  , confirmDrop: false, confirmUntrack: false }">
   <div class="flex items-start p-4 gap-4">
     <div x-show="selecting" class="flex items-center shrink-0" @click.stop>
       <input type="checkbox"
@@ -81,6 +81,17 @@
                   class="p-2 text-gray-400 hover:text-accent-soft transition-colors cursor-pointer"
                   title="Edit">{% include "app/icons/edit-flat.svg" with classes="w-5 h-5" %}</button>
 
+          {% if media.status == Status.PLANNING.value and not media.not_yet_airing %}
+            <button hx-post="{% url 'toggle_pin' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                    hx-swap="none"
+                    class="p-2 transition-colors cursor-pointer {% if media.is_pinned %}text-accent-soft{% else %}text-gray-400 hover:text-accent-soft{% endif %}"
+                    title="{% if media.is_pinned %}Unpin{% else %}Pin{% endif %}">
+              {% include "app/icons/pin.svg" with classes="w-5 h-5" %}
+            </button>
+          {% endif %}
+
           {% if media.status == Status.IN_PROGRESS.value %}
             {% if not media.not_yet_airing and media.item.media_type|has_caught_up and media.next_event and not media.next_event.is_max_datetime %}
               {% if media.is_caught_up %}
@@ -148,16 +159,31 @@
               Plan
             </button>
           {% elif media.status == Status.DROPPED.value %}
-            <button hx-post="{% url 'quick_untrack' %}"
-                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
-                    hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
-                    hx-swap="outerHTML"
-                    hx-confirm="Untrack this item? This will remove all your tracking data."
-                    class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-full hover:bg-red-500 transition-all duration-200 text-sm font-medium cursor-pointer">
-              {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
-              Untrack
-            </button>
+            <div x-show="!confirmUntrack">
+              <button type="button"
+                      @click="confirmUntrack = true"
+                      class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-full hover:bg-red-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+                {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
+                Untrack
+              </button>
+            </div>
+            <div x-show="confirmUntrack" class="flex items-center gap-2">
+              <span class="text-sm text-gray-400">Untrack this?</span>
+              <button type="button"
+                      @click="confirmUntrack = false"
+                      class="px-3 py-1.5 text-gray-400 hover:text-white rounded-full text-sm font-medium cursor-pointer transition-colors">
+                Cancel
+              </button>
+              <button hx-post="{% url 'quick_untrack' %}"
+                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                      hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
+                      hx-swap="outerHTML"
+                      class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-full hover:bg-red-500 transition-all duration-200 text-sm font-medium cursor-pointer">
+                {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
+                Untrack
+              </button>
+            </div>
           {% endif %}
         </div>
       </div>
@@ -305,22 +331,47 @@
                      class="text-sm text-gray-400">{{ media.item.media_type|repeat_label }}</label>
             </div>
           {% endif %}
+          {% if media.status == Status.PLANNING.value %}
+            <div class="flex items-center gap-2">
+              <input type="checkbox"
+                     name="is_pinned"
+                     id="ml-is-pinned-{{ media.item.media_type }}-{{ media.id }}"
+                     {% if media.is_pinned %}checked{% endif %}
+                     class="w-4 h-4 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0">
+              <label for="ml-is-pinned-{{ media.item.media_type }}-{{ media.id }}"
+                     class="text-sm text-gray-400">Pinned</label>
+            </div>
+          {% endif %}
         </div>
       {% endif %}
 
       <div class="flex justify-between mt-3">
         {% if media.status == Status.DROPPED.value %}
-          <button type="button"
-                  hx-post="{% url 'quick_untrack' %}"
-                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
-                  hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
-                  hx-swap="outerHTML"
-                  hx-confirm="Untrack this item? This will remove all your tracking data."
-                  class="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md text-sm font-medium cursor-pointer transition-colors">
-            {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
-            Untrack
-          </button>
+          <div x-show="!confirmUntrack">
+            <button type="button"
+                    @click="confirmUntrack = true"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md text-sm font-medium cursor-pointer transition-colors">
+              {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
+              Untrack
+            </button>
+          </div>
+          <div x-show="confirmUntrack" class="flex items-center gap-2">
+            <span class="text-sm text-gray-400">Untrack this?</span>
+            <button type="button"
+                    @click="confirmUntrack = false"
+                    class="px-3 py-1.5 text-gray-400 hover:text-white rounded-md text-sm font-medium cursor-pointer transition-colors">
+              Cancel
+            </button>
+            <button hx-post="{% url 'quick_untrack' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                    hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
+                    hx-swap="outerHTML"
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white hover:bg-red-500 rounded-md text-sm font-medium cursor-pointer transition-colors">
+              {% include "app/icons/circle-x.svg" with classes="w-4 h-4" %}
+              Untrack
+            </button>
+          </div>
         {% else %}
           <div x-show="!confirmDrop">
             <button type="button"

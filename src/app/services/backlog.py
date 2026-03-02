@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from django.apps import apps
 from django.db.models import F, Window
 from django.db.models.functions import RowNumber
@@ -84,12 +86,13 @@ def _build_type_groups(
             for status_val in backlog_statuses:
                 items = [m for m in backlog_items if m.status == status_val]
                 if items:
-                    status_groups.append(
-                        {
-                            "status": status_val,
-                            "items": _sort_in_progress_media(items, sort_by),
-                        }
-                    )
+                    sg = {
+                        "status": status_val,
+                        "items": _sort_in_progress_media(items, sort_by),
+                    }
+                    if status_val == Status.PLANNING.value:
+                        _split_pinned(sg)
+                    status_groups.append(sg)
 
             if status_groups:
                 groups.append(
@@ -144,16 +147,17 @@ def _build_status_groups(
     for status_val in backlog_statuses:
         items = [m for m in all_backlog if m.status == status_val]
         if items:
+            sg = {
+                "status": status_val,
+                "items": _sort_in_progress_media(items, sort_by),
+            }
+            if status_val == Status.PLANNING.value:
+                _split_pinned(sg)
             groups.append(
                 {
                     "media_type": f"status_{status_val}",
                     "label": status_val,
-                    "status_groups": [
-                        {
-                            "status": status_val,
-                            "items": _sort_in_progress_media(items, sort_by),
-                        }
-                    ],
+                    "status_groups": [sg],
                 }
             )
 
@@ -183,7 +187,13 @@ def _extract_rewatches(groups, backlog_statuses, sort_by):
             rewatches = [m for m in sg["items"] if m.is_rewatch]
             sg["items"] = [m for m in sg["items"] if not m.is_rewatch]
             rewatch_items.extend(rewatches)
-        group["status_groups"] = [sg for sg in group["status_groups"] if sg["items"]]
+            if "pinned_items" in sg:
+                pinned_rewatches = [m for m in sg["pinned_items"] if m.is_rewatch]
+                sg["pinned_items"] = [m for m in sg["pinned_items"] if not m.is_rewatch]
+                rewatch_items.extend(pinned_rewatches)
+        group["status_groups"] = [
+            sg for sg in group["status_groups"] if sg["items"] or sg.get("pinned_items")
+        ]
     groups = [g for g in groups if g["status_groups"]]
 
     if rewatch_items:
@@ -224,7 +234,19 @@ def _extract_not_yet_airing(groups, backlog_statuses):
                 m for m in sg["items"] if not getattr(m, "not_yet_airing", False)
             ]
             nya_items.extend(nya)
-        group["status_groups"] = [sg for sg in group["status_groups"] if sg["items"]]
+            if "pinned_items" in sg:
+                pinned_nya = [
+                    m for m in sg["pinned_items"] if getattr(m, "not_yet_airing", False)
+                ]
+                sg["pinned_items"] = [
+                    m
+                    for m in sg["pinned_items"]
+                    if not getattr(m, "not_yet_airing", False)
+                ]
+                nya_items.extend(pinned_nya)
+        group["status_groups"] = [
+            sg for sg in group["status_groups"] if sg["items"] or sg.get("pinned_items")
+        ]
     groups = [g for g in groups if g["status_groups"]]
 
     if nya_items:
@@ -336,6 +358,59 @@ def annotate_next_event(media_list):
             media.is_caught_up = media.caught_up or media.progress >= media.max_progress
         else:
             media.is_caught_up = media.caught_up
+
+
+def _split_pinned(status_group):
+    """Split a Planning status group into pinned and rest items.
+
+    Modifies status_group in place, adding 'pinned_items' key when
+    any items have pin_order set. Always applies season collapsing
+    to the rest items (the function filters for Season items internally).
+    """
+    items = status_group["items"]
+    pinned = [m for m in items if m.is_pinned]
+    rest = [m for m in items if not m.is_pinned]
+
+    if not pinned:
+        status_group["items"] = _collapse_seasons(rest)
+        return
+
+    pinned.sort(key=lambda m: m.pin_order)
+    rest = _collapse_seasons(rest)
+    status_group["pinned_items"] = pinned
+    status_group["items"] = rest
+
+
+def _collapse_seasons(items):
+    """Collapse seasons of the same show into the earliest unwatched.
+
+    Groups Season items by their parent show (media_id + source),
+    keeps only the earliest season_number as the representative,
+    and attaches later seasons as collapsed_seasons on the representative.
+    Non-Season items pass through unchanged.
+    """
+    show_groups = defaultdict(list)
+    result = []
+
+    for item in items:
+        if item.item.media_type == MediaTypes.SEASON.value:
+            key = (item.item.media_id, item.item.source)
+            show_groups[key].append(item)
+        else:
+            result.append(item)
+
+    for seasons in show_groups.values():
+        if len(seasons) == 1:
+            seasons[0].collapsed_seasons = []
+            result.append(seasons[0])
+            continue
+
+        seasons.sort(key=lambda s: s.item.season_number or 0)
+        representative = seasons[0]
+        representative.collapsed_seasons = seasons[1:]
+        result.append(representative)
+
+    return result
 
 
 def _sort_in_progress_media(media_list, sort_by):

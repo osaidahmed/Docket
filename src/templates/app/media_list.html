@@ -21,7 +21,23 @@
       {% if not forloop.last %},{% endif %}
 
     {% endfor %}
-    } }" @keydown.escape.window="if (selecting) { selecting = false; selected = []; lastSelected = null; }">
+    }, activeTab: '{{ active_tab }}' }" @keydown.escape.window="if (selecting) { selecting = false; selected = []; lastSelected = null; }">
+
+    {% if supports_recommendations %}
+      <div class="flex gap-2 mb-4">
+        <button @click="activeTab = 'collection'; const u = new URL(window.location); u.searchParams.delete('tab'); history.replaceState({}, '', u)"
+                :class="activeTab === 'collection' ? 'bg-accent text-white' : 'bg-input hover:bg-highlight'"
+                class="px-4 py-2 rounded-md cursor-pointer transition-colors font-medium"
+                type="button">Collection</button>
+        <button @click="activeTab = 'recommendations'; const u = new URL(window.location); u.searchParams.set('tab', 'recommendations'); history.replaceState({}, '', u)"
+                :class="activeTab === 'recommendations' ? 'bg-accent text-white' : 'bg-input hover:bg-highlight'"
+                class="px-4 py-2 rounded-md cursor-pointer transition-colors font-medium"
+                type="button">Recommendations</button>
+      </div>
+    {% endif %}
+
+    <div x-show="activeTab === 'collection'"
+         {% if active_tab != 'collection' %}x-cloak{% endif %}>
 
     <!-- Form to manage state -->
     <form id="filter-form" class="hidden">
@@ -151,13 +167,6 @@
                 title="Select items"
                 type="button">{% include "app/icons/circle-check.svg" with classes="w-5 h-5" %}</button>
 
-        {% if supports_recommendations %}
-          <button @click="document.getElementById('recommendations-section')?.scrollIntoView({ behavior: 'smooth' })"
-                  class="p-2 rounded-md cursor-pointer bg-input hover:bg-highlight transition-colors"
-                  title="Jump to recommendations"
-                  type="button">{% include "app/icons/star.svg" with classes="w-5 h-5" %}</button>
-        {% endif %}
-
         <!-- Export -->
         <div class="relative" x-data="{ open: false, txtOpen: false }">
           <button class="flex items-center px-4 py-2 bg-input rounded-md hover:bg-highlight transition-colors cursor-pointer"
@@ -285,7 +294,7 @@
       </div>
     </div>
 
-    {% if not media_list %}
+    {% if not media_list and not pinned_list %}
       <div id="empty_list"
            class="flex flex-col items-center justify-center py-16 bg-card rounded-lg">
         <div class="text-center max-w-md mx-auto p-6">
@@ -302,7 +311,122 @@
           </a>
         </div>
       </div>
-    {% elif current_layout == "grid" %}
+    {% else %}
+      {% if pinned_list %}
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-3">
+            {% include "app/icons/pin.svg" with classes="w-4 h-4 text-accent-soft" %}
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Pinned</h2>
+          </div>
+
+          {% if current_layout == "grid" %}
+            {# djlint:off #}
+            <div class="media-grid" x-data x-init="new Sortable($el, { animation: 150, ghostClass: 'opacity-30', onEnd() { const ids = [...$el.children].map(el => ({ media_type: el.dataset.mediaType, id: parseInt(el.dataset.instanceId) })); fetch('{% url 'save_pin_order' %}', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}, body: JSON.stringify(ids) }); } })">
+            {# djlint:on #}
+            {% for media in pinned_list %}
+              <div data-media-type="{{ media.item.media_type }}"
+                   data-instance-id="{{ media.id }}">
+                {% include "app/components/media_list_grid_card.html" with media=media %}
+              </div>
+            {% endfor %}
+          </div>
+        {% elif current_layout == "table" %}
+          <div class="bg-card p-4 rounded-lg overflow-hidden max-w-[calc(100svw-4rem)] overflow-x-scroll">
+            <table class="w-full bg-card">
+              <tbody x-data
+                     x-init="new Sortable($el, { animation: 150, ghostClass: 'opacity-30', onEnd() { const ids = [...$el.children].map(el => ({ media_type: el.dataset.mediaType, id: parseInt(el.dataset.instanceId) })); fetch('{% url 'save_pin_order' %}', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}, body: JSON.stringify(ids) }); } })">
+                {% for media in pinned_list %}
+                  <tr class="hover:bg-input transition-colors cursor-grab"
+                      data-media-type="{{ media.item.media_type }}"
+                      data-instance-id="{{ media.id }}">
+                    <td class="p-2 relative">
+                      <img alt="{{ media.item }}"
+                           class="lazyload min-w-10 w-10 h-10 object-cover rounded-md"
+                           data-src="{{ media.item.image }}"
+                           src="{{ IMG_NONE }}">
+                    </td>
+                    <td class="p-2 pe-8 font-medium">
+                      <a href="{{ media.item|media_url }}"
+                         class="hover:text-accent-soft transition-colors line-clamp-1">{{ media.item }}</a>
+                    </td>
+                    {% if media.score is not None %}
+                      <td class="p-2 text-center">
+                        <div class="flex items-center justify-center">
+                          {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
+                          <span class="text-white -mt-[3px]">{{ media.formatted_score }}</span>
+                        </div>
+                      </td>
+                    {% else %}
+                      <td class="p-2 text-center">
+                        <div class="flex items-center justify-center">
+                          {% include "app/icons/star.svg" with classes="w-4 h-4 text-gray-400 mr-1 fill-current" %}
+                        </div>
+                      </td>
+                    {% endif %}
+                    {% if media_type != MediaTypes.MOVIE.value %}
+                      <td class="p-2 text-center">
+                        {{ media.formatted_progress }}
+                        {% if media.max_progress %}/ {{ media.max_progress }}{% endif %}
+                      </td>
+                    {% endif %}
+                    <td class="p-2 text-center text-sm {{ media.status|status_color }}">{{ media.status|media_status_readable }}</td>
+                    <td class="p-2">
+                      <button hx-post="{% url 'toggle_pin' %}"
+                              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                              hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                              hx-swap="none"
+                              class="p-1.5 text-accent-soft transition-colors cursor-pointer"
+                              title="Unpin">{% include "app/icons/pin.svg" with classes="w-4 h-4" %}</button>
+                    </td>
+                    <td class="p-2">
+                      {% if not media.not_yet_airing %}
+                        <button hx-post="{% url 'quick_status_transition' %}"
+                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                                hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "In progress", "source_context": "medialist"}'
+                                hx-swap="none"
+                                class="flex items-center gap-1 px-2 py-1 bg-accent text-white rounded-full hover:bg-accent-hover transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
+                                hx-on::after-request="location.reload()">
+                          {% include "app/icons/states/in-progress.svg" with classes="w-3.5 h-3.5" %}
+                          Start
+                        </button>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          {# djlint:off #}
+            <div class="space-y-3" x-data x-init="new Sortable($el, { handle: '.drag-handle', animation: 150, ghostClass: 'opacity-30', onEnd() { const ids = [...$el.children].map(el => ({ media_type: el.dataset.mediaType, id: parseInt(el.dataset.instanceId) })); fetch('{% url 'save_pin_order' %}', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}, body: JSON.stringify(ids) }); } })">
+          {# djlint:on #}
+          {% for media in pinned_list %}
+            <div class="flex items-center gap-2"
+                 data-media-type="{{ media.item.media_type }}"
+                 data-instance-id="{{ media.id }}">
+              <div class="drag-handle cursor-grab text-gray-500 hover:text-gray-300 shrink-0 p-1">
+                {% include "app/icons/grip-vertical.svg" with classes="w-5 h-5" %}
+              </div>
+              <div class="flex-1 min-w-0">
+                {% include "app/components/media_list_card.html" with media=media edit_status_choices=edit_status_choices %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+
+    {% if media_list %}
+      <div class="flex items-center gap-2 mb-3">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">
+          {{ media_list.paginator.count }} more planning item{{ media_list.paginator.count|pluralize }}
+        </h2>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  {% if media_list %}
+    {% if current_layout == "grid" %}
       <div class="media-grid" style="position: relative; z-index: 0">
         {% include "app/components/media_grid_items.html" %}
       </div>
@@ -407,6 +531,7 @@
               </th>
               <th class="p-2"></th>
               <th class="p-2"></th>
+              <th class="p-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -420,99 +545,106 @@
            style="position: relative;
                   z-index: 0">{% include "app/components/media_cards_items.html" %}</div>
     {% endif %}
+  {% endif %}
+{% endif %}
 
-    {# Bulk Action Bar #}
+{# Bulk Action Bar #}
+<div x-cloak
+     x-show="selecting"
+     x-transition
+     style="bottom: 1.5rem"
+     class="fixed left-1/2 -translate-x-1/2 z-40 bg-card border border-gray-700 rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3"
+     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+  <span class="text-sm font-medium text-white whitespace-nowrap"
+        x-text="selected.length + ' selected'"></span>
+  <div class="w-px h-6 bg-gray-600"></div>
+  <button @click="selected = [...document.querySelectorAll('[data-bulk-id]')].map(el => el.dataset.bulkId)"
+          class="text-sm text-gray-400 hover:text-white cursor-pointer whitespace-nowrap"
+          type="button">All</button>
+  <button @click="selected = []"
+          class="text-sm text-gray-400 hover:text-white cursor-pointer whitespace-nowrap"
+          type="button">None</button>
+  <div class="w-px h-6 bg-gray-600"></div>
+  <div class="relative" x-data="{ statusOpen: false }">
+    <button @click="statusOpen = !statusOpen"
+            class="flex items-center gap-1 px-3 py-1.5 bg-input rounded-md text-sm text-white hover:bg-highlight cursor-pointer"
+            type="button">
+      Status
+      {% include "app/icons/chevron-up.svg" with classes="w-3 h-3" %}
+    </button>
     <div x-cloak
-         x-show="selecting"
+         x-show="statusOpen"
+         @click.outside="statusOpen = false"
          x-transition
-         style="bottom: 1.5rem"
-         class="fixed left-1/2 -translate-x-1/2 z-40 bg-card border border-gray-700 rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3"
-         hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-      <span class="text-sm font-medium text-white whitespace-nowrap"
-            x-text="selected.length + ' selected'"></span>
-      <div class="w-px h-6 bg-gray-600"></div>
-      <button @click="selected = [...document.querySelectorAll('[data-bulk-id]')].map(el => el.dataset.bulkId)"
-              class="text-sm text-gray-400 hover:text-white cursor-pointer whitespace-nowrap"
-              type="button">All</button>
-      <button @click="selected = []"
-              class="text-sm text-gray-400 hover:text-white cursor-pointer whitespace-nowrap"
-              type="button">None</button>
-      <div class="w-px h-6 bg-gray-600"></div>
-      <div class="relative" x-data="{ statusOpen: false }">
-        <button @click="statusOpen = !statusOpen"
-                class="flex items-center gap-1 px-3 py-1.5 bg-input rounded-md text-sm text-white hover:bg-highlight cursor-pointer"
-                type="button">
-          Status
-          {% include "app/icons/chevron-up.svg" with classes="w-3 h-3" %}
-        </button>
-        <div x-cloak
-             x-show="statusOpen"
-             @click.outside="statusOpen = false"
-             x-transition
-             class="absolute bottom-full mb-2 left-0 py-1 w-36 bg-input rounded-md shadow-lg border border-gray-700">
-          {% for value, label in edit_status_choices %}
-            <button hx-post="{% url 'bulk_action' %}"
-                    hx-swap="none"
-                    :hx-vals="JSON.stringify({media_type: '{{ media_type }}', action: 'status', value: '{{ value }}', instance_ids: selected.join(',')})"
-                    class="block w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-highlight hover:text-white cursor-pointer"
-                    @click="statusOpen = false"
-                    type="button">{{ label }}</button>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="relative" x-data="{ scoreOpen: false, scoreVal: '' }">
-        <button @click="scoreOpen = !scoreOpen"
-                class="flex items-center gap-1 px-3 py-1.5 bg-input rounded-md text-sm text-white hover:bg-highlight cursor-pointer"
-                type="button">
-          Score
-          {% include "app/icons/chevron-up.svg" with classes="w-3 h-3" %}
-        </button>
-        <div x-cloak
-             x-show="scoreOpen"
-             @click.outside="scoreOpen = false"
-             x-transition
-             class="absolute bottom-full mb-2 left-0 p-3 bg-input rounded-md shadow-lg border border-gray-700">
-          <div class="flex items-center gap-2">
-            <input type="number"
-                   min="0"
-                   max="10"
-                   step="0.1"
-                   x-model="scoreVal"
-                   placeholder="0-10"
-                   class="w-20 p-1.5 bg-card rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
-            <button hx-post="{% url 'bulk_action' %}"
-                    hx-swap="none"
-                    :hx-vals="JSON.stringify({media_type: '{{ media_type }}', action: 'score', value: scoreVal, instance_ids: selected.join(',')})"
-                    class="px-3 py-1.5 bg-accent text-white rounded-md text-sm hover:bg-accent-hover cursor-pointer"
-                    type="button">Apply</button>
-          </div>
-        </div>
-      </div>
-      <div class="w-px h-6 bg-gray-600"></div>
-      <button hx-post="{% url 'bulk_action' %}"
-              hx-swap="none"
-              :hx-confirm="`Delete ${selected.length} selected items? This removes all tracking data.`"
-              :hx-vals="JSON.stringify({media_type: '{{ media_type }}', action: 'delete', instance_ids: selected.join(',')})"
-              class="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md text-sm font-medium cursor-pointer"
-              type="button">
-        {% include "app/icons/trashcan.svg" with classes="w-4 h-4" %}
-        Delete
-      </button>
-      <button @click="selecting = false; selected = []"
-              class="p-1.5 text-gray-400 hover:text-white cursor-pointer"
-              type="button">{% include "app/icons/x.svg" with classes="w-4 h-4" %}</button>
+         class="absolute bottom-full mb-2 left-0 py-1 w-36 bg-input rounded-md shadow-lg border border-gray-700">
+      {% for value, label in edit_status_choices %}
+        <button hx-post="{% url 'bulk_action' %}"
+                hx-swap="none"
+                :hx-vals="JSON.stringify({media_type: '{{ media_type }}', action: 'status', value: '{{ value }}', instance_ids: selected.join(',')})"
+                class="block w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-highlight hover:text-white cursor-pointer"
+                @click="statusOpen = false"
+                type="button">{{ label }}</button>
+      {% endfor %}
     </div>
-
-    <div id="loading-indicator" class="htmx-indicator text-center pt-8">
-      <div class="inline-flex justify-center items-center">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-hover"></div>
-      </div>
-    </div>
-
-    {% if supports_recommendations %}
-      <div hx-get="{% url 'recommendations_section' media_type %}"
-           hx-trigger="revealed"
-           hx-swap="outerHTML"></div>
-    {% endif %}
   </div>
+  <div class="relative" x-data="{ scoreOpen: false, scoreVal: '' }">
+    <button @click="scoreOpen = !scoreOpen"
+            class="flex items-center gap-1 px-3 py-1.5 bg-input rounded-md text-sm text-white hover:bg-highlight cursor-pointer"
+            type="button">
+      Score
+      {% include "app/icons/chevron-up.svg" with classes="w-3 h-3" %}
+    </button>
+    <div x-cloak
+         x-show="scoreOpen"
+         @click.outside="scoreOpen = false"
+         x-transition
+         class="absolute bottom-full mb-2 left-0 p-3 bg-input rounded-md shadow-lg border border-gray-700">
+      <div class="flex items-center gap-2">
+        <input type="number"
+               min="0"
+               max="10"
+               step="0.1"
+               x-model="scoreVal"
+               placeholder="0-10"
+               class="w-20 p-1.5 bg-card rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+        <button hx-post="{% url 'bulk_action' %}"
+                hx-swap="none"
+                :hx-vals="JSON.stringify({media_type: '{{ media_type }}', action: 'score', value: scoreVal, instance_ids: selected.join(',')})"
+                class="px-3 py-1.5 bg-accent text-white rounded-md text-sm hover:bg-accent-hover cursor-pointer"
+                type="button">Apply</button>
+      </div>
+    </div>
+  </div>
+  <div class="w-px h-6 bg-gray-600"></div>
+  <button hx-post="{% url 'bulk_action' %}"
+          hx-swap="none"
+          :hx-confirm="`Delete ${selected.length} selected items? This removes all tracking data.`"
+          :hx-vals="JSON.stringify({media_type: '{{ media_type }}', action: 'delete', instance_ids: selected.join(',')})"
+          class="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md text-sm font-medium cursor-pointer"
+          type="button">
+    {% include "app/icons/trashcan.svg" with classes="w-4 h-4" %}
+    Delete
+  </button>
+  <button @click="selecting = false; selected = []"
+          class="p-1.5 text-gray-400 hover:text-white cursor-pointer"
+          type="button">{% include "app/icons/x.svg" with classes="w-4 h-4" %}</button>
+</div>
+
+<div id="loading-indicator" class="htmx-indicator text-center pt-8">
+  <div class="inline-flex justify-center items-center">
+    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-hover"></div>
+  </div>
+</div>
+
+    </div>{# end collection tab #}
+
+{% if supports_recommendations %}
+  <div x-show="activeTab === 'recommendations'"
+       {% if active_tab != 'recommendations' %}x-cloak{% endif %}>
+    <div hx-get="{% url 'recommendations_section' media_type %}"
+         hx-trigger="revealed"
+         hx-swap="outerHTML"></div>
+  </div>
+{% endif %}
+</div>
 {% endblock content %}

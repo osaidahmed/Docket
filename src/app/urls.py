@@ -91,6 +91,8 @@ urlpatterns = [
     path("backlog_save", views.backlog_save, name="backlog_save"),
     path("quick_untrack", views.quick_untrack, name="quick_untrack"),
     path("bulk_action", views.bulk_action, name="bulk_action"),
+    path("toggle_pin", views.toggle_pin, name="toggle_pin"),
+    path("save_pin_order", views.save_pin_order, name="save_pin_order"),
     path("media_delete", views.media_delete, name="media_delete"),
     path("episode_save", views.episode_save, name="episode_save"),
     path(

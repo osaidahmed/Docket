@@ -87,6 +87,12 @@
       </div>
     {% endif %}
 
+    {% if media.is_pinned %}
+      <div class="absolute bottom-2 {% if media.repeats > 1 %}right-12{% else %}right-2{% endif %} bg-gray-900/90 text-accent-soft text-xs px-2 py-1 rounded-md flex items-center shadow-md">
+        {% include "app/icons/pin.svg" with classes="w-4 h-4" %}
+      </div>
+    {% endif %}
+
     <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover-tap:opacity-100{% if user.clickable_media_cards %} pointer-coarse:hidden{% endif %}">
       <a href="{{ media.item|media_url }}" class="absolute inset-0"></a>
 
@@ -114,6 +120,15 @@
                 hx-target="#{% component_id 'history' media.item %}"
                 hx-trigger="click once"
                 @click="historyOpen = true">{% include "app/icons/history.svg" with classes="w-4 h-4" %}</button>
+
+        {% if media.status == Status.PLANNING.value and not media.not_yet_airing %}
+          <button class="p-2.5 rounded-full hover:scale-110 transition-all duration-200 cursor-pointer {% if media.is_pinned %}bg-accent text-white{% else %}bg-gray-600 text-white hover:bg-gray-500{% endif %}"
+                  title="{% if media.is_pinned %}Unpin{% else %}Pin{% endif %}"
+                  hx-post="{% url 'toggle_pin' %}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
+                  hx-swap="none">{% include "app/icons/pin.svg" with classes="w-4 h-4" %}</button>
+        {% endif %}
       </div>
     </div>
   </div>

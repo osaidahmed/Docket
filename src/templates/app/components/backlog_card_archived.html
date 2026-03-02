@@ -59,7 +59,10 @@
     {% endif %}
   </div>
 
-  <div x-show="editing" x-transition class="border-t border-gray-700 p-4">
+  <div x-cloak
+       x-show="editing"
+       x-transition
+       class="border-t border-gray-700 p-4">
     <form hx-post="{% url 'backlog_save' %}"
           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
           hx-target="#archive-card-{{ media.item.media_type }}-{{ media.id }}"

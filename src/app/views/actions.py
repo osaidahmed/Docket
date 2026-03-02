@@ -1,7 +1,9 @@
+import json
 import logging
 from decimal import Decimal, InvalidOperation
 
 from django.apps import apps
+from django.db.models import Max
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import timezone
@@ -433,6 +435,7 @@ def _backlog_save_valid(
     old_status,
     rewatch_changed,
     rewatch_cancelled,
+    pin_changed,
 ):
     """Handle backlog_save when the form is valid."""
     if rewatch_cancelled or media.status == Status.DROPPED.value:
@@ -453,7 +456,7 @@ def _backlog_save_valid(
             "app/components/backlog_card_archived.html",
             {"media": media, "status_choices": Status.choices},
         )
-        if media.status != old_status or rewatch_changed:
+        if media.status != old_status or rewatch_changed or pin_changed:
             response["HX-Refresh"] = "true"
         return response
 
@@ -464,7 +467,7 @@ def _backlog_save_valid(
             instance_id,
         )
         response = _render_medialist_card(request, media)
-        if media.status != old_status or rewatch_changed:
+        if media.status != old_status or rewatch_changed or pin_changed:
             response["HX-Refresh"] = "true"
         return response
 
@@ -485,7 +488,7 @@ def _backlog_save_valid(
             },
         )
 
-    if media.status != old_status or rewatch_changed:
+    if media.status != old_status or rewatch_changed or pin_changed:
         response = render(
             request,
             "app/components/backlog_card.html",
@@ -522,11 +525,22 @@ def backlog_save(request):
 
     old_status = media.status
     old_is_rewatch = media.is_rewatch
+    old_is_pinned = media.is_pinned
     form_class = get_form_class(media_type)
     form = form_class(request.POST, instance=media)
 
     if form.is_valid():
         form.save()
+
+        is_pinned_submitted = "is_pinned" in request.POST
+        if is_pinned_submitted and not old_is_pinned:
+            max_order = _get_max_pin_order(request.user)
+            media.pin_order = 0 if max_order is None else max_order + 1
+            media.save(update_fields=["pin_order"])
+        elif not is_pinned_submitted and old_is_pinned:
+            media.pin_order = None
+            media.save(update_fields=["pin_order"])
+
         logger.info("%s updated from backlog.", form.instance)
 
         rewatch_cancelled = (
@@ -556,6 +570,7 @@ def backlog_save(request):
             old_status=old_status,
             rewatch_changed=media.is_rewatch != old_is_rewatch,
             rewatch_cancelled=rewatch_cancelled,
+            pin_changed=media.is_pinned != old_is_pinned,
         )
 
     if source_context == "medialist":
@@ -656,3 +671,53 @@ def bulk_action(request):
     response = HttpResponse("")
     response["HX-Refresh"] = "true"
     return response
+
+
+def _get_max_pin_order(user):
+    """Get the highest pin_order across all media types for a user."""
+    max_order = None
+    for media_type in user.get_active_media_types():
+        model = apps.get_model(app_label="app", model_name=media_type)
+        val = model.objects.filter(user=user, pin_order__isnull=False).aggregate(
+            Max("pin_order")
+        )["pin_order__max"]
+        if val is not None and (max_order is None or val > max_order):
+            max_order = val
+    return max_order
+
+
+@require_POST
+def toggle_pin(request):
+    """Toggle pin status of a Planning item via HTMX."""
+    media_type = request.POST["media_type"]
+    instance_id = request.POST["instance_id"]
+
+    media = BasicMedia.objects.get_media(
+        request.user,
+        media_type,
+        instance_id,
+    )
+
+    if media.is_pinned:
+        media.pin_order = None
+    else:
+        max_order = _get_max_pin_order(request.user)
+        media.pin_order = 0 if max_order is None else max_order + 1
+
+    media.save(update_fields=["pin_order"])
+
+    response = HttpResponse("")
+    response["HX-Refresh"] = "true"
+    return response
+
+
+@require_POST
+def save_pin_order(request):
+    """Persist the drag-and-drop order of pinned items."""
+    ordered_ids = json.loads(request.body)
+
+    for i, entry in enumerate(ordered_ids):
+        model = apps.get_model(app_label="app", model_name=entry["media_type"])
+        model.objects.filter(id=entry["id"], user=request.user).update(pin_order=i)
+
+    return HttpResponse(status=204)
