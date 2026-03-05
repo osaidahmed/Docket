@@ -1,27 +1,33 @@
 {% load app_tags %}
 
-<div class="flex flex-wrap gap-2 mb-8">
-  {% for cat in categories %}
-    <a href="{% url 'explore_type' media_type=media_type %}?category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
-       hx-get="{% url 'explore_type' media_type=media_type %}?category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
-       hx-target="#explore-results"
-       hx-push-url="true"
-       class="px-4 py-2 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if current_category == cat.slug %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
-      {{ cat.label }}
-    </a>
-  {% endfor %}
+{% if is_tmdb_type %}
+  {% include "app/components/explore_filter_panel.html" %}
+{% else %}
+  <div class="flex flex-wrap gap-2 mb-8">
+    {% for cat in categories %}
+      <a href="{% url 'explore_type' media_type=media_type %}?category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+         hx-get="{% url 'explore_type' media_type=media_type %}?category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+         hx-target="#explore-results"
+         hx-push-url="true"
+         class="px-4 py-2 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if current_category == cat.slug and not has_active_filters %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+        {{ cat.label }}
+      </a>
+    {% endfor %}
 
-  {% if is_manga %}
-    <span class="w-px self-stretch bg-gray-700"></span>
-    <a href="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
-       hx-get="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
-       hx-target="#explore-results"
-       hx-push-url="true"
-       class="px-4 py-2 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if hide_watched_anime %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
-      Hide watched anime
-    </a>
-  {% endif %}
-</div>
+    {% if is_manga %}
+      <span class="w-px self-stretch bg-gray-700"></span>
+      <a href="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+         hx-get="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+         hx-target="#explore-results"
+         hx-push-url="true"
+         class="px-4 py-2 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if hide_watched_anime %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+        Hide watched anime
+      </a>
+    {% endif %}
+  </div>
+
+  {% include "app/components/explore_filter_panel.html" %}
+{% endif %}
 
 {% if show_season_picker %}
   <div class="flex flex-wrap items-center gap-4 mb-8">
@@ -39,7 +45,7 @@
          hx-target="#explore-results"
          hx-push-url="true"
          class="p-1.5 rounded-md bg-input hover:bg-highlight cursor-pointer">
-        {% include "app/icons/chevron-right.svg" with classes="w-4 h-4" %}
+        {% include "app/icons/chevron-right.svg" with classes="w-5 h-5" %}
       </a>
     </div>
     <div class="flex gap-2">
@@ -130,6 +136,6 @@
     {% include "app/icons/compass.svg" with classes="w-8 h-8 text-gray-400" %}
   </div>
   <h3 class="text-xl font-semibold mb-2">No results found</h3>
-  <p class="text-gray-400 text-center max-w-md">No media found for this category. Try a different one.</p>
+  <p class="text-gray-400 text-center max-w-md">No media found. Try adjusting your filters or category.</p>
 </div>
 {% endif %}

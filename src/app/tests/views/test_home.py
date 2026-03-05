@@ -30,9 +30,10 @@ from users.models import HomeSortChoices, HomeTruncationChoices
 TESTED_BACKLOG_ACTIONS = {
     "quick_add",
     "quick_archive",
+    "quick_catch_up",
+    "quick_catch_up_add",
     "quick_complete",
     "quick_drop",
-    "quick_catch_up",
     "quick_rewatch",
     "quick_status_transition",
     "quick_untrack",

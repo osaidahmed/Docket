@@ -52,20 +52,38 @@
         {% endif %}
       </div>
     </td>
-    {% if media.score is not None %}
-      <td class="p-2 text-center">
+    <td class="p-2 text-center">
+      {% if not media.not_yet_airing %}
+        <div x-data="{ showRatingPopup: false, rating: {{ media.score|default:'null' }}, hoverRating: null, isHovering: false }"
+             class="relative flex items-center justify-center">
+          <button @click.stop="showRatingPopup = !showRatingPopup"
+                  class="flex items-center justify-center cursor-pointer"
+                  title="Click to rate">
+            <template x-if="rating">
+              <span class="flex items-center">
+                {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
+                <span class="text-white -mt-[3px]" x-text="rating"></span>
+              </span>
+            </template>
+            <template x-if="!rating">
+              <span>
+                {% include "app/icons/star.svg" with classes="w-4 h-4 text-gray-400 fill-current hover:text-yellow-400 transition-colors" %}
+              </span>
+            </template>
+          </button>
+          {% include "app/components/star_rating_popup.html" with popup_classes="left-1/2 -translate-x-1/2 top-full mt-2" %}
+        </div>
+      {% elif media.score is not None %}
         <div class="flex items-center justify-center">
           {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
           <span class="text-white -mt-[3px]">{{ media.formatted_score }}</span>
         </div>
-      </td>
-    {% else %}
-      <td class="p-2 text-center">
+      {% else %}
         <div class="flex items-center justify-center">
           {% include "app/icons/star.svg" with classes="w-4 h-4 text-gray-400 mr-1 fill-current" %}
         </div>
-      </td>
-    {% endif %}
+      {% endif %}
+    </td>
 
     {# Progress field #}
     {% if media_type != MediaTypes.MOVIE.value %}

@@ -79,6 +79,7 @@ urlpatterns = [
     path("media_save", views.media_save, name="media_save"),
     path("quick_add", views.quick_add, name="quick_add"),
     path("quick_archive", views.quick_archive, name="quick_archive"),
+    path("quick_catch_up_add", views.quick_catch_up_add, name="quick_catch_up_add"),
     path("quick_complete", views.quick_complete, name="quick_complete"),
     path("quick_drop", views.quick_drop, name="quick_drop"),
     path("quick_catch_up", views.quick_catch_up, name="quick_catch_up"),

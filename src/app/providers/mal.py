@@ -10,6 +10,20 @@ from app import helpers
 from app.models import MediaTypes, Sources
 from app.providers import services
 
+_ONGOING_ANIME_STATUSES = frozenset({"currently_airing"})
+
+
+def _is_ongoing(node, media_type):
+    """Determine if a browse/search item is ongoing.
+
+    For manga, mirrors the backlog logic: unknown chapter count = ongoing.
+    For anime, uses the API airing status.
+    """
+    if media_type == MediaTypes.MANGA.value:
+        return not node.get("num_chapters")
+    return node.get("status") in _ONGOING_ANIME_STATUSES
+
+
 logger = logging.getLogger(__name__)
 base_url = "https://api.myanimelist.net/v2"
 base_fields = "title,alternative_titles,main_picture,media_type,start_date,end_date,synopsis,status,genres,mean,num_scoring_users,recommendations{node{alternative_titles}}"  # noqa: E501
@@ -49,7 +63,7 @@ def search(media_type, query, page):
         url = f"{base_url}/{media_type}"
         params = {
             "q": query,
-            "fields": "media_type,synopsis,alternative_titles",
+            "fields": "media_type,synopsis,alternative_titles,status,num_chapters",
             "limit": settings.PER_PAGE,
         }
         if settings.MAL_NSFW:
@@ -76,6 +90,7 @@ def search(media_type, query, page):
                 "english_title": get_english_title(media["node"]),
                 "image": get_image_url(media["node"]),
                 "synopsis": media["node"].get("synopsis", ""),
+                "is_ongoing": _is_ongoing(media["node"], media_type),
             }
             for media in response
         ]
@@ -102,7 +117,7 @@ def browse(media_type, category, page):
         offset = (page - 1) * settings.PER_PAGE
         params = {
             "ranking_type": category,
-            "fields": "media_type,synopsis,alternative_titles",
+            "fields": "media_type,synopsis,alternative_titles,status,num_chapters",
             "limit": settings.PER_PAGE,
             "offset": offset,
         }
@@ -130,6 +145,7 @@ def browse(media_type, category, page):
                 "english_title": get_english_title(entry["node"]),
                 "image": get_image_url(entry["node"]),
                 "synopsis": entry["node"].get("synopsis", ""),
+                "is_ongoing": _is_ongoing(entry["node"], media_type),
             }
             for entry in response["data"]
         ]
@@ -163,7 +179,7 @@ def browse_seasonal(year, season, page):
         url = f"{base_url}/anime/season/{year}/{season}"
         offset = (page - 1) * settings.PER_PAGE
         params = {
-            "fields": "media_type,synopsis,alternative_titles",
+            "fields": "media_type,synopsis,alternative_titles,status",
             "sort": "anime_num_list_users",
             "limit": settings.PER_PAGE,
             "offset": offset,
@@ -192,6 +208,7 @@ def browse_seasonal(year, season, page):
                 "english_title": get_english_title(entry["node"]),
                 "image": get_image_url(entry["node"]),
                 "synopsis": entry["node"].get("synopsis", ""),
+                "is_ongoing": _is_ongoing(entry["node"], MediaTypes.ANIME.value),
             }
             for entry in response["data"]
         ]

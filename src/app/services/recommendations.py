@@ -108,9 +108,7 @@ def compute_recommendations(user_id, media_type):
             for genre in genres:
                 genre_recs[genre][key] += 1
 
-        cache.set(
-            progress_key, {"current": i + 1, "total": total}, PROGRESS_TIMEOUT
-        )
+        cache.set(progress_key, {"current": i + 1, "total": total}, PROGRESS_TIMEOUT)
 
     seen_titles = set()
     cross_media_titles = set()

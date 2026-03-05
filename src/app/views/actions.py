@@ -19,7 +19,7 @@ from app.services import backlog, recent
 logger = logging.getLogger(__name__)
 
 
-def _create_media_from_search(request, status):
+def _create_media_from_search(request, status, *, caught_up=False):
     """Create a new media instance from search results with the given status."""
     media_id = request.POST["media_id"]
     source = request.POST["source"]
@@ -88,6 +88,7 @@ def _create_media_from_search(request, status):
         item=item,
         user=request.user,
         status=status,
+        caught_up=caught_up,
     )
 
     return render(
@@ -115,6 +116,12 @@ def quick_add(request):
 def quick_archive(request):
     """Add media as Completed via HTMX."""
     return _create_media_from_search(request, Status.COMPLETED.value)
+
+
+@require_POST
+def quick_catch_up_add(request):
+    """Add media as In Progress + Caught Up via HTMX."""
+    return _create_media_from_search(request, Status.IN_PROGRESS.value, caught_up=True)
 
 
 @require_POST

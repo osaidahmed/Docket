@@ -78,10 +78,10 @@ class ExploreTypeViewTests(TestCase):
     def setUp(self):
         self.client.login(**self.credentials)
 
-    @patch("app.providers.services.browse")
-    def test_explore_type_default_category(self, mock_browse):
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_default_category(self, mock_browse_filtered):
         """Test that explore_type uses the first category as default."""
-        mock_browse.return_value = {
+        mock_browse_filtered.return_value = {
             "page": 1,
             "total_results": 1,
             "total_pages": 1,
@@ -104,12 +104,14 @@ class ExploreTypeViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "app/explore_type.html")
         self.assertEqual(response.context["current_category"], "trending")
-        mock_browse.assert_called_once_with(MediaTypes.TV.value, "trending", 1)
+        mock_browse_filtered.assert_called_once_with(
+            MediaTypes.TV.value, {"sort_by": "popularity.desc"}, 1
+        )
 
-    @patch("app.providers.services.browse")
-    def test_explore_type_custom_category(self, mock_browse):
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_custom_category(self, mock_browse_filtered):
         """Test that explore_type accepts a category query parameter."""
-        mock_browse.return_value = {
+        mock_browse_filtered.return_value = {
             "page": 1,
             "total_results": 0,
             "total_pages": 1,
@@ -123,12 +125,11 @@ class ExploreTypeViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["current_category"], "popular")
-        mock_browse.assert_called_once_with(MediaTypes.TV.value, "popular", 1)
 
-    @patch("app.providers.services.browse")
-    def test_explore_type_invalid_category_falls_back(self, mock_browse):
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_invalid_category_falls_back(self, mock_browse_filtered):
         """Test that an invalid category falls back to the first category."""
-        mock_browse.return_value = {
+        mock_browse_filtered.return_value = {
             "page": 1,
             "total_results": 0,
             "total_pages": 1,
@@ -152,10 +153,10 @@ class ExploreTypeViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("explore"))
 
-    @patch("app.providers.services.browse")
-    def test_explore_type_htmx_returns_partial(self, mock_browse):
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_htmx_returns_partial(self, mock_browse_filtered):
         """Test that HTMX requests return the partial template."""
-        mock_browse.return_value = {
+        mock_browse_filtered.return_value = {
             "page": 1,
             "total_results": 0,
             "total_pages": 1,
@@ -170,10 +171,10 @@ class ExploreTypeViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "app/explore_results.html")
 
-    @patch("app.providers.services.browse")
-    def test_explore_type_htmx_includes_category_context(self, mock_browse):
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_htmx_includes_category_context(self, mock_browse_filtered):
         """Test that HTMX partial includes categories for chip highlighting."""
-        mock_browse.return_value = {
+        mock_browse_filtered.return_value = {
             "page": 1,
             "total_results": 0,
             "total_pages": 1,
@@ -191,10 +192,10 @@ class ExploreTypeViewTests(TestCase):
         self.assertIn("categories", response.context)
         self.assertGreater(len(response.context["categories"]), 0)
 
-    @patch("app.providers.services.browse")
-    def test_explore_type_htmx_category_switch(self, mock_browse):
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_htmx_category_switch(self, mock_browse_filtered):
         """Test that switching categories via HTMX updates current_category."""
-        mock_browse.return_value = {
+        mock_browse_filtered.return_value = {
             "page": 1,
             "total_results": 0,
             "total_pages": 1,
@@ -216,10 +217,10 @@ class ExploreTypeViewTests(TestCase):
         )
         self.assertEqual(response2.context["current_category"], "top_rated")
 
-    @patch("app.providers.services.browse")
-    def test_explore_type_pagination(self, mock_browse):
-        """Test that page parameter is passed to browse."""
-        mock_browse.return_value = {
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_pagination(self, mock_browse_filtered):
+        """Test that page parameter is passed to browse_filtered."""
+        mock_browse_filtered.return_value = {
             "page": 2,
             "total_results": 50,
             "total_pages": 3,
@@ -241,12 +242,14 @@ class ExploreTypeViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mock_browse.assert_called_once_with(MediaTypes.MOVIE.value, "popular", 2)
+        mock_browse_filtered.assert_called_once_with(
+            MediaTypes.MOVIE.value, {"sort_by": "popularity.desc"}, 2
+        )
 
-    @patch("app.providers.services.browse")
-    def test_explore_type_layout_grid(self, mock_browse):
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_layout_grid(self, mock_browse_filtered):
         """Test that layout parameter is passed to the context."""
-        mock_browse.return_value = {
+        mock_browse_filtered.return_value = {
             "page": 1,
             "total_results": 0,
             "total_pages": 1,
@@ -302,10 +305,10 @@ class ExploreTypeViewTests(TestCase):
         self.assertEqual(len(results), 1)
         self.assertIsNotNone(results[0]["media"])
 
-    @patch("app.providers.services.browse")
-    def test_explore_type_extra_params_empty_for_non_seasonal(self, mock_browse):
-        """Test that extra_params is empty for non-seasonal categories."""
-        mock_browse.return_value = {
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_extra_params_includes_default_sort(self, mock_filtered):
+        """Test that TMDB types include default sort_by in extra_params."""
+        mock_filtered.return_value = {
             "page": 1,
             "total_results": 0,
             "total_pages": 1,
@@ -314,6 +317,22 @@ class ExploreTypeViewTests(TestCase):
 
         response = self.client.get(
             reverse("explore_type", kwargs={"media_type": MediaTypes.TV.value}),
+        )
+
+        self.assertIn("sort_by=popularity.desc", response.context["extra_params"])
+
+    @patch("app.providers.services.browse")
+    def test_explore_type_extra_params_empty_for_non_tmdb(self, mock_browse):
+        """Test that extra_params is empty for non-TMDB, non-seasonal categories."""
+        mock_browse.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value}),
         )
 
         self.assertEqual(response.context["extra_params"], "")
@@ -325,10 +344,10 @@ class ExploreTypeViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 405)
 
-    @patch("app.providers.services.browse")
-    def test_explore_type_sidebar_only_highlights_explore(self, mock_browse):
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_sidebar_only_highlights_explore(self, mock_browse_filtered):
         """Regression: explore_type should highlight only the Explore sidebar item."""
-        mock_browse.return_value = {
+        mock_browse_filtered.return_value = {
             "page": 1,
             "total_results": 0,
             "total_pages": 1,
@@ -517,21 +536,22 @@ class ExploreUpcomingTests(TestCase):
     def setUp(self):
         self.client.login(**self.credentials)
 
-    def _mock_results(self, media_type, source):
+    def _mock_results(self, media_type, source, is_ongoing=None):
+        result = {
+            "media_id": "999",
+            "title": "Upcoming Item",
+            "media_type": media_type,
+            "source": source,
+            "image": "http://example.com/image.jpg",
+            "synopsis": "",
+        }
+        if is_ongoing is not None:
+            result["is_ongoing"] = is_ongoing
         return {
             "page": 1,
             "total_results": 1,
             "total_pages": 1,
-            "results": [
-                {
-                    "media_id": "999",
-                    "title": "Upcoming Item",
-                    "media_type": media_type,
-                    "source": source,
-                    "image": "http://example.com/image.jpg",
-                    "synopsis": "",
-                },
-            ],
+            "results": [result],
         }
 
     @patch("app.providers.services.browse")
@@ -561,17 +581,18 @@ class ExploreUpcomingTests(TestCase):
         self.assertNotContains(response, "quick_archive")
 
     @patch("app.providers.services.browse")
-    def test_airing_anime_shows_archive_button(self, mock_browse):
-        """Airing anime category should show the archive/watched button."""
+    def test_airing_anime_shows_caught_up_button(self, mock_browse):
+        """Airing anime category should show the caught up button."""
         mock_browse.return_value = self._mock_results(
-            MediaTypes.ANIME.value, Sources.MAL.value
+            MediaTypes.ANIME.value, Sources.MAL.value, is_ongoing=True
         )
         response = self.client.get(
             reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
             + "?category=airing",
         )
         self.assertFalse(response.context["is_upcoming"])
-        self.assertContains(response, "quick_archive")
+        self.assertContains(response, "quick_catch_up_add")
+        self.assertNotContains(response, "quick_archive")
 
     @patch("app.config.get_current_anime_season", return_value=(2026, "winter"))
     @patch("app.providers.services.browse")
@@ -589,22 +610,23 @@ class ExploreUpcomingTests(TestCase):
 
     @patch("app.config.get_current_anime_season", return_value=(2026, "winter"))
     @patch("app.providers.services.browse")
-    def test_seasonal_current_shows_archive_button(self, mock_browse, _mock_season):
-        """The current season should show the archive button."""
+    def test_seasonal_current_shows_caught_up_button(self, mock_browse, _mock_season):
+        """The current season should show the caught up button for ongoing items."""
         mock_browse.return_value = self._mock_results(
-            MediaTypes.ANIME.value, Sources.MAL.value
+            MediaTypes.ANIME.value, Sources.MAL.value, is_ongoing=True
         )
         response = self.client.get(
             reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
             + "?category=seasonal&year=2026&season=winter",
         )
         self.assertFalse(response.context["is_upcoming"])
-        self.assertContains(response, "quick_archive")
+        self.assertContains(response, "quick_catch_up_add")
+        self.assertNotContains(response, "quick_archive")
 
-    @patch("app.providers.services.browse")
-    def test_tv_trending_shows_archive_button(self, mock_browse):
-        """Non-anime/game types should always show the archive button."""
-        mock_browse.return_value = self._mock_results(
+    @patch("app.providers.services.browse_filtered")
+    def test_tv_trending_shows_archive_button(self, mock_browse_filtered):
+        """Non-airing TV category should show the archive button."""
+        mock_browse_filtered.return_value = self._mock_results(
             MediaTypes.TV.value, Sources.TMDB.value
         )
         response = self.client.get(
@@ -613,6 +635,20 @@ class ExploreUpcomingTests(TestCase):
         )
         self.assertFalse(response.context["is_upcoming"])
         self.assertContains(response, "quick_archive")
+
+    @patch("app.providers.services.browse_filtered")
+    def test_tv_on_the_air_shows_caught_up_button(self, mock_browse_filtered):
+        """TV on_the_air category should show the caught up button."""
+        mock_browse_filtered.return_value = self._mock_results(
+            MediaTypes.TV.value, Sources.TMDB.value
+        )
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.TV.value})
+            + "?category=on_the_air",
+        )
+        self.assertFalse(response.context["is_upcoming"])
+        self.assertContains(response, "quick_catch_up_add")
+        self.assertNotContains(response, "quick_archive")
 
 
 class ExplorePaginationDisplayTests(TestCase):
@@ -626,10 +662,10 @@ class ExplorePaginationDisplayTests(TestCase):
     def setUp(self):
         self.client.login(**self.credentials)
 
-    @patch("app.providers.services.browse")
-    def test_exact_total_shows_page_count(self, mock_browse):
+    @patch("app.providers.services.browse_filtered")
+    def test_exact_total_shows_page_count(self, mock_browse_filtered):
         """Exact total should show 'Page X of Y (Z results)'."""
-        mock_browse.return_value = {
+        mock_browse_filtered.return_value = {
             "page": 1,
             "total_results": 50,
             "total_pages": 3,
@@ -675,7 +711,7 @@ class ExplorePaginationDisplayTests(TestCase):
 
         response = self.client.get(
             reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
-            + "?category=top_anime",
+            + "?category=all",
         )
 
         self.assertNotContains(response, "of 6")

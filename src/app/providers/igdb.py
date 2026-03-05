@@ -376,6 +376,170 @@ def browse(category, page):
     return data
 
 
+def browse_filtered(filters, page):
+    """Browse games with filters using IGDB query language."""
+    filter_hash = _build_browse_filter_hash(filters)
+    cache_key = (
+        f"browse_filtered_{Sources.IGDB.value}"
+        f"_{MediaTypes.GAME.value}_{filter_hash}_{page}"
+    )
+    data = cache.get(cache_key)
+
+    if data is None:
+        access_token = get_access_token()
+        url = f"{base_url}/multiquery"
+        headers = {
+            "Client-ID": settings.IGDB_ID,
+            "Authorization": f"Bearer {access_token}",
+        }
+
+        offset = (page - 1) * settings.PER_PAGE
+
+        where_parts = ["game_type = (0,1,2,3,4,5,6,7,8,9,10)"]
+        if not settings.IGDB_NSFW:
+            where_parts.append("themes != (42)")
+        if filters.get("genres"):
+            where_parts.append(f"genres = ({filters['genres']})")
+        if filters.get("themes"):
+            where_parts.append(f"themes = ({filters['themes']})")
+        if filters.get("platforms"):
+            where_parts.append(f"platforms = ({filters['platforms']})")
+        if filters.get("min_score"):
+            where_parts.append(f"total_rating >= {float(filters['min_score'])}")
+            where_parts.append("total_rating_count > 5")
+
+        where_clause = " & ".join(where_parts)
+
+        sort_map = {
+            "popularity": "total_rating_count desc",
+            "rating": "total_rating desc",
+            "date": "first_release_date desc",
+            "hype": "hypes desc",
+        }
+        sort = sort_map.get(
+            filters.get("sort_by", "popularity"), "total_rating_count desc"
+        )
+
+        multiquery = (
+            'query games "BrowseResults" {'
+            f"fields name,cover.image_id,summary;"
+            f"where {where_clause};"
+            f"sort {sort};"
+            f"limit {settings.PER_PAGE};"
+            f"offset {offset};"
+            "};"
+            'query games/count "TotalCount" {'
+            f"where {where_clause};"
+            "};"
+        )
+
+        try:
+            response = services.api_request(
+                Sources.IGDB.value,
+                "POST",
+                url,
+                data=multiquery,
+                headers=headers,
+            )
+        except requests.exceptions.HTTPError as error:
+            error_resp = handle_error(error)
+            if error_resp and error_resp.get("retry"):
+                headers["Authorization"] = f"Bearer {get_access_token()}"
+                response = services.api_request(
+                    Sources.IGDB.value,
+                    "POST",
+                    url,
+                    data=multiquery,
+                    headers=headers,
+                )
+
+        search_results = next(
+            (item["result"] for item in response if item["name"] == "BrowseResults"),
+            [],
+        )
+        total_results = next(
+            (item["count"] for item in response if item["name"] == "TotalCount"),
+            0,
+        )
+
+        results = [
+            {
+                "media_id": media["id"],
+                "source": Sources.IGDB.value,
+                "media_type": MediaTypes.GAME.value,
+                "title": media["name"],
+                "image": get_image_url(media),
+                "synopsis": media.get("summary", ""),
+            }
+            for media in search_results
+        ]
+
+        data = helpers.format_search_response(
+            page, settings.PER_PAGE, total_results, results
+        )
+        cache.set(cache_key, data)
+
+    return data
+
+
+def _get_enum_list(endpoint, cache_key, extra_filter=None):
+    """Fetch an IGDB enum list (genres, platforms, themes)."""
+    data = cache.get(cache_key)
+    if data is None:
+        access_token = get_access_token()
+        url = f"{base_url}/{endpoint}"
+        where = f"where {extra_filter}; " if extra_filter else ""
+        query = f"fields id,name; {where}sort name asc; limit 500;"
+        headers = {
+            "Client-ID": settings.IGDB_ID,
+            "Authorization": f"Bearer {access_token}",
+        }
+        try:
+            response = services.api_request(
+                Sources.IGDB.value,
+                "POST",
+                url,
+                data=query,
+                headers=headers,
+            )
+        except requests.exceptions.HTTPError as error:
+            error_resp = handle_error(error)
+            if error_resp and error_resp.get("retry"):
+                headers["Authorization"] = f"Bearer {get_access_token()}"
+                response = services.api_request(
+                    Sources.IGDB.value,
+                    "POST",
+                    url,
+                    data=query,
+                    headers=headers,
+                )
+        data = [{"id": item["id"], "name": item["name"]} for item in response]
+        cache.set(cache_key, data, timeout=60 * 60 * 24 * 7)
+    return data
+
+
+def get_genres():
+    """Fetch genre list from IGDB."""
+    return _get_enum_list("genres", "igdb_genres")
+
+
+def get_themes():
+    """Fetch theme list from IGDB."""
+    return _get_enum_list("themes", "igdb_themes")
+
+
+def get_platforms():
+    """Fetch platform list from IGDB (main platform categories only)."""
+    return _get_enum_list(
+        "platforms", "igdb_platforms", extra_filter="category = (1,2,3,4,5,6)"
+    )
+
+
+def _build_browse_filter_hash(filters):
+    parts = [f"{key}={filters[key]}" for key in sorted(filters) if filters[key]]
+    return "_".join(parts) if parts else "nofilter"
+
+
 def game(media_id):
     """Return the metadata for the selected game from IGDB."""
     cache_key = f"{Sources.IGDB.value}_{MediaTypes.GAME.value}_{media_id}"

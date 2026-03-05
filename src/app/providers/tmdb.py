@@ -221,6 +221,86 @@ def browse(media_type, category, page):
     return data
 
 
+def discover(media_type, filters, page):
+    """Browse media using TMDB discover endpoint with filters."""
+    filter_hash = _build_discover_filter_hash(media_type, filters)
+    cache_key = f"discover_{Sources.TMDB.value}_{media_type}_{filter_hash}_{page}"
+    data = cache.get(cache_key)
+
+    if data is None:
+        url = f"{base_url}/discover/{media_type}"
+        params = {**base_params, "page": page}
+
+        if settings.TMDB_NSFW:
+            params["include_adult"] = "true"
+
+        params["sort_by"] = filters.get("sort_by", "popularity.desc")
+
+        if filters.get("genres"):
+            params["with_genres"] = filters["genres"]
+
+        if filters.get("year"):
+            if media_type == MediaTypes.MOVIE.value:
+                params["primary_release_year"] = filters["year"]
+            else:
+                params["first_air_date_year"] = filters["year"]
+
+        if filters.get("min_score"):
+            params["vote_average.gte"] = filters["min_score"]
+            params["vote_count.gte"] = 50
+
+        try:
+            response = services.api_request(
+                Sources.TMDB.value, "GET", url, params=params
+            )
+        except requests.exceptions.HTTPError as error:
+            handle_error(error)
+
+        results = [
+            {
+                "media_id": media["id"],
+                "source": Sources.TMDB.value,
+                "media_type": media_type,
+                "title": get_title(media),
+                "image": get_image_url(media.get("poster_path")),
+                "synopsis": media.get("overview", ""),
+            }
+            for media in response["results"]
+        ]
+
+        data = helpers.format_search_response(
+            page, 20, response["total_results"], results
+        )
+        cache.set(cache_key, data)
+
+    return data
+
+
+def get_genre_list(media_type):
+    """Fetch the genre list from TMDB for a given media type."""
+    cache_key = f"tmdb_{media_type}_genres"
+    data = cache.get(cache_key)
+
+    if data is None:
+        url = f"{base_url}/genre/{media_type}/list"
+        try:
+            response = services.api_request(
+                Sources.TMDB.value, "GET", url, params=base_params
+            )
+        except requests.exceptions.HTTPError as error:
+            handle_error(error)
+
+        data = [{"id": g["id"], "name": g["name"]} for g in response.get("genres", [])]
+        cache.set(cache_key, data, timeout=60 * 60 * 24 * 7)
+
+    return data
+
+
+def _build_discover_filter_hash(media_type, filters):
+    parts = [media_type, *[f"{k}={filters[k]}" for k in sorted(filters) if filters[k]]]
+    return "_".join(parts) if len(parts) > 1 else "nofilter"
+
+
 def find(external_id, external_source):
     """Search for media on TMDB."""
     cache_key = f"find_{Sources.TMDB.value}_{external_id}_{external_source}"

@@ -82,6 +82,39 @@ MEDIA_TYPE_CONFIG = {
             {"slug": "top_rated", "label": "Top Rated"},
             {"slug": "on_the_air", "label": "Airing Now"},
         ],
+        "explore_filters": [
+            {
+                "key": "sort_by",
+                "label": "Sort By",
+                "type": "single_select",
+                "options_source": "static",
+                "options": [
+                    {"value": "popularity.desc", "label": "Popularity"},
+                    {"value": "vote_average.desc", "label": "Top Rated"},
+                    {"value": "first_air_date.desc", "label": "Air Date"},
+                ],
+            },
+            {
+                "key": "genres",
+                "label": "Genres",
+                "type": "multi_select",
+                "options_source": "provider",
+                "provider_key": "tmdb_tv_genres",
+            },
+            {
+                "key": "year",
+                "label": "Year",
+                "type": "year",
+            },
+            {
+                "key": "min_score",
+                "label": "Min Rating",
+                "type": "number",
+                "min": 0,
+                "max": 10,
+                "step": 0.5,
+            },
+        ],
     },
     MediaTypes.SEASON.value: {
         "sources": [Sources.TMDB],
@@ -131,6 +164,40 @@ MEDIA_TYPE_CONFIG = {
             {"slug": "top_rated", "label": "Top Rated"},
             {"slug": "now_playing", "label": "Now Playing"},
         ],
+        "explore_filters": [
+            {
+                "key": "sort_by",
+                "label": "Sort By",
+                "type": "single_select",
+                "options_source": "static",
+                "options": [
+                    {"value": "popularity.desc", "label": "Popularity"},
+                    {"value": "vote_average.desc", "label": "Top Rated"},
+                    {"value": "primary_release_date.desc", "label": "Release Date"},
+                    {"value": "revenue.desc", "label": "Revenue"},
+                ],
+            },
+            {
+                "key": "genres",
+                "label": "Genres",
+                "type": "multi_select",
+                "options_source": "provider",
+                "provider_key": "tmdb_movie_genres",
+            },
+            {
+                "key": "year",
+                "label": "Year",
+                "type": "year",
+            },
+            {
+                "key": "min_score",
+                "label": "Min Rating",
+                "type": "number",
+                "min": 0,
+                "max": 10,
+                "step": 0.5,
+            },
+        ],
     },
     MediaTypes.ANIME.value: {
         "sources": [Sources.MAL],
@@ -153,6 +220,38 @@ MEDIA_TYPE_CONFIG = {
             {"slug": "upcoming", "label": "Upcoming"},
             {"slug": "bypopularity", "label": "Most Popular"},
             {"slug": "seasonal", "label": "Seasonal"},
+        ],
+        "explore_filters": [
+            {
+                "key": "genres",
+                "label": "Genres",
+                "type": "multi_select",
+                "options_source": "provider",
+                "provider_key": "jikan_anime_genres",
+            },
+            {
+                "key": "anime_type",
+                "label": "Type",
+                "type": "single_select",
+                "options_source": "static",
+                "options": [
+                    {"value": "", "label": "All"},
+                    {"value": "tv", "label": "TV"},
+                    {"value": "movie", "label": "Movie"},
+                    {"value": "ova", "label": "OVA"},
+                    {"value": "ona", "label": "ONA"},
+                    {"value": "special", "label": "Special"},
+                    {"value": "music", "label": "Music"},
+                ],
+            },
+            {
+                "key": "min_score",
+                "label": "Min Score",
+                "type": "number",
+                "min": 0,
+                "max": 10,
+                "step": 1,
+            },
         ],
     },
     MediaTypes.MANGA.value: {
@@ -179,6 +278,38 @@ MEDIA_TYPE_CONFIG = {
             {"slug": "bypopularity", "label": "Most Popular"},
             {"slug": "manga", "label": "Top Manga"},
             {"slug": "novels", "label": "Top Novels"},
+        ],
+        "explore_filters": [
+            {
+                "key": "genres",
+                "label": "Genres",
+                "type": "multi_select",
+                "options_source": "provider",
+                "provider_key": "jikan_manga_genres",
+            },
+            {
+                "key": "manga_type",
+                "label": "Type",
+                "type": "single_select",
+                "options_source": "static",
+                "options": [
+                    {"value": "", "label": "All"},
+                    {"value": "manga", "label": "Manga"},
+                    {"value": "novel", "label": "Novel"},
+                    {"value": "lightnovel", "label": "Light Novel"},
+                    {"value": "oneshot", "label": "One-shot"},
+                    {"value": "manhwa", "label": "Manhwa"},
+                    {"value": "manhua", "label": "Manhua"},
+                ],
+            },
+            {
+                "key": "min_score",
+                "label": "Min Score",
+                "type": "number",
+                "min": 0,
+                "max": 10,
+                "step": 1,
+            },
         ],
     },
     MediaTypes.GAME.value: {
@@ -210,6 +341,49 @@ MEDIA_TYPE_CONFIG = {
             {"slug": "top_rated", "label": "Top Rated"},
             {"slug": "recent", "label": "Recently Released"},
             {"slug": "anticipated", "label": "Most Anticipated"},
+        ],
+        "explore_filters": [
+            {
+                "key": "sort_by",
+                "label": "Sort By",
+                "type": "single_select",
+                "options_source": "static",
+                "options": [
+                    {"value": "popularity", "label": "Popularity"},
+                    {"value": "rating", "label": "Top Rated"},
+                    {"value": "date", "label": "Release Date"},
+                    {"value": "hype", "label": "Most Hyped"},
+                ],
+            },
+            {
+                "key": "genres",
+                "label": "Genres",
+                "type": "multi_select",
+                "options_source": "provider",
+                "provider_key": "igdb_genres",
+            },
+            {
+                "key": "themes",
+                "label": "Themes",
+                "type": "multi_select",
+                "options_source": "provider",
+                "provider_key": "igdb_themes",
+            },
+            {
+                "key": "platforms",
+                "label": "Platforms",
+                "type": "multi_select",
+                "options_source": "provider",
+                "provider_key": "igdb_platforms",
+            },
+            {
+                "key": "min_score",
+                "label": "Min Rating",
+                "type": "number",
+                "min": 0,
+                "max": 100,
+                "step": 5,
+            },
         ],
     },
     MediaTypes.BOOK.value: {
@@ -361,6 +535,14 @@ def get_current_anime_season():
     return now.year, MONTH_TO_SEASON[now.month]
 
 
+AIRING_CATEGORIES = frozenset({"airing", "on_the_air"})
+
+
+def is_airing_category(category):
+    """Return whether the explore category represents currently airing media."""
+    return category in AIRING_CATEGORIES
+
+
 def is_upcoming_category(media_type, category, year=None, season_name=None):
     """Return whether the explore category represents upcoming/unreleased media."""
     if category in ("upcoming", "anticipated"):
@@ -386,6 +568,17 @@ def get_explore_categories(media_type):
     """Return the browse categories for a media type, or None if not explorable."""
     cfg = get_config(media_type)
     return cfg.get("explore_categories") if cfg else None
+
+
+def get_explore_filters(media_type):
+    """Return the filter definitions for a media type, or None if no filters."""
+    cfg = get_config(media_type)
+    return cfg.get("explore_filters") if cfg else None
+
+
+def has_explore_filters(media_type):
+    """Return whether the media type supports explore filters."""
+    return get_explore_filters(media_type) is not None
 
 
 def get_explorable_types():

@@ -16,6 +16,7 @@ from app.providers import (
     comicvine,
     hardcover,
     igdb,
+    jikan,
     mal,
     mangaupdates,
     manual,
@@ -80,6 +81,10 @@ session.mount(
 session.mount(
     "https://boardgamegeek.com/xmlapi2",
     LimiterAdapter(per_second=2),
+)
+session.mount(
+    "https://api.jikan.moe",
+    LimiterAdapter(per_second=3),
 )
 
 
@@ -317,6 +322,46 @@ def browse(media_type, category, page, year=None, season=None):
     if handler is None:
         return app_helpers.format_search_response(page, 24, 0, [])
     return handler()
+
+
+def browse_filtered(media_type, filters, page):
+    """Browse media with filter parameters."""
+    from app import helpers as app_helpers  # noqa: PLC0415
+
+    filter_handlers = {
+        MediaTypes.MOVIE.value: lambda: tmdb.discover(
+            MediaTypes.MOVIE.value, filters, page
+        ),
+        MediaTypes.TV.value: lambda: tmdb.discover(MediaTypes.TV.value, filters, page),
+        MediaTypes.ANIME.value: lambda: jikan.browse(
+            MediaTypes.ANIME.value, filters, page
+        ),
+        MediaTypes.MANGA.value: lambda: jikan.browse(
+            MediaTypes.MANGA.value, filters, page
+        ),
+        MediaTypes.GAME.value: lambda: igdb.browse_filtered(filters, page),
+    }
+    handler = filter_handlers.get(media_type)
+    if handler is None:
+        return app_helpers.format_search_response(page, 24, 0, [])
+    return handler()
+
+
+def get_filter_options(provider_key):
+    """Fetch filter options (e.g., genre lists) from the appropriate provider."""
+    option_fetchers = {
+        "tmdb_movie_genres": lambda: tmdb.get_genre_list(MediaTypes.MOVIE.value),
+        "tmdb_tv_genres": lambda: tmdb.get_genre_list(MediaTypes.TV.value),
+        "jikan_anime_genres": lambda: jikan.get_genres(MediaTypes.ANIME.value),
+        "jikan_manga_genres": lambda: jikan.get_genres(MediaTypes.MANGA.value),
+        "igdb_genres": igdb.get_genres,
+        "igdb_platforms": igdb.get_platforms,
+        "igdb_themes": igdb.get_themes,
+    }
+    fetcher = option_fetchers.get(provider_key)
+    if fetcher is None:
+        return []
+    return fetcher()
 
 
 UNIFIED_SEARCH_MAX_PER_TYPE = 3

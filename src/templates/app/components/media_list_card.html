@@ -6,7 +6,7 @@
   {% else %}
     false
   {% endif %}
-  , confirmDrop: false, confirmUntrack: false }">
+  , confirmDrop: false, confirmUntrack: false, showRatingPopup: false, rating: {{ media.score|default:'null' }}, hoverRating: null, isHovering: false }">
   <div class="flex items-start p-4 gap-4">
     <div x-show="selecting" class="flex items-center shrink-0" @click.stop>
       <input type="checkbox"
@@ -39,7 +39,26 @@
 
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-400">
             <span class="flex items-center gap-1 {{ media.status|status_color }}">{{ media.status|media_status_readable }}</span>
-            {% if media.score is not None %}
+            {% if not media.not_yet_airing %}
+              <div class="relative flex items-center gap-1">
+                <button @click.stop="showRatingPopup = !showRatingPopup"
+                        class="flex items-center gap-1 cursor-pointer"
+                        title="Click to rate">
+                  <template x-if="rating">
+                    <span class="flex items-center gap-1">
+                      {% include "app/icons/star.svg" with classes="w-3.5 h-3.5 text-yellow-400 fill-current" %}
+                      <span x-text="rating"></span>
+                    </span>
+                  </template>
+                  <template x-if="!rating">
+                    <span>
+                      {% include "app/icons/star.svg" with classes="w-3.5 h-3.5 text-gray-400 fill-current hover:text-yellow-400 transition-colors" %}
+                    </span>
+                  </template>
+                </button>
+                {% include "app/components/star_rating_popup.html" with popup_classes="left-0 top-full mt-2" %}
+              </div>
+            {% elif media.score is not None %}
               <span class="flex items-center gap-1">
                 {% include "app/icons/star.svg" with classes="w-3.5 h-3.5 text-yellow-400 fill-current" %}
                 {{ media.formatted_score }}
@@ -219,7 +238,7 @@
                    min="0"
                    max="10"
                    step="0.1"
-                   value="{{ media.score|default_if_none:'' }}"
+                   x-model="rating"
                    placeholder="0-10"
                    class="w-full p-2 bg-input rounded-md text-white border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
           </div>
