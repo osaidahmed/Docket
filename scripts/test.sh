@@ -142,10 +142,7 @@ cd "$ROOT_DIR"
 if [ "$use_coverage" = true ]; then
   echo "running tests with coverage..."
   # shellcheck disable=SC2086
-  coverage run -m pytest $pytest_flags $test_paths $pytest_extra
-  echo ""
-  coverage report
-  coverage html --quiet
+  python -m pytest --cov=src --cov-report=term --cov-report=html $pytest_flags $test_paths $pytest_extra
   echo ""
   echo "html report: htmlcov/index.html"
 else
