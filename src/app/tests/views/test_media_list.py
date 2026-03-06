@@ -1,3 +1,5 @@
+import json
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -240,3 +242,243 @@ class QuickUntrackTests(TestCase):
 
         self.assertTemplateUsed(response, "app/components/backlog_untracked.html")
         self.assertContains(response, "Untracked")
+
+
+class InlineStarRatingTests(TestCase):
+    """Test that the inline star rating popup renders across all layouts."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test_star", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+        cls.scored_item = Item.objects.create(
+            media_id="5001",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Scored Movie",
+            image="http://example.com/image.jpg",
+        )
+        cls.scored_movie = Movie.objects.create(
+            item=cls.scored_item,
+            user=cls.user,
+            status=Status.COMPLETED.value,
+            score=8,
+        )
+
+        cls.unscored_item = Item.objects.create(
+            media_id="5002",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Unscored Movie",
+            image="http://example.com/image.jpg",
+        )
+        cls.unscored_movie = Movie.objects.create(
+            item=cls.unscored_item,
+            user=cls.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def test_cards_layout_has_star_rating_trigger(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value]) + "?layout=cards",
+        )
+        self.assertContains(response, "Click to rate")
+        self.assertContains(response, "update-score/movie/")
+
+    def test_cards_layout_shows_score_in_alpine_state(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value]) + "?layout=cards",
+        )
+        self.assertContains(response, f"rating: {self.scored_movie.score}")
+
+    def test_cards_layout_shows_null_for_unscored(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value]) + "?layout=cards",
+        )
+        self.assertContains(response, "rating: null")
+
+    def test_table_layout_has_star_rating_trigger(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value]) + "?layout=table",
+        )
+        self.assertContains(response, "Click to rate")
+        self.assertContains(response, "update-score/movie/")
+
+    def test_table_layout_shows_score_in_alpine_state(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value]) + "?layout=table",
+        )
+        self.assertContains(response, f"rating: {self.scored_movie.score}")
+
+    def test_table_layout_shows_null_for_unscored(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value]) + "?layout=table",
+        )
+        self.assertContains(response, "rating: null")
+
+    def test_edit_form_score_uses_x_model(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value]) + "?layout=cards",
+        )
+        self.assertContains(response, 'x-model="rating"')
+
+
+class InlineStarRatingPinnedTests(TestCase):
+    """Test that pinned items in table layout have the interactive star rating."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test_pin_star", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+        cls.pinned_item = Item.objects.create(
+            media_id="6001",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Pinned Movie",
+            image="http://example.com/image.jpg",
+        )
+        cls.pinned_movie = Movie.objects.create(
+            item=cls.pinned_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
+            score=7,
+            pin_order=0,
+        )
+
+        cls.pinned_unscored_item = Item.objects.create(
+            media_id="6002",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Pinned Unscored Movie",
+            image="http://example.com/image.jpg",
+        )
+        cls.pinned_unscored_movie = Movie.objects.create(
+            item=cls.pinned_unscored_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
+            pin_order=1,
+        )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def test_pinned_table_has_star_rating_trigger(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value])
+            + "?layout=table&status=Planning",
+        )
+        self.assertContains(response, "Click to rate")
+        self.assertContains(
+            response,
+            f"update-score/movie/{self.pinned_movie.id}",
+        )
+
+    def test_pinned_table_shows_score_in_alpine_state(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value])
+            + "?layout=table&status=Planning",
+        )
+        self.assertContains(response, f"rating: {self.pinned_movie.score}")
+
+    def test_pinned_table_shows_null_for_unscored(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value])
+            + "?layout=table&status=Planning",
+        )
+        self.assertContains(response, "rating: null")
+
+    def test_pinned_cards_has_star_rating_trigger(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value])
+            + "?layout=cards&status=Planning",
+        )
+        self.assertContains(response, "Click to rate")
+        self.assertContains(
+            response,
+            f"update-score/movie/{self.pinned_movie.id}",
+        )
+
+
+class UpdateMediaScoreTests(TestCase):
+    """Test the update_media_score endpoint used by the inline star rating."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test_score", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+        cls.item = Item.objects.create(
+            media_id="7001",
+            source=Sources.MANUAL.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Score Test Movie",
+            image="http://example.com/image.jpg",
+        )
+        cls.movie = Movie.objects.create(
+            item=cls.item,
+            user=cls.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def test_update_score_returns_json(self):
+        response = self.client.post(
+            reverse(
+                "update_media_score",
+                args=[MediaTypes.MOVIE.value, self.movie.id],
+            ),
+            {"score": 9},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["score"], 9.0)
+
+    def test_update_score_persists(self):
+        self.client.post(
+            reverse(
+                "update_media_score",
+                args=[MediaTypes.MOVIE.value, self.movie.id],
+            ),
+            {"score": 6},
+        )
+        self.movie.refresh_from_db()
+        self.assertEqual(float(self.movie.score), 6.0)
+
+    def test_update_score_decimal(self):
+        self.client.post(
+            reverse(
+                "update_media_score",
+                args=[MediaTypes.MOVIE.value, self.movie.id],
+            ),
+            {"score": 7.5},
+        )
+        self.movie.refresh_from_db()
+        self.assertEqual(float(self.movie.score), 7.5)
+
+    def test_update_score_rejects_get(self):
+        response = self.client.get(
+            reverse(
+                "update_media_score",
+                args=[MediaTypes.MOVIE.value, self.movie.id],
+            ),
+        )
+        self.assertEqual(response.status_code, 405)
+
+    def test_update_score_requires_auth(self):
+        self.client.logout()
+        response = self.client.post(
+            reverse(
+                "update_media_score",
+                args=[MediaTypes.MOVIE.value, self.movie.id],
+            ),
+            {"score": 5},
+        )
+        self.assertNotEqual(response.status_code, 200)
