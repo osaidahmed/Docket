@@ -1071,3 +1071,146 @@ class AutoMoveCompletedToPlanningTests(TestCase):
 
         self.tv.refresh_from_db()
         self.assertEqual(self.tv.status, Status.COMPLETED.value)
+
+
+class SaveEventsNoContentNumberTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="test_save",
+            password="12345",
+        )
+
+        cls.movie_item = Item.objects.create(
+            media_id="999",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Test Movie",
+            image="http://example.com/movie.jpg",
+        )
+        Movie.objects.create(
+            item=cls.movie_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
+        )
+
+    def test_save_events_creates_event_without_content_number(self):
+        from events.calendar import save_events
+
+        events_bulk = [
+            Event(
+                item=self.movie_item,
+                content_number=None,
+                datetime=timezone.now(),
+            ),
+        ]
+        items_updated = save_events(events_bulk)
+        self.assertIn(self.movie_item, items_updated)
+        self.assertTrue(
+            Event.objects.filter(
+                item=self.movie_item, content_number__isnull=True
+            ).exists()
+        )
+
+
+class GetSeasonsToProcessTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="test_seasons",
+            password="12345",
+        )
+
+        cls.tv_item = Item.objects.create(
+            media_id="2000",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.TV.value,
+            title="Test TV",
+            image="http://example.com/tv.jpg",
+        )
+        TV.objects.create(
+            item=cls.tv_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
+        )
+
+    @patch("events.calendar.tmdb.tv")
+    def test_get_seasons_to_process_empty_seasons_list(self, mock_tv):
+        from events.calendar import get_seasons_to_process
+
+        mock_tv.return_value = {
+            "related": {
+                "seasons": [],
+            },
+        }
+        result = get_seasons_to_process(self.tv_item)
+        self.assertEqual(result, [])
+
+    @patch("events.calendar.tmdb.tv")
+    def test_get_seasons_to_process_next_episode_season(self, mock_tv):
+        from events.calendar import get_seasons_to_process
+
+        season_item = Item.objects.create(
+            media_id="2000",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            title="Test TV",
+            image="http://example.com/tv.jpg",
+            season_number=2,
+        )
+        Event.objects.create(
+            item=season_item,
+            content_number=1,
+            datetime=timezone.now() - timezone.timedelta(days=30),
+        )
+
+        mock_tv.return_value = {
+            "related": {
+                "seasons": [
+                    {"season_number": 2},
+                    {"season_number": 3},
+                ],
+            },
+            "next_episode_season": 2,
+        }
+        result = get_seasons_to_process(self.tv_item)
+        self.assertIn(2, result)
+        self.assertIn(3, result)
+
+
+class ProcessComicProviderErrorTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="test_comic_err",
+            password="12345",
+        )
+
+        cls.comic_item = Item.objects.create(
+            media_id="99999",
+            source=Sources.COMICVINE.value,
+            media_type=MediaTypes.COMIC.value,
+            title="Test Comic",
+            image="http://example.com/comic.jpg",
+        )
+        Comic.objects.create(
+            item=cls.comic_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
+        )
+
+    @patch("events.calendar.services.get_media_metadata")
+    def test_process_comic_provider_api_error(self, mock_get_media_metadata):
+        response_mock = MagicMock()
+        response_mock.status_code = 500
+        response_mock.text = "Server error"
+
+        mock_get_media_metadata.side_effect = services.ProviderAPIError(
+            provider=Sources.COMICVINE.value,
+            error=response_mock,
+            details="API error",
+        )
+
+        events_bulk = []
+        process_comic(self.comic_item, events_bulk)
+        self.assertEqual(len(events_bulk), 0)

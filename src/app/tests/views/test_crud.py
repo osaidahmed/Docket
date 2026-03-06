@@ -1,4 +1,5 @@
 import datetime
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -20,12 +21,10 @@ from app.models import (
 class CreateMedia(TestCase):
     """Test the creation of media objects through views."""
 
-    @classmethod
-    def setUpTestData(cls):
-        cls.credentials = {"username": "test", "password": "12345"}
-        cls.user = get_user_model().objects.create_user(**cls.credentials)
-
     def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     @override_settings(MEDIA_ROOT=("create_media"))
@@ -128,12 +127,10 @@ class CreateMedia(TestCase):
 class EditMedia(TestCase):
     """Test the editing of media objects through views."""
 
-    @classmethod
-    def setUpTestData(cls):
-        cls.credentials = {"username": "test", "password": "12345"}
-        cls.user = get_user_model().objects.create_user(**cls.credentials)
-
     def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def test_edit_movie_score(self):
@@ -175,11 +172,13 @@ class EditMedia(TestCase):
 class DeleteMedia(TestCase):
     """Test the deletion of media objects through views."""
 
-    @classmethod
-    def setUpTestData(cls):
-        cls.credentials = {"username": "test", "password": "12345"}
-        cls.user = get_user_model().objects.create_user(**cls.credentials)
-        cls.item_season = Item.objects.create(
+    def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+        self.item_season = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.SEASON.value,
@@ -187,12 +186,13 @@ class DeleteMedia(TestCase):
             image="http://example.com/image.jpg",
             season_number=1,
         )
-        cls.season = Season.objects.create(
-            item=cls.item_season,
-            user=cls.user,
+        self.season = Season.objects.create(
+            item=self.item_season,
+            user=self.user,
             status=Status.IN_PROGRESS.value,
         )
-        cls.item_ep = Item.objects.create(
+
+        self.item_ep = Item.objects.create(
             media_id="1668",
             source=Sources.TMDB.value,
             media_type=MediaTypes.EPISODE.value,
@@ -201,14 +201,11 @@ class DeleteMedia(TestCase):
             season_number=1,
             episode_number=1,
         )
-        cls.episode = Episode.objects.create(
-            item=cls.item_ep,
-            related_season=cls.season,
+        self.episode = Episode.objects.create(
+            item=self.item_ep,
+            related_season=self.season,
             end_date=datetime.datetime(2023, 6, 1, 0, 0, tzinfo=datetime.UTC),
         )
-
-    def setUp(self):
-        self.client.login(**self.credentials)
 
     def test_delete_tv(self):
         """Test the deletion of a tv through views."""
@@ -254,3 +251,269 @@ class DeleteMedia(TestCase):
             Episode.objects.filter(related_season__user=self.user).count(),
             0,
         )
+
+    def test_delete_already_deleted(self):
+        instance_id = self.season.id
+        self.season.delete()
+
+        response = self.client.post(
+            reverse("media_delete"),
+            data={
+                "instance_id": instance_id,
+                "media_type": MediaTypes.SEASON.value,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+
+class UpdateMediaScore(TestCase):
+    def setUp(self):
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+        item = Item.objects.create(
+            media_id="238",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Test Movie",
+            image="http://example.com/image.jpg",
+        )
+        self.movie = Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+            progress=1,
+            score=7,
+        )
+
+    def test_update_score(self):
+        response = self.client.post(
+            reverse(
+                "update_media_score",
+                kwargs={
+                    "media_type": MediaTypes.MOVIE.value,
+                    "instance_id": self.movie.id,
+                },
+            ),
+            {"score": "9.5"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["success"], True)
+        self.assertEqual(response.json()["score"], 9.5)
+        self.movie.refresh_from_db()
+        self.assertEqual(self.movie.score, 9.5)
+
+
+class MediaSaveFormErrors(TestCase):
+    def setUp(self):
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    def test_save_with_invalid_form(self):
+        Item.objects.create(
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Test Anime",
+            image="http://example.com/image.jpg",
+        )
+        response = self.client.post(
+            reverse("media_save"),
+            {
+                "media_id": "1",
+                "source": Sources.MAL.value,
+                "media_type": MediaTypes.ANIME.value,
+                "status": "invalid_status",
+                "progress": "not_a_number",
+                "repeats": 0,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(
+            Anime.objects.filter(item__media_id="1", user=self.user).exists(),
+        )
+
+
+class EpisodeSaveInvalidForm(TestCase):
+    def setUp(self):
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    def test_episode_save_invalid_form(self):
+        response = self.client.post(
+            reverse("episode_save"),
+            {
+                "media_id": "1668",
+                "season_number": 1,
+                "episode_number": 1,
+                "source": Sources.TMDB.value,
+                "end_date": "invalid-date",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class SyncMetadata(TestCase):
+    def setUp(self):
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
+        self.client.login(**self.credentials)
+
+    def test_sync_manual_item(self):
+        response = self.client.post(
+            reverse(
+                "sync_metadata",
+                kwargs={
+                    "source": Sources.MANUAL.value,
+                    "media_type": MediaTypes.MOVIE.value,
+                    "media_id": "1",
+                },
+            ),
+            {"next": "/"},
+        )
+        self.assertEqual(response.status_code, 400)
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_sync_movie(self, mock_fetch, mock_metadata):
+        mock_metadata.return_value = {
+            "title": "Test Movie",
+            "image": "http://example.com/image.jpg",
+        }
+        mock_fetch.return_value = None
+
+        Item.objects.create(
+            media_id="238",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Old Title",
+            image="http://example.com/old.jpg",
+        )
+
+        response = self.client.post(
+            reverse(
+                "sync_metadata",
+                kwargs={
+                    "source": Sources.TMDB.value,
+                    "media_type": MediaTypes.MOVIE.value,
+                    "media_id": "238",
+                },
+            ),
+            {"next": "/"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response["HX-Redirect"], "/")
+
+        item = Item.objects.get(media_id="238")
+        self.assertEqual(item.title, "Test Movie")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_sync_recently_synced(self, mock_fetch, mock_metadata):
+        mock_metadata.return_value = {
+            "title": "Test Movie",
+            "image": "http://example.com/image.jpg",
+        }
+        mock_fetch.return_value = None
+
+        from django.core.cache import cache
+
+        cache.set("tmdb_movie_238", "cached_data", 86400)
+
+        response = self.client.post(
+            reverse(
+                "sync_metadata",
+                kwargs={
+                    "source": Sources.TMDB.value,
+                    "media_type": MediaTypes.MOVIE.value,
+                    "media_id": "238",
+                },
+            ),
+            {"next": "/"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 204)
+        mock_metadata.assert_not_called()
+        cache.delete("tmdb_movie_238")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.providers.tmdb.process_episodes")
+    @patch("app.models.Item.fetch_releases")
+    def test_sync_season(self, mock_fetch, mock_process, mock_metadata):
+        mock_metadata.return_value = {
+            "title": "Test TV",
+            "image": "http://example.com/image.jpg",
+            "episodes": [],
+        }
+        mock_process.return_value = [
+            {
+                "episode_number": 1,
+                "image": "http://example.com/ep1.jpg",
+            },
+        ]
+        mock_fetch.return_value = None
+
+        Item.objects.create(
+            media_id="1668",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            title="Old Season",
+            image="http://example.com/old.jpg",
+            season_number=1,
+        )
+        Item.objects.create(
+            media_id="1668",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.EPISODE.value,
+            title="Old Title",
+            image="http://example.com/old_ep.jpg",
+            season_number=1,
+            episode_number=1,
+        )
+
+        response = self.client.post(
+            reverse(
+                "sync_metadata",
+                kwargs={
+                    "source": Sources.TMDB.value,
+                    "media_type": MediaTypes.SEASON.value,
+                    "media_id": "1668",
+                    "season_number": 1,
+                },
+            ),
+            {"next": "/"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 204)
+
+        ep_item = Item.objects.get(
+            media_id="1668",
+            media_type=MediaTypes.EPISODE.value,
+            episode_number=1,
+        )
+        self.assertEqual(ep_item.image, "http://example.com/ep1.jpg")
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("app.models.Item.fetch_releases")
+    def test_sync_no_htmx(self, mock_fetch, mock_metadata):
+        mock_metadata.return_value = {
+            "title": "Test Movie",
+            "image": "http://example.com/image.jpg",
+        }
+        mock_fetch.return_value = None
+
+        response = self.client.post(
+            reverse(
+                "sync_metadata",
+                kwargs={
+                    "source": Sources.TMDB.value,
+                    "media_type": MediaTypes.MOVIE.value,
+                    "media_id": "238",
+                },
+            ) + "?next=/",
+        )
+        self.assertEqual(response.status_code, 302)

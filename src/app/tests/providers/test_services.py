@@ -2,11 +2,14 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import requests
+from django.conf import settings
+from django.core.cache import cache
 from django.test import TestCase
 
 from app.models import MediaTypes, Sources
 from app.providers import (
     igdb,
+    jikan,
     mal,
     services,
     tmdb,
@@ -575,3 +578,410 @@ class ServicesTests(TestCase):
 
         result_types = [g["media_type"] for g in result]
         self.assertEqual(result_types, custom_order)
+
+
+class ProviderAPIErrorTests(TestCase):
+    """Test ProviderAPIError exception class."""
+
+    def test_invalid_source_uses_title(self):
+        mock_response = type("Response", (), {"status_code": 500, "text": "error"})()
+        mock_error = requests.exceptions.HTTPError(response=mock_response)
+
+        error = services.ProviderAPIError("unknown_provider", mock_error)
+
+        self.assertEqual(error.provider, "unknown_provider")
+        self.assertIn("Unknown_Provider", str(error))
+
+    def test_with_details(self):
+        mock_response = type("Response", (), {"status_code": 400, "text": "bad"})()
+        mock_error = requests.exceptions.HTTPError(response=mock_response)
+
+        error = services.ProviderAPIError(
+            Sources.TMDB.value, mock_error, "Custom detail"
+        )
+
+        self.assertIn("Custom detail", str(error))
+
+
+class RaiseNotFoundErrorTests(TestCase):
+    """Test raise_not_found_error function."""
+
+    def test_raises_provider_api_error(self):
+        with self.assertRaises(services.ProviderAPIError) as cm:
+            services.raise_not_found_error(Sources.COMICVINE.value, "12345", "comic")
+
+        self.assertEqual(cm.exception.status_code, 404)
+        self.assertIn("Comic with ID 12345 not found", str(cm.exception))
+
+    def test_default_media_type(self):
+        with self.assertRaises(services.ProviderAPIError) as cm:
+            services.raise_not_found_error(Sources.IGDB.value, "99")
+
+        self.assertIn("Item with ID 99 not found", str(cm.exception))
+
+
+class APIRequestConnectionErrorTests(TestCase):
+    """Test api_request connection error handling."""
+
+    @patch("app.providers.services.session.get")
+    def test_connection_error(self, mock_get):
+        mock_get.side_effect = requests.exceptions.ConnectionError("DNS failure")
+
+        with self.assertRaises(services.ProviderAPIError) as cm:
+            services.api_request("TEST", "GET", "https://example.com/api")
+
+        self.assertEqual(cm.exception.status_code, 503)
+        self.assertIn("Connection failed", str(cm.exception))
+
+    @patch("app.providers.services.session.get")
+    def test_timeout_error(self, mock_get):
+        mock_get.side_effect = requests.exceptions.Timeout("Request timed out")
+
+        with self.assertRaises(services.ProviderAPIError) as cm:
+            services.api_request("TEST", "GET", "https://example.com/api")
+
+        self.assertEqual(cm.exception.status_code, 503)
+
+
+class APIRequestXMLTests(TestCase):
+    """Test api_request XML response handling."""
+
+    @patch("app.providers.services.session.get")
+    def test_xml_response(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.text = "<root><item id='1'/></root>"
+        mock_get.return_value = mock_response
+
+        result = services.api_request(
+            "TEST", "GET", "https://example.com/api", response_format="xml"
+        )
+
+        self.assertEqual(result.tag, "root")
+
+
+class BrowseDispatchTests(TestCase):
+    """Test services.browse dispatch to providers."""
+
+    @patch("app.providers.bgg.browse")
+    def test_browse_boardgame(self, mock_bgg):
+        mock_bgg.return_value = {"results": [], "page": 1, "total_results": 0}
+
+        result = services.browse(MediaTypes.BOARDGAME.value, "hot", 1)
+
+        mock_bgg.assert_called_once_with("hot", 1)
+        self.assertEqual(result["results"], [])
+
+    @patch("app.providers.comicvine.browse")
+    def test_browse_comic(self, mock_cv):
+        mock_cv.return_value = {"results": [], "page": 1, "total_results": 0}
+
+        services.browse(MediaTypes.COMIC.value, "recent", 1)
+
+        mock_cv.assert_called_once_with("recent", 1)
+
+    @patch("app.providers.igdb.browse")
+    def test_browse_game(self, mock_igdb):
+        mock_igdb.return_value = {"results": [], "page": 1, "total_results": 0}
+
+        services.browse(MediaTypes.GAME.value, "popular", 1)
+
+        mock_igdb.assert_called_once_with("popular", 1)
+
+    @patch("app.providers.mal.browse_seasonal")
+    def test_browse_anime_seasonal(self, mock_seasonal):
+        mock_seasonal.return_value = {"results": []}
+
+        services.browse(
+            MediaTypes.ANIME.value, "seasonal", 1, year=2024, season="winter"
+        )
+
+        mock_seasonal.assert_called_once_with(2024, "winter", 1)
+
+    def test_browse_unknown_type(self):
+        result = services.browse("nonexistent", "popular", 1)
+
+        self.assertEqual(result["results"], [])
+        self.assertEqual(result["total_results"], 0)
+
+    BROWSE_CASES = [
+        (MediaTypes.ANIME.value, "app.providers.mal.browse"),
+        (MediaTypes.MANGA.value, "app.providers.mal.browse"),
+        (MediaTypes.TV.value, "app.providers.tmdb.browse"),
+        (MediaTypes.MOVIE.value, "app.providers.tmdb.browse"),
+    ]
+
+    def test_browse_dispatches(self):
+        for media_type, patch_target in self.BROWSE_CASES:
+            with self.subTest(media_type=media_type), patch(patch_target) as mock_fn:
+                mock_fn.return_value = {"results": [], "page": 1, "total_results": 0}
+                services.browse(media_type, "popular", 1)
+                mock_fn.assert_called_once()
+
+
+class BrowseFilteredDispatchTests(TestCase):
+    """Test services.browse_filtered dispatch to providers."""
+
+    @patch("app.providers.jikan.browse")
+    def test_browse_filtered_anime(self, mock_jikan):
+        mock_jikan.return_value = {"results": [], "page": 1, "total_results": 0}
+
+        services.browse_filtered(MediaTypes.ANIME.value, {"genres": "1"}, 1)
+
+        mock_jikan.assert_called_once_with(MediaTypes.ANIME.value, {"genres": "1"}, 1)
+
+    @patch("app.providers.jikan.browse")
+    def test_browse_filtered_manga(self, mock_jikan):
+        mock_jikan.return_value = {"results": [], "page": 1, "total_results": 0}
+
+        services.browse_filtered(MediaTypes.MANGA.value, {"genres": "2"}, 1)
+
+        mock_jikan.assert_called_once_with(MediaTypes.MANGA.value, {"genres": "2"}, 1)
+
+    @patch("app.providers.igdb.browse_filtered")
+    def test_browse_filtered_game(self, mock_igdb):
+        mock_igdb.return_value = {"results": [], "page": 1, "total_results": 0}
+
+        services.browse_filtered(MediaTypes.GAME.value, {"genres": "12"}, 1)
+
+        mock_igdb.assert_called_once_with({"genres": "12"}, 1)
+
+    @patch("app.providers.tmdb.discover")
+    def test_browse_filtered_movie(self, mock_tmdb):
+        mock_tmdb.return_value = {"results": [], "page": 1, "total_results": 0}
+
+        services.browse_filtered(MediaTypes.MOVIE.value, {"genres": "28"}, 1)
+        mock_tmdb.assert_called_once_with(MediaTypes.MOVIE.value, {"genres": "28"}, 1)
+
+    @patch("app.providers.tmdb.discover")
+    def test_browse_filtered_tv(self, mock_tmdb):
+        mock_tmdb.return_value = {"results": [], "page": 1, "total_results": 0}
+
+        services.browse_filtered(MediaTypes.TV.value, {}, 1)
+        mock_tmdb.assert_called_once_with(MediaTypes.TV.value, {}, 1)
+
+    def test_browse_filtered_unknown_type(self):
+        result = services.browse_filtered("nonexistent", {}, 1)
+
+        self.assertEqual(result["results"], [])
+
+
+class GetFilterOptionsTests(TestCase):
+    """Test services.get_filter_options function."""
+
+    @patch("app.providers.jikan.get_genres")
+    def test_jikan_anime_genres(self, mock_fn):
+        mock_fn.return_value = [{"id": 1, "name": "Action"}]
+
+        result = services.get_filter_options("jikan_anime_genres")
+
+        mock_fn.assert_called_once_with(MediaTypes.ANIME.value)
+        self.assertEqual(len(result), 1)
+
+    @patch("app.providers.jikan.get_genres")
+    def test_jikan_manga_genres(self, mock_fn):
+        mock_fn.return_value = [{"id": 1, "name": "Shounen"}]
+
+        services.get_filter_options("jikan_manga_genres")
+
+        mock_fn.assert_called_once_with(MediaTypes.MANGA.value)
+
+    @patch("app.providers.igdb.get_genres")
+    def test_igdb_genres(self, mock_fn):
+        mock_fn.return_value = [{"id": 1, "name": "Action"}]
+
+        services.get_filter_options("igdb_genres")
+
+        mock_fn.assert_called_once()
+
+    @patch("app.providers.igdb.get_platforms")
+    def test_igdb_platforms(self, mock_fn):
+        mock_fn.return_value = [{"id": 48, "name": "PS4"}]
+
+        services.get_filter_options("igdb_platforms")
+
+        mock_fn.assert_called_once()
+
+    @patch("app.providers.igdb.get_themes")
+    def test_igdb_themes(self, mock_fn):
+        mock_fn.return_value = [{"id": 1, "name": "Fantasy"}]
+
+        services.get_filter_options("igdb_themes")
+
+        mock_fn.assert_called_once()
+
+    @patch("app.providers.tmdb.get_genre_list")
+    def test_tmdb_movie_genres(self, mock_fn):
+        mock_fn.return_value = [{"id": 28, "name": "Action"}]
+
+        services.get_filter_options("tmdb_movie_genres")
+
+        mock_fn.assert_called_once_with(MediaTypes.MOVIE.value)
+
+    @patch("app.providers.tmdb.get_genre_list")
+    def test_tmdb_tv_genres(self, mock_fn):
+        mock_fn.return_value = [{"id": 10765, "name": "Sci-Fi"}]
+
+        services.get_filter_options("tmdb_tv_genres")
+
+        mock_fn.assert_called_once_with(MediaTypes.TV.value)
+
+    def test_unknown_provider_key(self):
+        result = services.get_filter_options("nonexistent")
+        self.assertEqual(result, [])
+
+
+class JikanBrowseTests(TestCase):
+    """Test Jikan browse functionality."""
+
+    @patch("app.providers.services.api_request")
+    def test_browse_anime(self, mock_api):
+        mock_api.return_value = {
+            "data": [
+                {
+                    "mal_id": 1,
+                    "title": "Cowboy Bebop",
+                    "title_english": "Cowboy Bebop",
+                    "images": {"jpg": {"large_image_url": "http://img/cb.jpg"}},
+                    "synopsis": "A bounty hunter story",
+                    "status": "Finished Airing",
+                    "chapters": None,
+                },
+            ],
+            "pagination": {"items": {"total": 1}},
+        }
+
+        result = jikan.browse(MediaTypes.ANIME.value, {"min_score": "1"}, 1)
+
+        self.assertEqual(len(result["results"]), 1)
+        self.assertEqual(result["results"][0]["title"], "Cowboy Bebop")
+        self.assertEqual(result["results"][0]["source"], Sources.MAL.value)
+
+    @patch("app.providers.services.api_request")
+    def test_browse_manga_ongoing(self, mock_api):
+        mock_api.return_value = {
+            "data": [
+                {
+                    "mal_id": 1,
+                    "title": "Monster",
+                    "title_english": None,
+                    "images": {"jpg": {"large_image_url": "http://img/m.jpg"}},
+                    "synopsis": "A thriller manga",
+                    "chapters": None,
+                },
+            ],
+            "pagination": {"items": {"total": 1}},
+        }
+
+        result = jikan.browse(MediaTypes.MANGA.value, {"min_score": "1"}, 1)
+
+        self.assertEqual(result["results"][0]["is_ongoing"], True)
+
+    @patch("app.providers.services.api_request")
+    def test_browse_manga_with_chapters(self, mock_api):
+        mock_api.return_value = {
+            "data": [
+                {
+                    "mal_id": 1,
+                    "title": "Monster",
+                    "title_english": None,
+                    "images": {"jpg": {"large_image_url": "http://img/m.jpg"}},
+                    "synopsis": "A thriller manga",
+                    "chapters": 162,
+                },
+            ],
+            "pagination": {"items": {"total": 1}},
+        }
+
+        result = jikan.browse(MediaTypes.MANGA.value, {"min_score": "2"}, 1)
+
+        self.assertEqual(result["results"][0]["is_ongoing"], False)
+
+    @patch("app.providers.services.api_request")
+    def test_browse_with_filters(self, mock_api):
+        mock_api.return_value = {
+            "data": [],
+            "pagination": {"items": {"total": 0}},
+        }
+
+        filters = {"genres": "1,2", "min_score": "7", "anime_type": "TV"}
+        jikan.browse(MediaTypes.ANIME.value, filters, 1)
+
+        call_kwargs = mock_api.call_args
+        params = (
+            call_kwargs[1]["params"]
+            if "params" in call_kwargs[1]
+            else call_kwargs[0][3]
+        )
+        self.assertEqual(params["genres"], "1,2")
+        self.assertEqual(params["min_score"], "7")
+        self.assertEqual(params["type"], "TV")
+
+    @patch("app.providers.services.api_request")
+    def test_browse_error_returns_empty(self, mock_api):
+        mock_api.side_effect = Exception("API down")
+
+        result = jikan.browse(MediaTypes.ANIME.value, {"min_score": "99"}, 1)
+
+        self.assertEqual(result["results"], [])
+        self.assertEqual(result["total_results"], 0)
+
+
+class JikanGetGenresTests(TestCase):
+    """Test Jikan get_genres function."""
+
+    @patch("app.providers.services.api_request")
+    def test_get_genres_anime(self, mock_api):
+        mock_api.return_value = {
+            "data": [
+                {"mal_id": 1, "name": "Action"},
+                {"mal_id": 2, "name": "Adventure"},
+            ],
+        }
+
+        cache.delete("jikan_anime_genres")
+
+        result = jikan.get_genres(MediaTypes.ANIME.value)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["id"], 1)
+        self.assertEqual(result[0]["name"], "Action")
+
+    @patch("app.providers.services.api_request")
+    def test_get_genres_error_returns_empty(self, mock_api):
+        mock_api.side_effect = Exception("API down")
+
+        cache.delete("jikan_manga_genres")
+
+        result = jikan.get_genres(MediaTypes.MANGA.value)
+
+        self.assertEqual(result, [])
+
+
+class JikanHelperTests(TestCase):
+    """Test Jikan helper functions."""
+
+    def test_get_image_url_with_large(self):
+        item = {"images": {"jpg": {"large_image_url": "http://img/large.jpg"}}}
+        self.assertEqual(jikan._get_image_url(item), "http://img/large.jpg")
+
+    def test_get_image_url_fallback_to_regular(self):
+        item = {"images": {"jpg": {"image_url": "http://img/reg.jpg"}}}
+        self.assertEqual(jikan._get_image_url(item), "http://img/reg.jpg")
+
+    def test_get_image_url_no_images(self):
+        self.assertEqual(jikan._get_image_url({}), settings.IMG_NONE)
+
+    def test_build_filter_hash_with_filters(self):
+        result = jikan._build_filter_hash("anime", {"genres": "1", "min_score": "7"})
+        self.assertIn("anime", result)
+        self.assertIn("genres=1", result)
+        self.assertIn("min_score=7", result)
+
+    def test_build_filter_hash_no_filters(self):
+        result = jikan._build_filter_hash("anime", {})
+        self.assertEqual(result, "nofilter")
+
+    def test_build_params_nsfw(self):
+        params = jikan._build_params({}, 1)
+        self.assertEqual(params["page"], 1)
+        self.assertEqual(params["limit"], settings.PER_PAGE)

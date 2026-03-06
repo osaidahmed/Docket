@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -10,11 +11,14 @@ from app.models import (
     TV,
     MediaTypes,
     Movie,
+    Sources,
     Status,
 )
+from app.providers.services import ProviderAPIError
 from integrations.imports import (
     imdb,
 )
+from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
 
 mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 app_mock_path = (
@@ -25,15 +29,12 @@ app_mock_path = (
 class ImportIMDB(TestCase):
     """Test importing media from IMDB CSV."""
 
-    @classmethod
-    def setUpTestData(cls):
+    def setUp(self):
         """Create user for the tests."""
-        cls.user = get_user_model().objects.create_user(
-            username="test",
-            password="12345",
-        )
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
         with Path(mock_path / "import_imdb.csv").open("rb") as file:
-            cls.import_results = imdb.importer(file, cls.user, "new")
+            self.import_results = imdb.importer(file, self.user, "new")
 
     def test_import_imdb_csv(self):
         """Test importing movies and TV shows from IMDB CSV."""
@@ -140,3 +141,80 @@ class ImportIMDB(TestCase):
         self.assertEqual(imported_counts.get(MediaTypes.MOVIE.value, 0), 5)
 
         self.assertIn("They were matched to the same TMDB ID 155", warnings)
+
+    def test_invalid_file_format(self):
+        file = BytesIO(b"\x80\x81\x82")
+        with self.assertRaises(MediaImportError):
+            imdb.importer(file, self.user, "new")
+
+    @patch("app.providers.tmdb.find")
+    def test_first_pass_no_imdb_id(self, mock_find):
+        csv_content = (
+            "Position,Const,Created,Modified,Description,Title,Original Title,"
+            "URL,Title Type,IMDb Rating,Runtime (mins),Year,Genres,Num Votes,"
+            "Release Date,Directors,Your Rating,Date Rated\n"
+            "1,,2023-07-09,2024-02-01,,No ID Movie,No ID Movie,"
+            "https://www.imdb.com/title/tt0000000/,Movie,9,120,2023,"
+            '"Action",1000,2023-01-01,Director,,\n'
+        )
+        file = BytesIO(csv_content.encode("utf-8"))
+        _, warnings = imdb.importer(file, self.user, "new")
+        self.assertIn("Invalid or missing IMDB ID", warnings)
+
+    @patch("app.providers.tmdb.find")
+    def test_first_pass_unknown_title_type(self, mock_find):
+        csv_content = (
+            "Position,Const,Created,Modified,Description,Title,Original Title,"
+            "URL,Title Type,IMDb Rating,Runtime (mins),Year,Genres,Num Votes,"
+            "Release Date,Directors,Your Rating,Date Rated\n"
+            "1,tt1234567,2023-07-09,2024-02-01,,Unknown Type,Unknown Type,"
+            "https://www.imdb.com/title/tt1234567/,FutureType,9,120,2023,"
+            '"Action",1000,2023-01-01,Director,,\n'
+        )
+        file = BytesIO(csv_content.encode("utf-8"))
+        _, warnings = imdb.importer(file, self.user, "new")
+        self.assertIn("Unknown title type", warnings)
+
+    @patch("app.providers.tmdb.find")
+    def test_first_pass_tmdb_not_found(self, mock_find):
+        mock_find.return_value = {}
+        csv_content = (
+            "Position,Const,Created,Modified,Description,Title,Original Title,"
+            "URL,Title Type,IMDb Rating,Runtime (mins),Year,Genres,Num Votes,"
+            "Release Date,Directors,Your Rating,Date Rated\n"
+            "1,tt9999999,2023-07-09,2024-02-01,,Missing Movie,Missing Movie,"
+            "https://www.imdb.com/title/tt9999999/,Movie,9,120,2023,"
+            '"Action",1000,2023-01-01,Director,,\n'
+        )
+        file = BytesIO(csv_content.encode("utf-8"))
+        _, warnings = imdb.importer(file, self.user, "new")
+        self.assertIn("Couldn't find a match", warnings)
+
+    @patch("app.providers.tmdb.find")
+    def test_lookup_in_tmdb_provider_error(self, mock_find):
+        error = Mock()
+        error.response.status_code = 500
+        error.response.text = "Server error"
+        mock_find.side_effect = ProviderAPIError("TMDB", error)
+
+        importer_instance = imdb.IMDBImporter(None, self.user, "new")
+        result = importer_instance._lookup_in_tmdb("tt1234567", "Movie")
+        self.assertIsNone(result)
+
+    @patch("app.providers.tmdb.find")
+    def test_lookup_tv_in_tmdb(self, mock_find):
+        mock_find.return_value = {
+            "tv_results": [
+                {
+                    "id": 456,
+                    "name": "Test Show",
+                    "poster_path": "/poster.jpg",
+                },
+            ],
+        }
+
+        importer_instance = imdb.IMDBImporter(None, self.user, "new")
+        result = importer_instance._lookup_in_tmdb("tt1234567", "TV Series")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["media_id"], 456)
+        self.assertEqual(result["media_type"], MediaTypes.TV.value)

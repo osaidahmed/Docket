@@ -66,3 +66,13 @@ class StatisticsViewTests(TestCase):
         )
 
         self.assertTrue(date_is_none)
+
+    def test_statistics_view_all_time(self):
+        response = self.client.get(
+            reverse("statistics") + "?start-date=all&end-date=all",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["start_date"])
+        self.assertIsNone(response.context["end_date"])
+

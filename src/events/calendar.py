@@ -727,6 +727,7 @@ def process_comic(item, events_bulk):
             "Failed to fetch metadata for %s",
             item,
         )
+        return
 
     # get latest event
     latest_event = Event.objects.filter(item=item).order_by("-datetime").first()

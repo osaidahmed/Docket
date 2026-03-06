@@ -1,10 +1,12 @@
 import json
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from app.models import TV, Anime, Episode, Item, MediaTypes, Movie, Season, Status
+from app.models import TV, Anime, Episode, Item, MediaTypes, Movie, Season, Sources, Status
+from integrations.webhooks.base import BaseWebhookProcessor
 from integrations.webhooks.jellyfin import JellyfinWebhookProcessor
 
 
@@ -338,3 +340,164 @@ class JellyfinWebhookTests(TestCase):
         if result != expected:
             msg = f"Expected {expected}, got {result}"
             raise AssertionError(msg)
+
+    @patch("integrations.webhooks.base.app.providers.tmdb.find")
+    def test_movie_imdb_only_no_tmdb_match(self, mock_find):
+        mock_find.return_value = {"movie_results": []}
+        payload = {
+            "Event": "Stop",
+            "Item": {
+                "Type": "Movie",
+                "Name": "Unknown Movie",
+                "ProductionYear": 2020,
+                "ProviderIds": {"Imdb": "tt9999999"},
+                "UserData": {"Played": True},
+            },
+        }
+        response = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Movie.objects.count(), 0)
+
+    @patch("integrations.webhooks.base.app.providers.tmdb.find")
+    def test_tv_episode_no_tmdb_match(self, mock_find):
+        mock_find.return_value = {"tv_episode_results": []}
+        payload = {
+            "Event": "Stop",
+            "Item": {
+                "Type": "Episode",
+                "Name": "Unknown Episode",
+                "ProviderIds": {"Imdb": "tt9999999", "Tvdb": "9999999"},
+                "SeriesName": "Unknown Show",
+                "ParentIndexNumber": 1,
+                "IndexNumber": 1,
+                "UserData": {"Played": True},
+            },
+        }
+        response = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(TV.objects.count(), 0)
+
+    def test_anime_episode_same_progress_no_change(self):
+        anime_item = Item.objects.create(
+            media_id="52991",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Frieren",
+            image="http://example.com/frieren.jpg",
+        )
+        Anime.objects.create(
+            item=anime_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            progress=1,
+        )
+
+        payload = {
+            "Event": "Stop",
+            "Item": {
+                "Type": "Episode",
+                "Name": "The Journey's End",
+                "ProviderIds": {
+                    "Tvdb": "9350138",
+                    "Imdb": "tt23861604",
+                },
+                "UserData": {"Played": True},
+                "SeriesName": "Frieren: Beyond Journey's End",
+                "ParentIndexNumber": 1,
+                "IndexNumber": 1,
+            },
+        }
+
+        response = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        anime = Anime.objects.get(item=anime_item, user=self.user)
+        self.assertEqual(anime.progress, 1)
+
+
+class BaseWebhookProcessorTests(TestCase):
+    def test_abstract_methods_raise_not_implemented(self):
+        processor = BaseWebhookProcessor()
+        with self.assertRaises(NotImplementedError):
+            processor.process_payload({}, None)
+        with self.assertRaises(NotImplementedError):
+            processor._is_supported_event("test")
+        with self.assertRaises(NotImplementedError):
+            processor._is_played({})
+        with self.assertRaises(NotImplementedError):
+            processor._extract_external_ids({})
+        with self.assertRaises(NotImplementedError):
+            processor._get_media_type({})
+        with self.assertRaises(NotImplementedError):
+            processor._get_media_title({})
+
+    def test_parse_mal_id_single(self):
+        processor = BaseWebhookProcessor()
+        self.assertEqual(processor._parse_mal_id(12345), 12345)
+
+    def test_parse_mal_id_comma_separated(self):
+        processor = BaseWebhookProcessor()
+        self.assertEqual(processor._parse_mal_id("123,456,789"), "123")
+
+    def test_parse_mal_id_string_no_comma(self):
+        processor = BaseWebhookProcessor()
+        self.assertEqual(processor._parse_mal_id("12345"), "12345")
+
+    def test_get_mal_id_from_tvdb_no_match(self):
+        processor = BaseWebhookProcessor()
+        mapping_data = {
+            "1": {
+                "tvdb_id": 999,
+                "tvdb_season": 1,
+                "mal_id": 100,
+                "tvdb_epoffset": 0,
+            },
+        }
+        mal_id, offset = processor._get_mal_id_from_tvdb(
+            mapping_data, 888, 1, 1
+        )
+        self.assertIsNone(mal_id)
+        self.assertIsNone(offset)
+
+    def test_get_mal_id_from_tvdb_episode_out_of_range(self):
+        processor = BaseWebhookProcessor()
+        mapping_data = {
+            "1": {
+                "tvdb_id": 100,
+                "tvdb_season": 1,
+                "mal_id": 200,
+                "tvdb_epoffset": 10,
+            },
+        }
+        mal_id, offset = processor._get_mal_id_from_tvdb(
+            mapping_data, 100, 1, 5
+        )
+        self.assertIsNone(mal_id)
+        self.assertIsNone(offset)
+
+    def test_get_mal_id_from_tmdb_movie_no_match(self):
+        processor = BaseWebhookProcessor()
+        mapping_data = {
+            "1": {"tmdb_movie_id": 999, "mal_id": 100},
+        }
+        result = processor._get_mal_id_from_tmdb_movie(mapping_data, 888)
+        self.assertIsNone(result)
+
+    def test_get_mal_id_from_imdb_no_match(self):
+        processor = BaseWebhookProcessor()
+        mapping_data = {
+            "1": {"imdb_id": "tt999", "mal_id": 100},
+        }
+        result = processor._get_mal_id_from_imdb(mapping_data, "tt888")
+        self.assertIsNone(result)

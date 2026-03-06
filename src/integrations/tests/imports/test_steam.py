@@ -27,13 +27,10 @@ app_mock_path = (
 class ImportSteam(TestCase):
     """Test importing media from Steam."""
 
-    @classmethod
-    def setUpTestData(cls):
+    def setUp(self):
         """Create user for the tests."""
-        cls.user = get_user_model().objects.create_user(
-            username="test",
-            password="12345",
-        )
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
 
     @patch("integrations.imports.steam.services.api_request")
     @patch("integrations.imports.steam.external_game")
@@ -175,3 +172,185 @@ class ImportSteam(TestCase):
                 steam.importer("76561198000000000", self.user, "new")
 
             self.assertIn("Steam API key not configured", str(context.exception))
+
+    @patch("integrations.imports.steam.services.api_request")
+    def test_import_steam_no_games(self, mock_api_request):
+        mock_api_request.return_value = {"response": {"games": []}}
+        imported_counts, warnings = steam.importer(
+            "76561198000000000", self.user, "new",
+        )
+        self.assertEqual(imported_counts.get(MediaTypes.GAME.value, 0), 0)
+
+    @patch("integrations.imports.steam.services.api_request")
+    def test_import_steam_no_games_in_response(self, mock_api_request):
+        mock_api_request.return_value = {"response": {}}
+        imported_counts, warnings = steam.importer(
+            "76561198000000000", self.user, "new",
+        )
+        self.assertEqual(imported_counts, {})
+
+    @patch("integrations.imports.steam.services.api_request")
+    def test_import_steam_invalid_response(self, mock_api_request):
+        mock_api_request.return_value = {}
+        with self.assertRaises(helpers.MediaImportError) as ctx:
+            steam.importer("76561198000000000", self.user, "new")
+        self.assertIn("Invalid response", str(ctx.exception))
+
+    @patch("integrations.imports.steam.services.api_request")
+    def test_import_steam_bad_request(self, mock_api_request):
+        response = Response()
+        response.status_code = 400
+        mock_api_request.side_effect = HTTPError(response=response)
+
+        with self.assertRaises(helpers.MediaImportError) as ctx:
+            steam.importer("76561198000000000", self.user, "new")
+        self.assertIn("Bad request", str(ctx.exception))
+
+    @patch("integrations.imports.steam.services.api_request")
+    def test_import_steam_unauthorized(self, mock_api_request):
+        response = Response()
+        response.status_code = 401
+        mock_api_request.side_effect = HTTPError(response=response)
+
+        with self.assertRaises(helpers.MediaImportError) as ctx:
+            steam.importer("76561198000000000", self.user, "new")
+        self.assertIn("Invalid Steam API key", str(ctx.exception))
+
+    @patch("integrations.imports.steam.services.api_request")
+    def test_import_steam_unknown_http_error(self, mock_api_request):
+        response = Response()
+        response.status_code = 500
+        mock_api_request.side_effect = HTTPError(response=response)
+
+        with self.assertRaises(helpers.MediaImportError) as ctx:
+            steam.importer("76561198000000000", self.user, "new")
+        self.assertIn("Steam API error: 500", str(ctx.exception))
+
+    @patch("integrations.imports.steam.time.sleep")
+    @patch("integrations.imports.steam.services.api_request")
+    def test_import_steam_rate_limit_retry_exhausted(self, mock_api_request, mock_sleep):
+        response = Response()
+        response.status_code = 429
+        mock_api_request.side_effect = HTTPError(response=response)
+
+        with self.assertRaises(helpers.MediaImportError) as ctx:
+            steam.importer("76561198000000000", self.user, "new")
+        self.assertIn("rate limit exceeded", str(ctx.exception))
+        self.assertEqual(mock_sleep.call_count, 2)
+
+    @patch("app.providers.services.get_media_metadata")
+    @patch("integrations.imports.steam.services.api_request")
+    @patch("integrations.imports.steam.external_game")
+    def test_process_game_skip_existing_new_mode(
+        self,
+        mock_external_game,
+        mock_api_request,
+        mock_global_metadata,
+    ):
+        from app.models import Game, Item
+        mock_global_metadata.return_value = {
+            "title": "Existing Game",
+            "image": "img.jpg",
+            "max_progress": None,
+        }
+
+        item = Item.objects.create(
+            media_id="100",
+            source=Sources.IGDB.value,
+            media_type=MediaTypes.GAME.value,
+            title="Existing Game",
+            image="img.jpg",
+        )
+        Game.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+        mock_api_request.return_value = {
+            "response": {
+                "games": [
+                    {
+                        "appid": 730,
+                        "name": "Existing Game",
+                        "playtime_forever": 100,
+                        "playtime_2weeks": 0,
+                    },
+                ],
+            },
+        }
+        mock_external_game.return_value = 100
+
+        imported_counts, _ = steam.importer(
+            "76561198000000000", self.user, "new",
+        )
+        self.assertEqual(imported_counts.get(MediaTypes.GAME.value, 0), 0)
+
+    @patch("integrations.imports.steam.services.api_request")
+    @patch("integrations.imports.steam.external_game")
+    @patch("integrations.imports.steam.services.get_media_metadata")
+    def test_process_game_provider_api_error_not_found(
+        self,
+        mock_get_metadata,
+        mock_external_game,
+        mock_api_request,
+    ):
+        from unittest.mock import Mock
+
+        mock_api_request.return_value = {
+            "response": {
+                "games": [
+                    {
+                        "appid": 999,
+                        "name": "Missing Game",
+                        "playtime_forever": 100,
+                        "playtime_2weeks": 0,
+                    },
+                ],
+            },
+        }
+        mock_external_game.return_value = 999
+
+        error = Mock()
+        error.response.status_code = 404
+        error.response.text = "Game with id 999 not found"
+        from app.providers.services import ProviderAPIError
+        mock_get_metadata.side_effect = ProviderAPIError(
+            "IGDB", error, details="Game with id 999 not found",
+        )
+
+        imported_counts, warnings = steam.importer(
+            "76561198000000000", self.user, "new",
+        )
+        self.assertEqual(imported_counts.get(MediaTypes.GAME.value, 0), 0)
+        self.assertIn("Missing Game", warnings)
+
+    @patch("integrations.imports.steam.services.api_request")
+    @patch("integrations.imports.steam.external_game")
+    @patch("integrations.imports.steam.services.get_media_metadata")
+    def test_process_game_value_error(
+        self,
+        mock_get_metadata,
+        mock_external_game,
+        mock_api_request,
+    ):
+        mock_api_request.return_value = {
+            "response": {
+                "games": [
+                    {
+                        "appid": 999,
+                        "name": "Bad Game",
+                        "playtime_forever": 100,
+                        "playtime_2weeks": 0,
+                    },
+                ],
+            },
+        }
+        mock_external_game.return_value = 999
+        mock_get_metadata.side_effect = ValueError("bad data")
+
+        imported_counts, warnings = steam.importer(
+            "76561198000000000", self.user, "new",
+        )
+        self.assertEqual(imported_counts.get(MediaTypes.GAME.value, 0), 0)
+        self.assertIn("Bad Game", warnings)

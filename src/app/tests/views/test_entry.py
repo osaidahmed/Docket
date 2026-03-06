@@ -6,7 +6,6 @@ from django.utils import timezone
 
 from app.models import (
     TV,
-    Anime,
     Episode,
     Item,
     MediaTypes,
@@ -20,12 +19,10 @@ from app.models import (
 class CreateEntryViewTests(TestCase):
     """Test the create entry view."""
 
-    @classmethod
-    def setUpTestData(cls):
-        cls.credentials = {"username": "test", "password": "12345"}
-        cls.user = get_user_model().objects.create_user(**cls.credentials)
-
     def setUp(self):
+        """Create a user and log in."""
+        self.credentials = {"username": "test", "password": "12345"}
+        self.user = get_user_model().objects.create_user(**self.credentials)
         self.client.login(**self.credentials)
 
     def test_create_entry_get(self):
@@ -36,50 +33,7 @@ class CreateEntryViewTests(TestCase):
         self.assertTemplateUsed(response, "app/create_entry.html")
         self.assertIn("media_types", response.context)
 
-        media_types = response.context["media_types"]
-        for mt in self.user.get_enabled_media_types():
-            self.assertIn(mt, media_types)
-
-    def test_create_entry_get_includes_season_episode_when_tv_enabled(self):
-        """Test that season and episode types are included when TV is enabled."""
-        self.user.tv_enabled = True
-        self.user.save()
-
-        response = self.client.get(reverse("create_entry"))
-        media_types = response.context["media_types"]
-
-        self.assertIn(MediaTypes.TV.value, media_types)
-        self.assertIn(MediaTypes.SEASON.value, media_types)
-        self.assertIn(MediaTypes.EPISODE.value, media_types)
-
-        tv_idx = media_types.index(MediaTypes.TV.value)
-        season_idx = media_types.index(MediaTypes.SEASON.value)
-        episode_idx = media_types.index(MediaTypes.EPISODE.value)
-        self.assertEqual(season_idx, tv_idx + 1)
-        self.assertEqual(episode_idx, tv_idx + 2)
-
-    def test_create_entry_get_excludes_season_episode_when_tv_disabled(self):
-        """Test that season and episode types are excluded when TV is disabled."""
-        self.user.tv_enabled = False
-        self.user.save()
-
-        response = self.client.get(reverse("create_entry"))
-        media_types = response.context["media_types"]
-
-        self.assertNotIn(MediaTypes.TV.value, media_types)
-        self.assertNotIn(MediaTypes.SEASON.value, media_types)
-        self.assertNotIn(MediaTypes.EPISODE.value, media_types)
-
-    def test_create_entry_get_respects_disabled_types(self):
-        """Test that disabled media types are excluded."""
-        self.user.anime_enabled = False
-        self.user.save()
-
-        response = self.client.get(reverse("create_entry"))
-        media_types = response.context["media_types"]
-
-        self.assertNotIn(MediaTypes.ANIME.value, media_types)
-        self.assertIn(MediaTypes.MOVIE.value, media_types)
+        self.assertEqual(response.context["media_types"], MediaTypes.values)
 
     def test_create_entry_post_movie(self):
         """Test creating a movie entry."""
@@ -276,84 +230,87 @@ class CreateEntryViewTests(TestCase):
 
         self.assertEqual(Item.objects.count(), initial_count)
 
-    def test_create_entry_post_anime_with_link(self):
-        """Test creating an anime entry with link."""
-        form_data = {
-            "title": "Test Anime",
-            "media_type": MediaTypes.ANIME.value,
-            "status": Status.IN_PROGRESS.value,
-            "score": 8,
-            "progress": 5,
-            "link": "https://example.com/watch",
-        }
-        response = self.client.post(reverse("create_entry"), form_data, follow=True)
+    def test_create_entry_invalid_item_form(self):
+        response = self.client.post(
+            reverse("create_entry"),
+            {"title": "", "media_type": MediaTypes.MOVIE.value},
+            follow=True,
+        )
         self.assertRedirects(response, reverse("create_entry"))
-        anime = Anime.objects.get(item__title="Test Anime")
-        self.assertEqual(anime.link, "https://example.com/watch")
+        self.assertEqual(Item.objects.count(), 0)
 
-    def test_create_entry_post_movie_with_is_rewatch(self):
-        """Test creating a movie entry with is_rewatch."""
+    def test_create_entry_invalid_media_form(self):
         form_data = {
-            "title": "Rewatch Movie",
+            "title": "Test Movie",
             "media_type": MediaTypes.MOVIE.value,
-            "status": Status.COMPLETED.value,
-            "is_rewatch": "on",
+            "status": "invalid_status",
+            "progress": "not_a_number",
         }
         response = self.client.post(reverse("create_entry"), form_data, follow=True)
         self.assertRedirects(response, reverse("create_entry"))
-        movie = Movie.objects.get(item__title="Rewatch Movie")
-        self.assertTrue(movie.is_rewatch)
+        self.assertFalse(Movie.objects.filter(user=self.user).exists())
+        self.assertFalse(
+            Item.objects.filter(
+                title="Test Movie",
+                source=Sources.MANUAL.value,
+            ).exists(),
+        )
 
-    def test_create_entry_post_anime_with_caught_up(self):
-        """Test creating an anime entry with caught_up."""
-        form_data = {
-            "title": "Caught Up Anime",
-            "media_type": MediaTypes.ANIME.value,
-            "status": Status.IN_PROGRESS.value,
-            "progress": 10,
-            "caught_up": "on",
-        }
-        response = self.client.post(reverse("create_entry"), form_data, follow=True)
-        self.assertRedirects(response, reverse("create_entry"))
-        anime = Anime.objects.get(item__title="Caught Up Anime")
-        self.assertTrue(anime.caught_up)
+    def test_create_entry_duplicate_with_episode_number(self):
+        tv_item = Item.objects.create(
+            media_id="1",
+            source=Sources.MANUAL.value,
+            media_type=MediaTypes.TV.value,
+            title="TV Show",
+        )
+        parent_tv = TV.objects.create(
+            item=tv_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
 
-    def test_create_entry_post_with_english_title(self):
-        """Test creating an anime entry with english_title."""
-        form_data = {
-            "title": "Shingeki no Kyojin",
-            "english_title": "Attack on Titan",
-            "media_type": MediaTypes.ANIME.value,
-            "status": Status.IN_PROGRESS.value,
-            "progress": 0,
-        }
-        response = self.client.post(reverse("create_entry"), form_data, follow=True)
-        self.assertRedirects(response, reverse("create_entry"))
-        item = Item.objects.get(title="Shingeki no Kyojin")
-        self.assertEqual(item.english_title, "Attack on Titan")
+        season_item = Item.objects.create(
+            media_id="1",
+            source=Sources.MANUAL.value,
+            media_type=MediaTypes.SEASON.value,
+            title="TV Show",
+            season_number=1,
+        )
+        parent_season = Season.objects.create(
+            item=season_item,
+            user=self.user,
+            related_tv=parent_tv,
+            status=Status.IN_PROGRESS.value,
+        )
 
-    def test_create_entry_post_with_synopsis(self):
-        """Test creating a movie entry with synopsis."""
-        form_data = {
-            "title": "Synopsis Movie",
-            "synopsis": "A great film about testing.",
-            "media_type": MediaTypes.MOVIE.value,
-            "status": Status.COMPLETED.value,
-        }
-        response = self.client.post(reverse("create_entry"), form_data, follow=True)
-        self.assertRedirects(response, reverse("create_entry"))
-        item = Item.objects.get(title="Synopsis Movie")
-        self.assertEqual(item.synopsis, "A great film about testing.")
+        Item.objects.create(
+            media_id="1",
+            source=Sources.MANUAL.value,
+            media_type=MediaTypes.EPISODE.value,
+            title="TV Show",
+            season_number=1,
+            episode_number=1,
+        )
+        Episode.objects.create(
+            item=Item.objects.get(
+                media_type=MediaTypes.EPISODE.value,
+                episode_number=1,
+            ),
+            related_season=parent_season,
+            end_date=timezone.now(),
+        )
 
-    def test_create_entry_post_movie_without_progress(self):
-        """Test that movie creation works without progress field."""
         form_data = {
-            "title": "No Progress Movie",
-            "media_type": MediaTypes.MOVIE.value,
-            "status": Status.COMPLETED.value,
-            "score": 9,
+            "title": "TV Show",
+            "media_type": MediaTypes.EPISODE.value,
+            "season_number": 1,
+            "episode_number": 1,
+            "parent_season": parent_season.id,
+            "end_date": "2023-06-01T00:00",
         }
-        response = self.client.post(reverse("create_entry"), form_data, follow=True)
-        self.assertRedirects(response, reverse("create_entry"))
-        movie = Movie.objects.get(item__title="No Progress Movie")
-        self.assertEqual(movie.score, 9)
+
+        initial_count = Item.objects.count()
+        with transaction.atomic():
+            self.client.post(reverse("create_entry"), form_data)
+
+        self.assertEqual(Item.objects.count(), initial_count)

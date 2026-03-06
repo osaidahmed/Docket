@@ -323,3 +323,60 @@ class CalendarViewTests(TestCase):
 
         # Check response - should be 405 Method Not Allowed
         self.assertEqual(response.status_code, 405)
+
+
+class DownloadCalendarViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="caluser",
+            password="testpassword",
+        )
+
+        cls.item = Item.objects.create(
+            media_id="123",
+            source=Sources.MANUAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Test Anime",
+            image="https://example.com/image.jpg",
+        )
+
+    def test_download_calendar_invalid_token(self):
+        url = reverse("download_calendar", kwargs={"token": "invalid-token"})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 401)
+
+    def test_download_calendar_success(self):
+        event_dt = timezone.now() + timedelta(days=5)
+        Event.objects.create(
+            item=self.item,
+            content_number=1,
+            datetime=event_dt,
+        )
+
+        url = reverse("download_calendar", kwargs={"token": self.user.token})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/calendar")
+        self.assertIn("calendar.ics", response["Content-Disposition"])
+        content = response.content.decode("utf-8")
+        self.assertIn("BEGIN:VCALENDAR", content)
+        self.assertIn("PRODID:-//Yamtrack//EN", content)
+
+    def test_download_calendar_empty(self):
+        url = reverse("download_calendar", kwargs={"token": self.user.token})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn("BEGIN:VCALENDAR", content)
+        self.assertNotIn("BEGIN:VEVENT", content)
+
+    def test_download_calendar_head_method(self):
+        url = reverse("download_calendar", kwargs={"token": self.user.token})
+        response = self.client.head(url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_download_calendar_post_not_allowed(self):
+        url = reverse("download_calendar", kwargs={"token": self.user.token})
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 405)
