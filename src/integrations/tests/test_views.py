@@ -1,5 +1,3 @@
-import json
-from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -576,9 +574,7 @@ class WebhookViewMissingPayloadTests(TestCase):
 
     def test_jellyfin_webhook_invalid_token(self):
         url = reverse("jellyfin_webhook", kwargs={"token": "bad-token"})
-        response = self.client.post(
-            url, data=b"test", content_type="application/json"
-        )
+        response = self.client.post(url, data=b"test", content_type="application/json")
         self.assertEqual(response.status_code, 401)
 
     def test_plex_webhook_invalid_token(self):

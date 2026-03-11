@@ -11,7 +11,6 @@ from app.history_processor import (
     collect_creation_changes,
     format_description,
     organize_changes,
-    process_creation_entry,
     process_history_entries,
 )
 from app.models import (
@@ -24,7 +23,6 @@ from app.models import (
 
 
 class HistoryProcessorTests(TestCase):
-
     def test_get_verb_covers_all_media_types(self):
         """Test that get_verb covers all media types defined in MediaTypes."""
         # Get all media types from the MediaTypes enum
@@ -224,7 +222,8 @@ class HistoryProcessorTests(TestCase):
 
     def test_format_description_date_initial(self):
         user = get_user_model().objects.create_user(
-            username="datetest", password="12345",
+            username="datetest",
+            password="12345",
         )
         dt = timezone.make_aware(datetime.datetime(2023, 6, 1, 0, 0))
         result = format_description("start_date", None, dt, user=user)
@@ -235,7 +234,8 @@ class HistoryProcessorTests(TestCase):
 
     def test_format_description_date_changes(self):
         user = get_user_model().objects.create_user(
-            username="datetest2", password="12345",
+            username="datetest2",
+            password="12345",
         )
         old_dt = timezone.make_aware(datetime.datetime(2023, 1, 1, 0, 0))
         new_dt = timezone.make_aware(datetime.datetime(2023, 6, 1, 0, 0))
@@ -247,7 +247,8 @@ class HistoryProcessorTests(TestCase):
 
     def test_format_description_date_removal(self):
         user = get_user_model().objects.create_user(
-            username="datetest3", password="12345",
+            username="datetest3",
+            password="12345",
         )
         old_dt = timezone.make_aware(datetime.datetime(2023, 1, 1, 0, 0))
         result = format_description("start_date", old_dt, None, user=user)
@@ -258,7 +259,8 @@ class HistoryProcessorTests(TestCase):
 
     def test_format_description_date_set_from_empty(self):
         user = get_user_model().objects.create_user(
-            username="datetest4", password="12345",
+            username="datetest4",
+            password="12345",
         )
         new_dt = timezone.make_aware(datetime.datetime(2023, 6, 1, 0, 0))
         result = format_description("start_date", "", new_dt, user=user)
@@ -279,11 +281,14 @@ class FakeChange:
 class OrganizeChangesTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
-            username="organizetest", password="12345",
+            username="organizetest",
+            password="12345",
         )
 
     def test_organize_status_change(self):
-        changes = [FakeChange("status", Status.PLANNING.value, Status.IN_PROGRESS.value)]
+        changes = [
+            FakeChange("status", Status.PLANNING.value, Status.IN_PROGRESS.value)
+        ]
         result = organize_changes(changes, MediaTypes.TV.value, self.user)
         self.assertIsNotNone(result["status_change"])
         self.assertEqual(result["status_change"]["field"], "status")
@@ -315,7 +320,8 @@ class OrganizeChangesTests(TestCase):
 class ApplyDateStatusIntegrationTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
-            username="integrationtest", password="12345",
+            username="integrationtest",
+            password="12345",
         )
 
     def test_start_date_with_in_progress(self):
@@ -338,7 +344,9 @@ class ApplyDateStatusIntegrationTests(TestCase):
             "other_changes": [],
         }
         apply_date_status_integration(changes, self.user)
-        self.assertIn("Started on", changes["date_changes"]["start_date"]["description"])
+        self.assertIn(
+            "Started on", changes["date_changes"]["start_date"]["description"]
+        )
         self.assertIsNone(changes["status_change"])
 
     def test_end_date_with_completed(self):
@@ -370,8 +378,14 @@ class BuildChangesListTests(TestCase):
         processed_entry = {"changes": []}
         changes = {
             "date_changes": {
-                "start_date": {"description": "Started on 2023-01-01", "field": "start_date"},
-                "end_date": {"description": "Finished on 2023-06-01", "field": "end_date"},
+                "start_date": {
+                    "description": "Started on 2023-01-01",
+                    "field": "start_date",
+                },
+                "end_date": {
+                    "description": "Finished on 2023-06-01",
+                    "field": "end_date",
+                },
             },
             "status_change": {"description": "Completed", "field": "status"},
             "other_changes": [{"description": "Rated 8/10", "field": "score"}],
@@ -409,7 +423,10 @@ class ProcessHistoryEntriesTests(TestCase):
     def test_process_entries(self):
         history = self.movie.history.all()
         entries = process_history_entries(
-            history, MediaTypes.MOVIE.value, 1, self.user,
+            history,
+            MediaTypes.MOVIE.value,
+            1,
+            self.user,
         )
         self.assertGreater(len(entries), 0)
         for entry in entries:
@@ -448,7 +465,10 @@ class ProcessHistoryEntriesTests(TestCase):
             model_name=f"historical{MediaTypes.MOVIE.value}",
         )
         result = collect_creation_changes(
-            creation_record, history_model, MediaTypes.MOVIE.value, self.user,
+            creation_record,
+            history_model,
+            MediaTypes.MOVIE.value,
+            self.user,
         )
         has_date_change = (
             result["date_changes"]["start_date"] is not None

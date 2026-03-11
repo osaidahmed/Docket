@@ -75,4 +75,3 @@ class StatisticsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.context["start_date"])
         self.assertIsNone(response.context["end_date"])
-

@@ -204,7 +204,9 @@ class ComputeRecommendationsTests(TestCase):
         self.assertEqual(len(result["full"]), 20)
 
     @patch("app.services.recommendations.provider_services.get_media_metadata")
-    def test_compute_recommendations_dedup_same_title_different_keys(self, mock_metadata):
+    def test_compute_recommendations_dedup_same_title_different_keys(
+        self, mock_metadata
+    ):
         mock_metadata.side_effect = [
             {
                 "genres": ["Action"],
@@ -264,9 +266,7 @@ class ComputeRecommendationsTests(TestCase):
         }
 
         compute_recommendations(self.user.id, MediaTypes.MOVIE.value)
-        progress = cache.get(
-            get_progress_key(self.user.id, MediaTypes.MOVIE.value)
-        )
+        progress = cache.get(get_progress_key(self.user.id, MediaTypes.MOVIE.value))
         self.assertIsNone(progress)
 
 

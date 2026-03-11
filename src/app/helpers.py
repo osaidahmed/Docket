@@ -84,11 +84,19 @@ def enrich_items_with_user_data(request, items, section_name):
     if not items:
         return []
 
-    # All items are the same media type
+    media_lookup, has_active_lookup, is_season = _build_media_lookup(
+        items, request.user
+    )
+    return _apply_enrichment(
+        items, media_lookup, has_active_lookup, is_season, request, section_name
+    )
+
+
+def _build_media_lookup(items, user):
     media_type = items[0]["media_type"]
     source = items[0]["source"]
+    is_season = media_type == MediaTypes.SEASON.value
 
-    # Build Q objects for all items
     q_objects = Q()
     for item in items:
         filter_params = {
@@ -96,68 +104,68 @@ def enrich_items_with_user_data(request, items, section_name):
             "item__media_type": media_type,
             "item__source": source,
         }
-
-        if media_type == MediaTypes.SEASON.value:
+        if is_season:
             filter_params["item__season_number"] = item.get("season_number")
-
         q_objects |= Q(**filter_params)
 
-    q_objects &= Q(user=request.user)
+    q_objects &= Q(user=user)
 
-    # Bulk fetch all media with prefetch
     model = apps.get_model(app_label="app", model_name=media_type)
     media_queryset = model.objects.filter(q_objects).select_related("item")
     media_queryset = BasicMedia.objects._apply_prefetch_related(
-        media_queryset,
-        media_type,
+        media_queryset, media_type
     )
     BasicMedia.objects.annotate_max_progress(media_queryset, media_type)
 
-    # Create a lookup dictionary for fast matching
-    # Priority: Completed > Dropped > active statuses
     active_statuses = {
         Status.IN_PROGRESS.value,
         Status.PLANNING.value,
         Status.PAUSED.value,
     }
-    is_season = media_type == MediaTypes.SEASON.value
     media_lookup = {}
     has_active_lookup = {}
     for media in media_queryset:
         key = _media_key(media.item, is_season)
-        existing = media_lookup.get(key)
-        is_completed = media.status == Status.COMPLETED.value
-        if (
-            existing is None
-            or (is_completed and existing.status != Status.COMPLETED.value)
-            or (
-                media.status not in active_statuses
-                and existing.status in active_statuses
-            )
-        ):
+        if _should_replace(media_lookup.get(key), media, active_statuses):
             media_lookup[key] = media
         if media.status in active_statuses:
             has_active_lookup[key] = True
 
-    # Enrich items with matched media
+    return media_lookup, has_active_lookup, is_season
+
+
+def _should_replace(existing, candidate, active_statuses):
+    if existing is None:
+        return True
+    if candidate.status == Status.COMPLETED.value:
+        return existing.status != Status.COMPLETED.value
+    return (
+        candidate.status not in active_statuses and existing.status in active_statuses
+    )
+
+
+def _apply_enrichment(
+    items, media_lookup, has_active_lookup, is_season, request, section_name
+):
+    hide_completed = (
+        request.user.hide_completed_recommendations
+        and section_name == "recommendations"
+    )
     enriched_items = []
     for item in items:
         key = _item_key(item, is_season)
-
         media_item = media_lookup.get(key)
         if (
-            request.user.hide_completed_recommendations
-            and section_name == "recommendations"
+            hide_completed
             and media_item
             and media_item.status == Status.COMPLETED.value
         ):
             continue
-
-        enriched_item = {
-            "item": item,
-            "media": media_item,
-            "has_active": has_active_lookup.get(key, False),
-        }
-        enriched_items.append(enriched_item)
-
+        enriched_items.append(
+            {
+                "item": item,
+                "media": media_item,
+                "has_active": has_active_lookup.get(key, False),
+            }
+        )
     return enriched_items

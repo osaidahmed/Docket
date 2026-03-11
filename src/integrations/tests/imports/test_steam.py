@@ -177,7 +177,9 @@ class ImportSteam(TestCase):
     def test_import_steam_no_games(self, mock_api_request):
         mock_api_request.return_value = {"response": {"games": []}}
         imported_counts, warnings = steam.importer(
-            "76561198000000000", self.user, "new",
+            "76561198000000000",
+            self.user,
+            "new",
         )
         self.assertEqual(imported_counts.get(MediaTypes.GAME.value, 0), 0)
 
@@ -185,7 +187,9 @@ class ImportSteam(TestCase):
     def test_import_steam_no_games_in_response(self, mock_api_request):
         mock_api_request.return_value = {"response": {}}
         imported_counts, warnings = steam.importer(
-            "76561198000000000", self.user, "new",
+            "76561198000000000",
+            self.user,
+            "new",
         )
         self.assertEqual(imported_counts, {})
 
@@ -228,7 +232,9 @@ class ImportSteam(TestCase):
 
     @patch("integrations.imports.steam.time.sleep")
     @patch("integrations.imports.steam.services.api_request")
-    def test_import_steam_rate_limit_retry_exhausted(self, mock_api_request, mock_sleep):
+    def test_import_steam_rate_limit_retry_exhausted(
+        self, mock_api_request, mock_sleep
+    ):
         response = Response()
         response.status_code = 429
         mock_api_request.side_effect = HTTPError(response=response)
@@ -248,6 +254,7 @@ class ImportSteam(TestCase):
         mock_global_metadata,
     ):
         from app.models import Game, Item
+
         mock_global_metadata.return_value = {
             "title": "Existing Game",
             "image": "img.jpg",
@@ -282,7 +289,9 @@ class ImportSteam(TestCase):
         mock_external_game.return_value = 100
 
         imported_counts, _ = steam.importer(
-            "76561198000000000", self.user, "new",
+            "76561198000000000",
+            self.user,
+            "new",
         )
         self.assertEqual(imported_counts.get(MediaTypes.GAME.value, 0), 0)
 
@@ -315,12 +324,17 @@ class ImportSteam(TestCase):
         error.response.status_code = 404
         error.response.text = "Game with id 999 not found"
         from app.providers.services import ProviderAPIError
+
         mock_get_metadata.side_effect = ProviderAPIError(
-            "IGDB", error, details="Game with id 999 not found",
+            "IGDB",
+            error,
+            details="Game with id 999 not found",
         )
 
         imported_counts, warnings = steam.importer(
-            "76561198000000000", self.user, "new",
+            "76561198000000000",
+            self.user,
+            "new",
         )
         self.assertEqual(imported_counts.get(MediaTypes.GAME.value, 0), 0)
         self.assertIn("Missing Game", warnings)
@@ -350,7 +364,9 @@ class ImportSteam(TestCase):
         mock_get_metadata.side_effect = ValueError("bad data")
 
         imported_counts, warnings = steam.importer(
-            "76561198000000000", self.user, "new",
+            "76561198000000000",
+            self.user,
+            "new",
         )
         self.assertEqual(imported_counts.get(MediaTypes.GAME.value, 0), 0)
         self.assertIn("Bad Game", warnings)

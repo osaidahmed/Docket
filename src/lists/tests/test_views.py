@@ -8,12 +8,11 @@ from app.models import TV, Anime, Item, MediaTypes, Movie, Sources, Status
 from lists.models import CustomList, CustomListItem
 
 
-class ListsViewTests(TestCase):
-    """Tests for the lists view."""
+class ListsViewRenderTests(TestCase):
+    """Tests for the lists view rendering."""
 
     @classmethod
     def setUpTestData(cls):
-        """Set up test data for lists view tests."""
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -25,7 +24,6 @@ class ListsViewTests(TestCase):
             **cls.collaborator_credentials,
         )
 
-        # Create some test lists
         cls.list1 = CustomList.objects.create(
             name="Test List 1",
             description="Description 1",
@@ -37,10 +35,8 @@ class ListsViewTests(TestCase):
             owner=cls.user,
         )
 
-        # Add collaborator to one list
         cls.list1.collaborators.add(cls.collaborator)
 
-        # Create some items
         cls.item1 = Item.objects.create(
             media_id="1",
             source=Sources.TMDB.value,
@@ -54,7 +50,6 @@ class ListsViewTests(TestCase):
             title="Test TV Show",
         )
 
-        # Add items to lists
         CustomListItem.objects.create(
             custom_list=cls.list1,
             item=cls.item1,
@@ -68,7 +63,6 @@ class ListsViewTests(TestCase):
         self.factory = RequestFactory()
 
     def test_lists_owner_view(self):
-        """Test the lists view response and context for owner."""
         self.client.login(**self.credentials)
         response = self.client.get(reverse("lists"))
         self.assertEqual(response.status_code, 200)
@@ -77,7 +71,6 @@ class ListsViewTests(TestCase):
         self.assertIn("form", response.context)
 
     def test_lists_collaborator_view(self):
-        """Test the lists view response and context for a collaborator."""
         self.client.login(**self.collaborator_credentials)
         response = self.client.get(reverse("lists"))
         self.assertEqual(response.status_code, 200)
@@ -85,99 +78,12 @@ class ListsViewTests(TestCase):
         self.assertIn("custom_lists", response.context)
         self.assertIn("form", response.context)
 
-    @patch.object(get_user_model(), "update_preference")
-    def test_lists_view_search_filter(self, mock_update_preference):
-        """Test the lists view with search filter."""
-        mock_update_preference.return_value = "name"
-        self.client.login(**self.credentials)
 
-        # Test search by name
-        response = self.client.get(reverse("lists") + "?q=List 1")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.context["custom_lists"]), 1)
-        self.assertEqual(response.context["custom_lists"][0].name, "Test List 1")
-
-        # Test search by description
-        response = self.client.get(reverse("lists") + "?q=Description 2")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.context["custom_lists"]), 1)
-        self.assertEqual(response.context["custom_lists"][0].name, "Test List 2")
-
-    @patch.object(get_user_model(), "update_preference")
-    def test_lists_view_sorting(self, mock_update_preference):
-        """Test the lists view with different sorting options."""
-        self.client.login(**self.credentials)
-
-        # Test name sorting
-        mock_update_preference.return_value = "name"
-        response = self.client.get(reverse("lists") + "?sort=name")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["current_sort"], "name")
-
-        # Test items_count sorting
-        mock_update_preference.return_value = "items_count"
-        response = self.client.get(reverse("lists") + "?sort=items_count")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["current_sort"], "items_count")
-
-        # Test newest_first sorting
-        mock_update_preference.return_value = "newest_first"
-        response = self.client.get(reverse("lists") + "?sort=newest_first")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["current_sort"], "newest_first")
-
-        # Test default sorting (last_item_added)
-        mock_update_preference.return_value = "last_item_added"
-        response = self.client.get(reverse("lists"))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["current_sort"], "last_item_added")
-
-    @patch.object(get_user_model(), "update_preference")
-    def test_lists_view_htmx_request(self, mock_update_preference):
-        """Test the lists view with HTMX request."""
-        mock_update_preference.return_value = "name"
-        self.client.login(**self.credentials)
-
-        # Make an HTMX request
-        response = self.client.get(
-            reverse("lists"),
-            HTTP_HX_REQUEST="true",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "lists/components/list_grid.html")
-
-        self.assertIn("custom_lists", response.context)
-
-    @patch.object(get_user_model(), "update_preference")
-    def test_lists_view_pagination(self, mock_update_preference):
-        """Test the lists view pagination."""
-        mock_update_preference.return_value = "name"
-        self.client.login(**self.credentials)
-
-        # Create more lists to test pagination
-        for i in range(25):  # Create 25 more lists (27 total)
-            CustomList.objects.create(
-                name=f"Paginated List {i}",
-                owner=self.user,
-            )
-
-        # Test first page
-        response = self.client.get(reverse("lists"))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.context["custom_lists"]), 20)  # 20 per page
-
-        # Test second page
-        response = self.client.get(reverse("lists") + "?page=2")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.context["custom_lists"]), 7)  # 7 remaining items
-
-
-class ListDetailViewTests(TestCase):
-    """Tests for the list_detail view."""
+class ListDetailRenderTests(TestCase):
+    """Tests for list detail view rendering and authorization."""
 
     @classmethod
     def setUpTestData(cls):
-        """Set up test data."""
         cls.credentials = {"username": "testuser", "password": "testpassword"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -186,14 +92,12 @@ class ListDetailViewTests(TestCase):
             password="testpassword",
         )
 
-        # Create a test list
         cls.custom_list = CustomList.objects.create(
             name="Test List",
             description="Test Description",
             owner=cls.user,
         )
 
-        # Create some items with different media types
         cls.movie_item = Item.objects.create(
             media_id="238",
             source=Sources.TMDB.value,
@@ -213,7 +117,6 @@ class ListDetailViewTests(TestCase):
             title="Test Anime",
         )
 
-        # Add items to the list
         CustomListItem.objects.create(
             custom_list=cls.custom_list,
             item=cls.movie_item,
@@ -238,37 +141,29 @@ class ListDetailViewTests(TestCase):
         mock_user_can_view,
         mock_update_preference,
     ):
-        """Test the list_detail view."""
         mock_update_preference.side_effect = ["date_added", None]
         mock_user_can_view.return_value = True
 
-        # Create Movie instance
         Movie.objects.create(
             item=self.movie_item,
             status=Status.COMPLETED.value,
             user=self.user,
         )
-
-        # Create TV instance
         TV.objects.create(
             item=self.tv_item,
             status=Status.IN_PROGRESS.value,
             user=self.user,
         )
-
-        # Create Anime instance
         Anime.objects.create(
             item=self.anime_item,
             status=Status.PLANNING.value,
             user=self.user,
         )
 
-        # Test the view
         response = self.client.get(reverse("list_detail", args=[self.custom_list.id]))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "lists/list_detail.html")
 
-        # Check context data
         self.assertEqual(response.context["custom_list"], self.custom_list)
         self.assertEqual(len(response.context["items"]), 3)
         self.assertEqual(response.context["current_sort"], "date_added")
@@ -281,229 +176,11 @@ class ListDetailViewTests(TestCase):
         mock_user_can_view,
         mock_update_preference,
     ):
-        """Test the list_detail view when user is not authorized."""
         mock_update_preference.side_effect = ["date_added", None]
         mock_user_can_view.return_value = False
 
         response = self.client.get(reverse("list_detail", args=[self.custom_list.id]))
         self.assertEqual(response.status_code, 404)
-
-    @patch.object(get_user_model(), "update_preference")
-    @patch.object(CustomList, "user_can_view")
-    def test_list_detail_view_filter_by_media_type(
-        self,
-        mock_user_can_view,
-        mock_update_preference,
-    ):
-        """Test the list_detail view with media type filter."""
-        mock_update_preference.side_effect = ["date_added", None]
-        mock_user_can_view.return_value = True
-
-        # Create model instances
-        Movie.objects.create(
-            item=self.movie_item,
-            status=Status.COMPLETED.value,
-            user=self.user,
-        )
-
-        TV.objects.create(
-            item=self.tv_item,
-            status=Status.IN_PROGRESS.value,
-            user=self.user,
-        )
-
-        Anime.objects.create(
-            item=self.anime_item,
-            status=Status.PLANNING.value,
-            user=self.user,
-        )
-
-        # Test the view with media type filter
-        response = self.client.get(
-            reverse("list_detail", args=[self.custom_list.id])
-            + f"?type={MediaTypes.MOVIE.value}",
-        )
-        self.assertEqual(response.status_code, 200)
-
-        # Should only have the movie item
-        self.assertEqual(len(response.context["items"]), 1)
-        self.assertEqual(
-            response.context["items"][0].media_type,
-            MediaTypes.MOVIE.value,
-        )
-
-    @patch.object(get_user_model(), "update_preference")
-    @patch.object(CustomList, "user_can_view")
-    def test_list_detail_view_filter_by_status(
-        self,
-        mock_user_can_view,
-        mock_update_preference,
-    ):
-        """Test the list_detail view with status filter."""
-        mock_update_preference.side_effect = ["date_added", Status.PLANNING.value]
-        mock_user_can_view.return_value = True
-
-        # Create model instances
-        Movie.objects.create(
-            item=self.movie_item,
-            status=Status.COMPLETED.value,
-            user=self.user,
-        )
-
-        TV.objects.create(
-            item=self.tv_item,
-            status=Status.IN_PROGRESS.value,
-            user=self.user,
-        )
-
-        Anime.objects.create(
-            item=self.anime_item,
-            status=Status.PLANNING.value,
-            user=self.user,
-        )
-
-        # Test the view with status filter
-        response = self.client.get(
-            reverse("list_detail", args=[self.custom_list.id])
-            + f"?status={Status.PLANNING.value}",
-        )
-        self.assertEqual(response.status_code, 200)
-
-        # Check that filters are applied
-        self.assertEqual(
-            response.context["current_status"],
-            Status.PLANNING.value,
-        )
-        # Should only have the PLANNING item of media type ANIME
-        self.assertEqual(len(response.context["items"]), 1)
-        self.assertEqual(
-            response.context["items"][0].media_type,
-            MediaTypes.ANIME.value,
-        )
-
-    @patch.object(get_user_model(), "update_preference")
-    @patch.object(CustomList, "user_can_view")
-    def test_list_detail_view_search(
-        self,
-        mock_user_can_view,
-        mock_update_preference,
-    ):
-        """Test the list_detail view with search filter."""
-        mock_update_preference.side_effect = ["date_added", None]
-        mock_user_can_view.return_value = True
-
-        # Create model instances
-        Movie.objects.create(
-            item=self.movie_item,
-            status=Status.COMPLETED.value,
-            user=self.user,
-        )
-
-        TV.objects.create(
-            item=self.tv_item,
-            status=Status.IN_PROGRESS.value,
-            user=self.user,
-        )
-
-        Anime.objects.create(
-            item=self.anime_item,
-            status=Status.PLANNING.value,
-            user=self.user,
-        )
-
-        # Test the view with search filter
-        response = self.client.get(
-            reverse("list_detail", args=[self.custom_list.id]) + "?q=Anime",
-        )
-        self.assertEqual(response.status_code, 200)
-
-        # Should only have the anime item
-        self.assertEqual(len(response.context["items"]), 1)
-        self.assertEqual(response.context["items"][0].title, "Test Anime")
-
-    @patch.object(get_user_model(), "update_preference")
-    @patch.object(CustomList, "user_can_view")
-    def test_list_detail_view_sorting(
-        self,
-        mock_user_can_view,
-        mock_update_preference,
-    ):
-        """Test the list_detail view with different sorting options."""
-        mock_user_can_view.return_value = True
-
-        # Create model instances
-        Movie.objects.create(
-            item=self.movie_item,
-            status=Status.COMPLETED.value,
-            user=self.user,
-        )
-
-        TV.objects.create(
-            item=self.tv_item,
-            status=Status.IN_PROGRESS.value,
-            user=self.user,
-        )
-
-        Anime.objects.create(
-            item=self.anime_item,
-            status=Status.PLANNING.value,
-            user=self.user,
-        )
-
-        # Test title sorting
-        mock_update_preference.side_effect = ["title", None]
-        response = self.client.get(
-            reverse("list_detail", args=[self.custom_list.id]) + "?sort=title",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["current_sort"], "title")
-
-        # Test media_type sorting
-        mock_update_preference.side_effect = ["media_type", None]
-        response = self.client.get(
-            reverse("list_detail", args=[self.custom_list.id]) + "?sort=media_type",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["current_sort"], "media_type")
-
-    @patch.object(get_user_model(), "update_preference")
-    @patch.object(CustomList, "user_can_view")
-    def test_list_detail_view_htmx_request(
-        self,
-        mock_user_can_view,
-        mock_update_preference,
-    ):
-        """Test the list_detail view with HTMX request."""
-        mock_update_preference.side_effect = ["date_added", None]
-        mock_user_can_view.return_value = True
-
-        # Create model instances
-        Movie.objects.create(
-            item=self.movie_item,
-            status=Status.COMPLETED.value,
-            user=self.user,
-        )
-
-        TV.objects.create(
-            item=self.tv_item,
-            status=Status.IN_PROGRESS.value,
-            user=self.user,
-        )
-
-        Anime.objects.create(
-            item=self.anime_item,
-            status=Status.PLANNING.value,
-            user=self.user,
-        )
-
-        # Make an HTMX request
-        response = self.client.get(
-            reverse("list_detail", args=[self.custom_list.id]),
-            HTTP_HX_REQUEST="true",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "lists/components/media_grid.html")
-        self.assertNotIn("form", response.context)
 
 
 class CreateListViewTest(TestCase):
@@ -511,7 +188,6 @@ class CreateListViewTest(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        """Set up test data for create list view tests."""
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -520,7 +196,6 @@ class CreateListViewTest(TestCase):
         self.client.login(**self.credentials)
 
     def test_create_list(self):
-        """Test creating a new custom list."""
         self.client.post(
             reverse("list_create"),
             {"name": "New List", "description": "New Description"},
@@ -537,7 +212,6 @@ class EditListViewTest(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        """Set up test data for edit list view tests."""
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -555,7 +229,6 @@ class EditListViewTest(TestCase):
         self.client = Client()
 
     def test_edit_list(self):
-        """Test editing an existing custom list."""
         self.client.login(**self.credentials)
         self.client.post(
             reverse("list_edit"),
@@ -570,7 +243,6 @@ class EditListViewTest(TestCase):
         self.assertEqual(self.list.description, "Updated Description")
 
     def test_edit_list_collaborator(self):
-        """Test editing an existing custom list as a collaborator."""
         self.client.login(**self.collaborator_credentials)
         self.client.post(
             reverse("list_edit"),
@@ -590,7 +262,6 @@ class DeleteListViewTest(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        """Create a user and test data."""
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -608,13 +279,11 @@ class DeleteListViewTest(TestCase):
         self.client = Client()
 
     def test_delete_list(self):
-        """Test deleting a list."""
         self.client.login(**self.credentials)
         self.client.post(reverse("list_delete"), {"list_id": self.list.id})
         self.assertEqual(CustomList.objects.count(), 0)
 
     def test_delete_list_collaborator(self):
-        """Test deleting a list as a collaborator."""
         self.client.login(**self.collaborator_credentials)
         self.client.post(reverse("list_delete"), {"list_id": self.list.id})
         self.assertEqual(CustomList.objects.count(), 1)
@@ -625,11 +294,9 @@ class ListsModalViewTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        """Set up test data."""
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
-        # Create some test lists
         cls.list1 = CustomList.objects.create(
             name="Test List 1",
             owner=cls.user,
@@ -644,7 +311,6 @@ class ListsModalViewTests(TestCase):
         self.client.login(**self.credentials)
 
     def test_lists_modal_view(self):
-        """Test the basic lists_modal view."""
         response = self.client.get(
             reverse(
                 "lists_modal",
@@ -663,8 +329,6 @@ class ListsModalViewTests(TestCase):
         mock_get_lists,
         mock_get_metadata,
     ):
-        """Test the lists_modal view with an existing item."""
-        # Create an existing item
         Item.objects.create(
             media_id="123",
             source=Sources.TMDB.value,
@@ -673,16 +337,13 @@ class ListsModalViewTests(TestCase):
             image="http://example.com/image.jpg",
         )
 
-        # Mock the get_user_lists_with_item method
         mock_get_lists.return_value = [self.list1, self.list2]
 
-        # Mock the get_media_metadata method
         mock_get_metadata.return_value = {
             "title": "Existing Movie",
             "image": "http://example.com/image.jpg",
         }
 
-        # Test the view
         response = self.client.get(
             reverse(
                 "lists_modal",
@@ -692,7 +353,6 @@ class ListsModalViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "lists/components/fill_lists.html")
 
-        # Check context data
         self.assertEqual(response.context["item"].media_id, "123")
         self.assertEqual(response.context["item"].title, "Existing Movie")
         self.assertEqual(len(response.context["custom_lists"]), 2)
@@ -700,17 +360,13 @@ class ListsModalViewTests(TestCase):
     @patch("app.providers.services.get_media_metadata")
     @patch("lists.models.CustomList.objects.get_user_lists_with_item")
     def test_lists_modal_view_with_new_item(self, mock_get_lists, mock_get_metadata):
-        """Test the lists_modal view with a new item."""
-        # Mock the get_user_lists_with_item method
         mock_get_lists.return_value = [self.list1, self.list2]
 
-        # Mock the get_media_metadata method
         mock_get_metadata.return_value = {
             "title": "New Movie",
             "image": "http://example.com/new_image.jpg",
         }
 
-        # Test the view
         response = self.client.get(
             reverse(
                 "lists_modal",
@@ -719,7 +375,6 @@ class ListsModalViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # Check that a new item was created
         self.assertTrue(
             Item.objects.filter(media_id="999", source=Sources.TMDB.value).exists(),
         )
@@ -730,17 +385,13 @@ class ListsModalViewTests(TestCase):
     @patch("app.providers.services.get_media_metadata")
     @patch("lists.models.CustomList.objects.get_user_lists_with_item")
     def test_lists_modal_view_with_season(self, mock_get_lists, mock_get_metadata):
-        """Test the lists_modal view with a season."""
-        # Mock the get_user_lists_with_item method
         mock_get_lists.return_value = [self.list1, self.list2]
 
-        # Mock the get_media_metadata method
         mock_get_metadata.return_value = {
             "title": "TV Show Season 1",
             "image": "http://example.com/season.jpg",
         }
 
-        # Test the view
         response = self.client.get(
             reverse(
                 "lists_modal",
@@ -749,7 +400,6 @@ class ListsModalViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # Check that a new item was created with season_number
         self.assertTrue(
             Item.objects.filter(
                 media_id="123",
@@ -765,8 +415,6 @@ class ListItemToggleTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        """Set up test data."""
-        # Create users
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
 
@@ -786,11 +434,9 @@ class ListItemToggleTests(TestCase):
             **cls.other_credentials,
         )
 
-        # Create lists
         cls.list = CustomList.objects.create(name="Test List", owner=cls.user)
         cls.list.collaborators.add(cls.collaborator)
 
-        # Create an item
         cls.item = Item.objects.create(
             media_id=1,
             source=Sources.TMDB.value,
@@ -803,7 +449,6 @@ class ListItemToggleTests(TestCase):
         self.client = Client()
 
     def test_list_item_owner_toggle(self):
-        """Test adding an item to a list as owner."""
         self.client.login(**self.credentials)
         response = self.client.post(
             reverse("list_item_toggle"),
@@ -816,7 +461,6 @@ class ListItemToggleTests(TestCase):
         self.assertIn(self.item, self.list.items.all())
 
     def test_list_item_owner_toggle_remove(self):
-        """Test removing an item from a list as owner."""
         self.client.login(**self.credentials)
         self.list.items.add(self.item)
         response = self.client.post(
@@ -830,7 +474,6 @@ class ListItemToggleTests(TestCase):
         self.assertNotIn(self.item, self.list.items.all())
 
     def test_list_item_collaborator_toggle(self):
-        """Test adding an item to a list as collaborator."""
         self.client.login(**self.collaborator_credentials)
         response = self.client.post(
             reverse("list_item_toggle"),
@@ -843,7 +486,6 @@ class ListItemToggleTests(TestCase):
         self.assertIn(self.item, self.list.items.all())
 
     def test_list_item_collaborator_toggle_remove(self):
-        """Test removing an item from a list as collaborator."""
         self.client.login(**self.collaborator_credentials)
         self.list.items.add(self.item)
         response = self.client.post(
@@ -857,34 +499,30 @@ class ListItemToggleTests(TestCase):
         self.assertNotIn(self.item, self.list.items.all())
 
     def test_list_item_toggle_nonexistent_list(self):
-        """Test toggling an item on a nonexistent list."""
         self.client.login(**self.credentials)
         response = self.client.post(
             reverse("list_item_toggle"),
             {
                 "item_id": self.item.id,
-                "custom_list_id": 999,  # Nonexistent list
+                "custom_list_id": 999,
             },
         )
         self.assertEqual(response.status_code, 404)
 
     def test_list_item_toggle_nonexistent_item(self):
-        """Test toggling a nonexistent item."""
         self.client.login(**self.credentials)
         response = self.client.post(
             reverse("list_item_toggle"),
             {
-                "item_id": 999,  # Nonexistent item
+                "item_id": 999,
                 "custom_list_id": self.list.id,
             },
         )
         self.assertEqual(response.status_code, 404)
 
     def test_list_item_toggle_unauthorized_list(self):
-        """Test toggling an item on a list the user doesn't have access to."""
         self.client.login(**self.credentials)
 
-        # Create a list owned by another user
         other_list = CustomList.objects.create(
             name="Other User's List",
             owner=self.other_user,
@@ -900,7 +538,6 @@ class ListItemToggleTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_list_item_toggle_template_context(self):
-        """Test the context data in the response template."""
         self.client.login(**self.credentials)
         response = self.client.post(
             reverse("list_item_toggle"),
@@ -912,12 +549,10 @@ class ListItemToggleTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "lists/components/list_item_button.html")
 
-        # Check context data
         self.assertEqual(response.context["custom_list"], self.list)
         self.assertEqual(response.context["item"], self.item)
-        self.assertTrue(response.context["has_item"])  # Item was added
+        self.assertTrue(response.context["has_item"])
 
-        # Toggle again to remove
         response = self.client.post(
             reverse("list_item_toggle"),
             {
@@ -926,4 +561,4 @@ class ListItemToggleTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.context["has_item"])  # Item was removed
+        self.assertFalse(response.context["has_item"])

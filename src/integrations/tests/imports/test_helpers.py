@@ -8,7 +8,6 @@ from django_celery_beat.models import CrontabSchedule, PeriodicTask
 
 from app.models import (
     TV,
-    Anime,
     Episode,
     Item,
     MediaTypes,
@@ -183,6 +182,7 @@ class HelpersTest(TestCase):
             title="Test Movie",
         )
         from simple_history.utils import bulk_create_with_history
+
         movie = Movie(item=item, user=self.user, status=Status.COMPLETED.value)
         bulk_create_with_history([movie], Movie, default_user=self.user)
 
@@ -199,8 +199,12 @@ class HelpersTest(TestCase):
         to_delete = defaultdict(lambda: defaultdict(set))
 
         result = helpers.should_process_media(
-            existing_media, to_delete,
-            MediaTypes.MOVIE.value, Sources.TMDB.value, "123", "new",
+            existing_media,
+            to_delete,
+            MediaTypes.MOVIE.value,
+            Sources.TMDB.value,
+            "123",
+            "new",
         )
         self.assertFalse(result)
 
@@ -209,8 +213,12 @@ class HelpersTest(TestCase):
         to_delete = defaultdict(lambda: defaultdict(set))
 
         result = helpers.should_process_media(
-            existing_media, to_delete,
-            MediaTypes.MOVIE.value, Sources.TMDB.value, "123", "new",
+            existing_media,
+            to_delete,
+            MediaTypes.MOVIE.value,
+            Sources.TMDB.value,
+            "123",
+            "new",
         )
         self.assertTrue(result)
 
@@ -220,8 +228,12 @@ class HelpersTest(TestCase):
         to_delete = defaultdict(lambda: defaultdict(set))
 
         result = helpers.should_process_media(
-            existing_media, to_delete,
-            MediaTypes.MOVIE.value, Sources.TMDB.value, "123", "overwrite",
+            existing_media,
+            to_delete,
+            MediaTypes.MOVIE.value,
+            Sources.TMDB.value,
+            "123",
+            "overwrite",
         )
         self.assertTrue(result)
         self.assertIn("123", to_delete[MediaTypes.MOVIE.value][Sources.TMDB.value])
@@ -234,6 +246,7 @@ class HelpersTest(TestCase):
             title="To Delete Movie",
         )
         from simple_history.utils import bulk_create_with_history
+
         movie = Movie(item=item, user=self.user, status=Status.COMPLETED.value)
         bulk_create_with_history([movie], Movie, default_user=self.user)
 
@@ -320,6 +333,7 @@ class HelpersTest(TestCase):
         task = PeriodicTask.objects.first()
         self.assertIsNotNone(task)
         import json
+
         kwargs = json.loads(task.kwargs)
         self.assertEqual(kwargs["token"], "encrypted_token")
 

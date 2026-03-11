@@ -182,6 +182,11 @@ class IGDBBrowseFiltered(TestCase):
 class IGDBEnumLists(TestCase):
     """Test IGDB enum list functions."""
 
+    def setUp(self):
+        cache.delete("igdb_genres")
+        cache.delete("igdb_themes")
+        cache.delete("igdb_platforms")
+
     @patch("app.providers.igdb.get_access_token")
     @patch("app.providers.services.api_request")
     def test_get_genres(self, mock_api, mock_token):

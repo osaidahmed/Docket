@@ -14,7 +14,6 @@ from app.models import (
     MediaTypes,
     Movie,
     Season,
-    Sources,
     Status,
 )
 from app.providers.services import ProviderAPIError
@@ -22,7 +21,7 @@ from integrations.imports import (
     helpers,
     simkl,
 )
-from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
+from integrations.imports.helpers import MediaImportError
 
 mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 app_mock_path = (
@@ -256,7 +255,8 @@ class ImportSimkl(TestCase):
         error_response.status_code = requests.codes.unauthorized
         error_response.text = "Unauthorized"
         mock_api_request.side_effect = ProviderAPIError(
-            "SIMKL", Mock(response=error_response),
+            "SIMKL",
+            Mock(response=error_response),
         )
 
         request = Mock()
@@ -278,7 +278,8 @@ class ImportSimkl(TestCase):
         error_response.status_code = requests.codes.unauthorized
         error_response.text = "Unauthorized"
         mock_api_request.side_effect = ProviderAPIError(
-            "SIMKL", Mock(response=error_response),
+            "SIMKL",
+            Mock(response=error_response),
         )
 
         with self.assertRaises(MediaImportError):
@@ -344,7 +345,8 @@ class ImportSimkl(TestCase):
         error_response.status_code = requests.codes.not_found
         error_response.text = "Not found"
         mock_tv.side_effect = ProviderAPIError(
-            "TMDB", Mock(response=error_response),
+            "TMDB",
+            Mock(response=error_response),
         )
 
         mock_user_list.return_value = {
@@ -433,7 +435,8 @@ class ImportSimkl(TestCase):
         error_response.status_code = requests.codes.not_found
         error_response.text = "Not found"
         mock_movie.side_effect = ProviderAPIError(
-            "TMDB", Mock(response=error_response),
+            "TMDB",
+            Mock(response=error_response),
         )
 
         mock_user_list.return_value = {
@@ -508,7 +511,8 @@ class ImportSimkl(TestCase):
         error_response.status_code = requests.codes.not_found
         error_response.text = "Not found"
         mock_anime.side_effect = ProviderAPIError(
-            "MAL", Mock(response=error_response),
+            "MAL",
+            Mock(response=error_response),
         )
 
         mock_user_list.return_value = {
@@ -564,13 +568,15 @@ class ImportSimkl(TestCase):
 
     def test_get_end_date_completed(self):
         result = self.importer._get_end_date(
-            Status.COMPLETED.value, "2023-01-01T00:00:00Z",
+            Status.COMPLETED.value,
+            "2023-01-01T00:00:00Z",
         )
         self.assertEqual(result, datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC))
 
     def test_get_end_date_not_completed(self):
         result = self.importer._get_end_date(
-            Status.IN_PROGRESS.value, "2023-01-01T00:00:00Z",
+            Status.IN_PROGRESS.value,
+            "2023-01-01T00:00:00Z",
         )
         self.assertIsNone(result)
 
@@ -580,7 +586,10 @@ class ImportSimkl(TestCase):
         self.assertEqual(result, datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC))
 
     def test_get_history_date_added_to_watchlist(self):
-        entry = {"last_watched_at": None, "added_to_watchlist_at": "2023-02-01T00:00:00Z"}
+        entry = {
+            "last_watched_at": None,
+            "added_to_watchlist_at": "2023-02-01T00:00:00Z",
+        }
         result = self.importer._get_history_date(entry)
         self.assertEqual(result, datetime(2023, 2, 1, 0, 0, 0, tzinfo=UTC))
 
@@ -596,13 +605,18 @@ class ImportSimkl(TestCase):
             },
         }
         from django.conf import settings
+
         result = self.importer._get_episode_image(
-            {"number": 99}, 1, metadata,
+            {"number": 99},
+            1,
+            metadata,
         )
         self.assertEqual(result, settings.IMG_NONE)
 
     def test_importer_function(self):
-        with patch.object(simkl.SimklImporter, "import_data", return_value=({}, "")) as mock:
+        with patch.object(
+            simkl.SimklImporter, "import_data", return_value=({}, "")
+        ) as mock:
             result = simkl.importer(helpers.encrypt("token"), self.user, "new")
             mock.assert_called_once()
             self.assertEqual(result, ({}, ""))

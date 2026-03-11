@@ -1,8 +1,9 @@
 from pathlib import Path
+from unittest.mock import patch
 
 from django.test import TestCase
 
-from app.models import MediaTypes
+from app.models import MediaTypes, Sources
 from app.providers import (
     hardcover,
     igdb,
@@ -75,16 +76,40 @@ class Search(TestCase):
         for game in response["results"]:
             self.assertTrue(all(key in game for key in required_keys))
 
-    def test_books(self):
+    @patch("app.providers.openlibrary.cache")
+    @patch("app.providers.services.api_request")
+    def test_books(self, mock_api, mock_cache):
         """Test the search method for books.
 
         Assert that all required keys are present in each entry.
         """
+        mock_cache.get.return_value = None
+        mock_api.return_value = {
+            "numFound": 1,
+            "docs": [
+                {
+                    "key": "/works/OL17930368W",
+                    "title": "The Name of the Wind",
+                    "editions": {
+                        "docs": [
+                            {
+                                "key": "/books/OL25849031M",
+                                "cover_i": 8271338,
+                                "title": "The Name of the Wind",
+                            }
+                        ],
+                    },
+                },
+            ],
+        }
+
         response = openlibrary.search("The Name of the Wind", 1)
         required_keys = {"media_id", "media_type", "title", "image", "synopsis"}
 
+        self.assertGreater(len(response["results"]), 0)
         for book in response["results"]:
             self.assertTrue(all(key in book for key in required_keys))
+            self.assertEqual(book["source"], Sources.OPENLIBRARY.value)
 
     def test_comics(self):
         """Test the search method for comics.

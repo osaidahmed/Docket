@@ -120,7 +120,13 @@ else
 fi
 
 # ── build flags ───────────────────────────────────────────────────
-pytest_flags="-v --tb=short --durations=10"
+# interactive terminals get verbose output with durations;
+# non-interactive callers (Claude Code, CI) get quiet, minimal output
+if [ -t 1 ]; then
+  pytest_flags="-v --tb=short --durations=10"
+else
+  pytest_flags="-q --tb=short --no-header -p no:warnings"
+fi
 
 if [ "$reuse_db" = true ]; then
   pytest_flags="$pytest_flags --reuse-db"
@@ -137,15 +143,21 @@ if [ "$quick_mode" = true ]; then
 fi
 
 # ── run ───────────────────────────────────────────────────────────
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/_lock.sh"
+acquire_test_lock "$0 $*"
+
 cd "$ROOT_DIR"
+
+pytest_cmd="python -m pytest"
 
 if [ "$use_coverage" = true ]; then
   echo "running tests with coverage..."
   # shellcheck disable=SC2086
-  python -m pytest --cov=src --cov-report=term --cov-report=html $pytest_flags $test_paths $pytest_extra
+  $pytest_cmd --cov=src --cov-report=term --cov-report=html $pytest_flags $test_paths $pytest_extra
   echo ""
   echo "html report: htmlcov/index.html"
 else
   # shellcheck disable=SC2086
-  python -m pytest $pytest_flags $test_paths $pytest_extra
+  $pytest_cmd $pytest_flags $test_paths $pytest_extra
 fi

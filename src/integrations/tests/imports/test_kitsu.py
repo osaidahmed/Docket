@@ -187,7 +187,9 @@ class ImportKitsu(TestCase):
         }
 
         self.importer._process_media_type(MediaTypes.ANIME.value)
-        self.assertTrue(any("No valid external ID" in w for w in self.importer.warnings))
+        self.assertTrue(
+            any("No valid external ID" in w for w in self.importer.warnings)
+        )
 
     @patch("integrations.imports.kitsu.KitsuImporter._get_media_response")
     def test_process_media_type_unexpected_error(self, mock_response):
@@ -245,7 +247,8 @@ class ImportKitsu(TestCase):
         }
 
         result_data, result_mappings = self.importer._fetch_media_from_related_url(
-            relationship, MediaTypes.ANIME.value,
+            relationship,
+            MediaTypes.ANIME.value,
         )
         self.assertEqual(result_data["id"], "1")
         self.assertIn("m1", result_mappings)
@@ -258,7 +261,8 @@ class ImportKitsu(TestCase):
 
         with self.assertRaises(MediaImportError) as ctx:
             self.importer._fetch_media_from_related_url(
-                relationship, MediaTypes.ANIME.value,
+                relationship,
+                MediaTypes.ANIME.value,
             )
         self.assertIn("missing media data", str(ctx.exception))
 
@@ -284,7 +288,9 @@ class ImportKitsu(TestCase):
         }
 
         item = self.importer._create_or_get_item(
-            MediaTypes.MANGA.value, kitsu_metadata, mapping_lookup,
+            MediaTypes.MANGA.value,
+            kitsu_metadata,
+            mapping_lookup,
         )
         self.assertEqual(item.source, Sources.MANGAUPDATES.value)
         self.assertEqual(item.media_id, str(int("abc", 36)))
@@ -312,7 +318,9 @@ class ImportKitsu(TestCase):
         }
 
         item = self.importer._create_or_get_item(
-            MediaTypes.MANGA.value, kitsu_metadata, mapping_lookup,
+            MediaTypes.MANGA.value,
+            kitsu_metadata,
+            mapping_lookup,
         )
         self.assertEqual(item.source, Sources.MANGAUPDATES.value)
 
@@ -339,7 +347,9 @@ class ImportKitsu(TestCase):
 
         with self.assertRaises(MediaImportError):
             self.importer._create_or_get_item(
-                MediaTypes.MANGA.value, kitsu_metadata, mapping_lookup,
+                MediaTypes.MANGA.value,
+                kitsu_metadata,
+                mapping_lookup,
             )
 
     def test_create_or_get_item_no_valid_id(self):
@@ -356,7 +366,9 @@ class ImportKitsu(TestCase):
 
         with self.assertRaises(MediaImportError) as ctx:
             self.importer._create_or_get_item(
-                MediaTypes.ANIME.value, kitsu_metadata, {},
+                MediaTypes.ANIME.value,
+                kitsu_metadata,
+                {},
             )
         self.assertIn("No valid external ID", str(ctx.exception))
 
@@ -383,7 +395,9 @@ class ImportKitsu(TestCase):
 
         with self.assertRaises(MediaImportError):
             self.importer._create_or_get_item(
-                MediaTypes.ANIME.value, kitsu_metadata, mapping_lookup,
+                MediaTypes.ANIME.value,
+                kitsu_metadata,
+                mapping_lookup,
             )
 
     def test_get_image_url_no_medium(self):

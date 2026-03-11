@@ -9,13 +9,12 @@ from django.test import TestCase
 from app.models import (
     Game,
     MediaTypes,
-    Sources,
     Status,
 )
 from integrations.imports import (
     hltb,
 )
-from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
+from integrations.imports.helpers import MediaImportError
 
 mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 app_mock_path = (
@@ -53,21 +52,30 @@ class ImportHowLongToBeat(TestCase):
 
     def test_format_time(self):
         importer_instance = hltb.HowLongToBeatImporter(
-            BytesIO(b""), self.user, "new",
+            BytesIO(b""),
+            self.user,
+            "new",
         )
         self.assertIsNone(importer_instance._format_time("--"))
         self.assertEqual(importer_instance._format_time(""), 0)
-        self.assertEqual(importer_instance._format_time("8:35:30"), 8 * 60 + 35 + round(30 / 60))
+        self.assertEqual(
+            importer_instance._format_time("8:35:30"), 8 * 60 + 35 + round(30 / 60)
+        )
         self.assertEqual(importer_instance._format_time("46:30"), 46 + round(30 / 60))
         self.assertEqual(importer_instance._format_time("32"), round(32 / 60))
 
     def test_determine_status(self):
         importer_instance = hltb.HowLongToBeatImporter(
-            BytesIO(b""), self.user, "new",
+            BytesIO(b""),
+            self.user,
+            "new",
         )
         row_completed = {
-            "Completed": "X", "Playing": "", "Backlog": "",
-            "Replay": "", "Retired": "",
+            "Completed": "X",
+            "Playing": "",
+            "Backlog": "",
+            "Replay": "",
+            "Retired": "",
         }
         self.assertEqual(
             importer_instance._determine_status(row_completed),
@@ -75,8 +83,11 @@ class ImportHowLongToBeat(TestCase):
         )
 
         row_playing = {
-            "Completed": "", "Playing": "X", "Backlog": "",
-            "Replay": "", "Retired": "",
+            "Completed": "",
+            "Playing": "X",
+            "Backlog": "",
+            "Replay": "",
+            "Retired": "",
         }
         self.assertEqual(
             importer_instance._determine_status(row_playing),
@@ -84,8 +95,11 @@ class ImportHowLongToBeat(TestCase):
         )
 
         row_backlog = {
-            "Completed": "", "Playing": "", "Backlog": "X",
-            "Replay": "", "Retired": "",
+            "Completed": "",
+            "Playing": "",
+            "Backlog": "X",
+            "Replay": "",
+            "Retired": "",
         }
         self.assertEqual(
             importer_instance._determine_status(row_backlog),
@@ -93,8 +107,11 @@ class ImportHowLongToBeat(TestCase):
         )
 
         row_replay = {
-            "Completed": "", "Playing": "", "Backlog": "",
-            "Replay": "X", "Retired": "",
+            "Completed": "",
+            "Playing": "",
+            "Backlog": "",
+            "Replay": "X",
+            "Retired": "",
         }
         self.assertEqual(
             importer_instance._determine_status(row_replay),
@@ -102,8 +119,11 @@ class ImportHowLongToBeat(TestCase):
         )
 
         row_retired = {
-            "Completed": "", "Playing": "", "Backlog": "",
-            "Replay": "", "Retired": "X",
+            "Completed": "",
+            "Playing": "",
+            "Backlog": "",
+            "Replay": "",
+            "Retired": "X",
         }
         self.assertEqual(
             importer_instance._determine_status(row_retired),
@@ -111,8 +131,11 @@ class ImportHowLongToBeat(TestCase):
         )
 
         row_none = {
-            "Completed": "", "Playing": "", "Backlog": "",
-            "Replay": "", "Retired": "",
+            "Completed": "",
+            "Playing": "",
+            "Backlog": "",
+            "Replay": "",
+            "Retired": "",
         }
         self.assertEqual(
             importer_instance._determine_status(row_none),
@@ -121,7 +144,9 @@ class ImportHowLongToBeat(TestCase):
 
     def test_parse_hltb_date(self):
         importer_instance = hltb.HowLongToBeatImporter(
-            BytesIO(b""), self.user, "new",
+            BytesIO(b""),
+            self.user,
+            "new",
         )
         self.assertIsNone(importer_instance._parse_hltb_date(""))
         result = importer_instance._parse_hltb_date("2024-02-09")
@@ -133,7 +158,9 @@ class ImportHowLongToBeat(TestCase):
     def test_search_game_not_found(self, mock_search):
         mock_search.return_value = {"results": []}
         importer_instance = hltb.HowLongToBeatImporter(
-            BytesIO(b""), self.user, "new",
+            BytesIO(b""),
+            self.user,
+            "new",
         )
         result = importer_instance._search_game({"Title": "Nonexistent"})
         self.assertIsNone(result)
@@ -170,7 +197,9 @@ class ImportHowLongToBeat(TestCase):
 
     def test_format_notes(self):
         importer_instance = hltb.HowLongToBeatImporter(
-            BytesIO(b""), self.user, "new",
+            BytesIO(b""),
+            self.user,
+            "new",
         )
         row = {
             "General Notes": "Great game",

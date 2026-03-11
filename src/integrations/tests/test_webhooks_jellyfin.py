@@ -5,7 +5,17 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from app.models import TV, Anime, Episode, Item, MediaTypes, Movie, Season, Sources, Status
+from app.models import (
+    TV,
+    Anime,
+    Episode,
+    Item,
+    MediaTypes,
+    Movie,
+    Season,
+    Sources,
+    Status,
+)
 from integrations.webhooks.base import BaseWebhookProcessor
 from integrations.webhooks.jellyfin import JellyfinWebhookProcessor
 
@@ -464,9 +474,7 @@ class BaseWebhookProcessorTests(TestCase):
                 "tvdb_epoffset": 0,
             },
         }
-        mal_id, offset = processor._get_mal_id_from_tvdb(
-            mapping_data, 888, 1, 1
-        )
+        mal_id, offset = processor._get_mal_id_from_tvdb(mapping_data, 888, 1, 1)
         self.assertIsNone(mal_id)
         self.assertIsNone(offset)
 
@@ -480,9 +488,7 @@ class BaseWebhookProcessorTests(TestCase):
                 "tvdb_epoffset": 10,
             },
         }
-        mal_id, offset = processor._get_mal_id_from_tvdb(
-            mapping_data, 100, 1, 5
-        )
+        mal_id, offset = processor._get_mal_id_from_tvdb(mapping_data, 100, 1, 5)
         self.assertIsNone(mal_id)
         self.assertIsNone(offset)
 

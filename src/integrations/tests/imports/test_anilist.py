@@ -127,7 +127,8 @@ class ImportAniList(TestCase):
         error_response.status_code = requests.codes.unauthorized
         error_response.text = "Unauthorized"
         mock_api_request.side_effect = ProviderAPIError(
-            "ANILIST", Mock(response=error_response),
+            "ANILIST",
+            Mock(response=error_response),
         )
 
         request = Mock()
@@ -151,7 +152,8 @@ class ImportAniList(TestCase):
         error_response.status_code = requests.codes.unauthorized
         error_response.text = "Unauthorized"
         mock_api_request.side_effect = ProviderAPIError(
-            "ANILIST", Mock(response=error_response),
+            "ANILIST",
+            Mock(response=error_response),
         )
 
         with self.assertRaises(MediaImportError):
@@ -191,8 +193,16 @@ class ImportAniList(TestCase):
                                     "status": "COMPLETED",
                                     "score": 8,
                                     "progress": 12,
-                                    "startedAt": {"year": None, "month": None, "day": None},
-                                    "completedAt": {"year": None, "month": None, "day": None},
+                                    "startedAt": {
+                                        "year": None,
+                                        "month": None,
+                                        "day": None,
+                                    },
+                                    "completedAt": {
+                                        "year": None,
+                                        "month": None,
+                                        "day": None,
+                                    },
                                     "updatedAt": 1749031877,
                                     "repeat": 0,
                                     "notes": "",
@@ -228,7 +238,11 @@ class ImportAniList(TestCase):
                                     "score": 8,
                                     "progress": 12,
                                     "startedAt": None,
-                                    "completedAt": {"year": None, "month": None, "day": None},
+                                    "completedAt": {
+                                        "year": None,
+                                        "month": None,
+                                        "day": None,
+                                    },
                                     "updatedAt": 1749031877,
                                     "repeat": 0,
                                     "notes": "",
@@ -263,8 +277,16 @@ class ImportAniList(TestCase):
                                     "status": "COMPLETED",
                                     "score": 8,
                                     "progress": 12,
-                                    "startedAt": {"year": None, "month": None, "day": None},
-                                    "completedAt": {"year": None, "month": None, "day": None},
+                                    "startedAt": {
+                                        "year": None,
+                                        "month": None,
+                                        "day": None,
+                                    },
+                                    "completedAt": {
+                                        "year": None,
+                                        "month": None,
+                                        "day": None,
+                                    },
                                     "updatedAt": 1749031877,
                                     "repeat": 0,
                                     "notes": "",
@@ -301,7 +323,11 @@ class ImportAniList(TestCase):
                                     "score": 9,
                                     "progress": 6,
                                     "startedAt": {"year": 2023, "month": 1, "day": 1},
-                                    "completedAt": {"year": None, "month": None, "day": None},
+                                    "completedAt": {
+                                        "year": None,
+                                        "month": None,
+                                        "day": None,
+                                    },
                                     "updatedAt": 1749031877,
                                     "repeat": 0,
                                     "notes": "Rewatching!",
@@ -348,8 +374,16 @@ class ImportAniList(TestCase):
                                     "status": "COMPLETED",
                                     "score": 7,
                                     "progress": 12,
-                                    "startedAt": {"year": None, "month": None, "day": None},
-                                    "completedAt": {"year": None, "month": None, "day": None},
+                                    "startedAt": {
+                                        "year": None,
+                                        "month": None,
+                                        "day": None,
+                                    },
+                                    "completedAt": {
+                                        "year": None,
+                                        "month": None,
+                                        "day": None,
+                                    },
                                     "updatedAt": 0,
                                     "repeat": 0,
                                     "notes": "",

@@ -11,14 +11,13 @@ from app.models import (
     TV,
     MediaTypes,
     Movie,
-    Sources,
     Status,
 )
 from app.providers.services import ProviderAPIError
 from integrations.imports import (
     imdb,
 )
-from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
+from integrations.imports.helpers import MediaImportError
 
 mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 app_mock_path = (

@@ -5,11 +5,10 @@ from django.test import TestCase
 from django.urls import reverse
 
 from app.models import (
+    Game,
     Item,
     MediaTypes,
-    Game,
     Movie,
-    Season,
     Sources,
     Status,
 )

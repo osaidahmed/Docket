@@ -15,6 +15,8 @@ from events.models import Event, SentinelDatetime
 
 logger = logging.getLogger(__name__)
 
+SENTINEL_DATETIME = datetime.min.replace(tzinfo=ZoneInfo("UTC"))
+
 
 def fetch_releases(user=None, items_to_process=None):
     """Fetch and process releases for the calendar."""

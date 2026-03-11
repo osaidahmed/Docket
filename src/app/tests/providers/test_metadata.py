@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import requests
 from django.conf import settings
+from django.core.cache import cache
 from django.test import TestCase
 
 from app.models import Episode, Item, MediaTypes, Sources
@@ -22,11 +23,10 @@ from app.providers import (
 mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 
 
-class Metadata(TestCase):
-    """Test the external API calls for media details."""
+class MALMetadataTests(TestCase):
+    """Test MAL provider metadata for anime and manga."""
 
     def test_anime(self):
-        """Test the metadata method for anime."""
         response = mal.anime("1")
         self.assertEqual(response["title"], "Cowboy Bebop")
         self.assertEqual(response["details"]["start_date"], "1998-04-03")
@@ -35,13 +35,11 @@ class Metadata(TestCase):
 
     @patch("requests.Session.get")
     def test_anime_unknown(self, mock_data):
-        """Test the metadata method for anime with mostly unknown data."""
         with Path(mock_path / "metadata_anime_unknown.json").open() as file:
             anime_response = json.load(file)
         mock_data.return_value.json.return_value = anime_response
         mock_data.return_value.status_code = 200
 
-        # anime without picture, synopsis, duration, or number of episodes
         response = mal.anime("0")
         self.assertEqual(response["title"], "Unknown Example")
         self.assertEqual(response["image"], settings.IMG_NONE)
@@ -50,30 +48,34 @@ class Metadata(TestCase):
         self.assertEqual(response["details"]["runtime"], None)
 
     def test_manga(self):
-        """Test the metadata method for manga."""
         response = mal.manga("1")
         self.assertEqual(response["title"], "Monster")
         self.assertEqual(response["details"]["start_date"], "1994-12-05")
         self.assertEqual(response["details"]["status"], "Finished")
         self.assertEqual(response["details"]["number_of_chapters"], 162)
 
+
+class MangaUpdatesMetadataTests(TestCase):
+    """Test MangaUpdates provider metadata."""
+
     def test_mangaupdates(self):
-        """Test the metadata method for manga from mangaupdates."""
         response = mangaupdates.manga("72274276213")
         self.assertEqual(response["title"], "Monster")
         self.assertEqual(response["details"]["year"], "1994")
         self.assertEqual(response["details"]["format"], "Manga")
 
+
+class TMDBMetadataTests(TestCase):
+    """Test TMDB provider metadata for movies and TV shows."""
+
     def test_tv(self):
-        """Test the metadata method for TV shows."""
         response = tmdb.tv("1396")
         self.assertEqual(response["title"], "Breaking Bad")
         self.assertEqual(response["details"]["first_air_date"], "2008-01-20")
         self.assertEqual(response["details"]["status"], "Ended")
         self.assertEqual(response["details"]["episodes"], 62)
 
-    def test_tmdb_process_episodes(self):
-        """Test the process_episodes function for TMDB episodes."""
+    def test_process_episodes(self):
         Item.objects.create(
             media_id="5",
             source=Sources.TMDB.value,
@@ -152,7 +154,6 @@ class Metadata(TestCase):
 
         episodes_in_db = [episode_1, episode_2]
 
-        # Call process_episodes
         result = tmdb.process_episodes(season_metadata, episodes_in_db)
 
         self.assertEqual(len(result), 3)
@@ -173,8 +174,7 @@ class Metadata(TestCase):
         self.assertFalse(result[2]["history"], [])
 
     @patch("app.providers.tmdb.tv_with_seasons")
-    def test_tmdb_episode(self, mock_tv_with_seasons):
-        """Test the episode method for TMDB episodes."""
+    def test_episode(self, mock_tv_with_seasons):
         mock_tv_with_seasons.return_value = {
             "title": "Breaking Bad",
             "season/1": {
@@ -210,8 +210,7 @@ class Metadata(TestCase):
 
         mock_tv_with_seasons.assert_called_with("1396", ["1"])
 
-    def test_tmdb_find_next_episode(self):
-        """Test the find_next_episode function."""
+    def test_find_next_episode(self):
         episodes_metadata = [
             {"episode_number": 1, "title": "Episode 1"},
             {"episode_number": 2, "title": "Episode 2"},
@@ -228,7 +227,6 @@ class Metadata(TestCase):
         self.assertIsNone(next_episode)
 
     def test_movie(self):
-        """Test the metadata method for movies."""
         response = tmdb.movie("10494")
         self.assertEqual(response["title"], "Perfect Blue")
         self.assertEqual(response["details"]["release_date"], "1998-02-28")
@@ -236,7 +234,6 @@ class Metadata(TestCase):
 
     @patch("requests.Session.get")
     def test_movie_unknown(self, mock_data):
-        """Test the metadata method for movies with mostly unknown data."""
         with Path(mock_path / "metadata_movie_unknown.json").open() as file:
             movie_response = json.load(file)
         mock_data.return_value.json.return_value = movie_response
@@ -253,8 +250,11 @@ class Metadata(TestCase):
         self.assertEqual(response["details"]["country"], None)
         self.assertEqual(response["details"]["languages"], None)
 
-    def test_games(self):
-        """Test the metadata method for games."""
+
+class IGDBMetadataTests(TestCase):
+    """Test IGDB provider metadata for games."""
+
+    def test_game(self):
         response = igdb.game("1942")
         self.assertEqual(response["title"], "The Witcher 3: Wild Hunt")
         self.assertEqual(response["details"]["format"], "Main game")
@@ -265,30 +265,54 @@ class Metadata(TestCase):
         )
 
     def test_external_game_steam(self):
-        """Test the external_game method for Steam games."""
         igdb_game_id = igdb.external_game("292030", igdb.ExternalGameSource.STEAM)
-
         self.assertEqual(igdb_game_id, 1942)
 
     def test_external_game_not_found(self):
-        """Test the external_game method with non-existent Steam ID."""
         igdb_game_id = igdb.external_game("999999999", igdb.ExternalGameSource.STEAM)
-
         self.assertIsNone(igdb_game_id)
 
-    def test_book(self):
-        """Test the metadata method for books."""
+
+class OpenLibraryMetadataTests(TestCase):
+    """Test OpenLibrary provider metadata for books."""
+
+    def setUp(self):
+        cache.delete("openlibrary_book_OL21733390M")
+
+    @patch("app.providers.services.api_request")
+    @patch("app.providers.openlibrary.get_ratings", new_callable=AsyncMock)
+    @patch("app.providers.openlibrary.get_editions", new_callable=AsyncMock)
+    @patch("app.providers.openlibrary.get_authors", new_callable=AsyncMock)
+    def test_book(self, mock_authors, mock_editions, mock_ratings, mock_api):
+        mock_api.side_effect = [
+            {
+                "title": "Nineteen Eighty-Four",
+                "works": [{"key": "/works/OL1168083W"}],
+                "number_of_pages": 328,
+            },
+            {
+                "title": "Nineteen Eighty-Four",
+                "subjects": ["Dystopian fiction"],
+            },
+        ]
+
+        mock_authors.return_value = ["George Orwell"]
+        mock_editions.return_value = {
+            "format": "Paperback",
+            "publisher": "Penguin",
+            "isbn": [],
+        }
+        mock_ratings.return_value = (8.5, 1000)
+
         response = openlibrary.book("OL21733390M")
         self.assertEqual(response["title"], "Nineteen Eighty-Four")
         self.assertEqual(response["details"]["author"], ["George Orwell"])
 
-    def test_comic(self):
-        """Test the metadata method for comics."""
-        response = comicvine.comic("155969")
-        self.assertEqual(response["title"], "Ultimate Spider-Man")
 
-    def test_hardcover_book(self):
-        """Test the metadata method for books from Hardcover."""
+class HardcoverMetadataTests(TestCase):
+    """Test Hardcover provider metadata and helper functions."""
+
+    def test_book(self):
         response = hardcover.book("377193")
         self.assertEqual(response["title"], "The Great Gatsby")
         self.assertEqual(response["details"]["author"], "F. Scott Fitzgerald")
@@ -297,19 +321,103 @@ class Metadata(TestCase):
         self.assertIn("Classics", response["genres"])
         self.assertAlmostEqual(response["score"], 7.4, delta=0.1)
 
-    def test_hardcover_book_unknown(self):
-        """Test the metadata method for books from Hardcover with minimal data."""
+    def test_book_unknown(self):
         response = hardcover.book("1265528")
         self.assertEqual(response["title"], "MiNRS")
         self.assertEqual(response["details"]["author"], "Kevin Sylvester")
         self.assertEqual(response["details"]["publish_date"], "2015-09-22")
-        # These fields should be None or default values
         self.assertEqual(response["synopsis"], "No synopsis available.")
         self.assertEqual(response["details"]["format"], "Unknown")
         self.assertIsNone(response["genres"])
 
-    def test_manual_tv(self):
-        """Test the metadata method for manually created TV shows."""
+    def test_get_tags(self):
+        tags_data = [{"tag": "Science Fiction"}, {"tag": "Fantasy"}]
+        result = hardcover.get_tags(tags_data)
+        self.assertEqual(result, ["Science Fiction", "Fantasy"])
+        self.assertIsNone(hardcover.get_tags(None))
+
+    def test_get_ratings(self):
+        self.assertEqual(hardcover.get_ratings(4.5), 9.0)
+        self.assertIsNone(hardcover.get_ratings(None))
+
+    def test_get_edition_details(self):
+        edition_data = {
+            "edition_format": "Paperback",
+            "isbn_13": "9781234567890",
+            "isbn_10": "1234567890",
+            "publisher": {"name": "Test Publisher"},
+        }
+
+        result = hardcover.get_edition_details(edition_data)
+        self.assertEqual(result["format"], "Paperback")
+        self.assertEqual(result["publisher"], "Test Publisher")
+        self.assertEqual(result["isbn"], ["1234567890", "9781234567890"])
+
+        self.assertEqual(hardcover.get_edition_details(None), {})
+
+        no_publisher = {
+            "edition_format": "Paperback",
+            "isbn_13": "9781234567890",
+        }
+        result = hardcover.get_edition_details(no_publisher)
+        self.assertEqual(result["publisher"], None)
+
+    def test_handle_error_unauthorized(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.json.return_value = {"error": "Invalid API key"}
+
+        error = requests.exceptions.HTTPError("401 Unauthorized")
+        error.response = mock_response
+
+        with self.assertRaises(services.ProviderAPIError) as cm:
+            hardcover.handle_error(error)
+
+        self.assertEqual(cm.exception.provider, Sources.HARDCOVER.value)
+
+    def test_handle_error_server(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.json.return_value = {"error": "Server error"}
+
+        error = requests.exceptions.HTTPError("500 Server Error")
+        error.response = mock_response
+
+        with self.assertRaises(services.ProviderAPIError) as cm:
+            hardcover.handle_error(error)
+
+        self.assertEqual(cm.exception.provider, Sources.HARDCOVER.value)
+
+    def test_handle_error_json_decode(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.json.side_effect = requests.exceptions.JSONDecodeError(
+            "Invalid JSON",
+            "",
+            0,
+        )
+
+        error = requests.exceptions.HTTPError("500 Server Error")
+        error.response = mock_response
+
+        with self.assertRaises(services.ProviderAPIError) as cm:
+            hardcover.handle_error(error)
+
+        self.assertEqual(cm.exception.provider, Sources.HARDCOVER.value)
+
+
+class ComicVineMetadataTests(TestCase):
+    """Test Comic Vine provider metadata."""
+
+    def test_comic(self):
+        response = comicvine.comic("155969")
+        self.assertEqual(response["title"], "Ultimate Spider-Man")
+
+
+class ManualMetadataTests(TestCase):
+    """Test manual provider metadata for user-created entries."""
+
+    def test_tv(self):
         Item.objects.create(
             media_id="1",
             source=Sources.MANUAL.value,
@@ -356,8 +464,7 @@ class Metadata(TestCase):
         self.assertEqual(season_data["max_progress"], 3)
         self.assertEqual(len(season_data["episodes"]), 3)
 
-    def test_manual_movie(self):
-        """Test the metadata method for manually created movies."""
+    def test_movie(self):
         Item.objects.create(
             media_id="2",
             source=Sources.MANUAL.value,
@@ -375,8 +482,7 @@ class Metadata(TestCase):
         self.assertEqual(response["synopsis"], "No synopsis available.")
         self.assertEqual(response["max_progress"], 1)
 
-    def test_manual_season(self):
-        """Test the season method for manually created seasons."""
+    def test_season(self):
         Item.objects.create(
             media_id="3",
             source=Sources.MANUAL.value,
@@ -413,8 +519,7 @@ class Metadata(TestCase):
         self.assertEqual(response["max_progress"], 2)
         self.assertEqual(len(response["episodes"]), 2)
 
-    def test_manual_episode(self):
-        """Test the episode method for manually created episodes."""
+    def test_episode(self):
         Item.objects.create(
             media_id="4",
             source=Sources.MANUAL.value,
@@ -452,8 +557,7 @@ class Metadata(TestCase):
         result = manual.episode("4", 1, 2)
         self.assertIsNone(result)
 
-    def test_manual_process_episodes(self):
-        """Test the process_episodes function for manual episodes."""
+    def test_process_episodes(self):
         Item.objects.create(
             media_id="5",
             source=Sources.MANUAL.value,
@@ -529,7 +633,6 @@ class Metadata(TestCase):
 
         episodes_in_db = [episode_1, episode_2]
 
-        # Call process_episodes
         result = manual.process_episodes(season_metadata, episodes_in_db)
 
         self.assertEqual(len(result), 3)
@@ -548,86 +651,3 @@ class Metadata(TestCase):
         self.assertEqual(result[2]["title"], "Process Episode 3")
         self.assertEqual(result[2]["air_date"], "2025-01-15")
         self.assertFalse(result[2]["history"], [])
-
-    def test_hardcover_get_tags(self):
-        """Test the get_tags function from Hardcover provider."""
-        tags_data = [{"tag": "Science Fiction"}, {"tag": "Fantasy"}]
-        result = hardcover.get_tags(tags_data)
-        self.assertEqual(result, ["Science Fiction", "Fantasy"])
-
-        self.assertIsNone(hardcover.get_tags(None))
-
-    def test_hardcover_get_ratings(self):
-        """Test the get_ratings function from Hardcover provider."""
-        self.assertEqual(hardcover.get_ratings(4.5), 9.0)
-
-        self.assertIsNone(hardcover.get_ratings(None))
-
-    def test_hardcover_get_edition_details(self):
-        """Test the get_edition_details function from Hardcover provider."""
-        edition_data = {
-            "edition_format": "Paperback",
-            "isbn_13": "9781234567890",
-            "isbn_10": "1234567890",
-            "publisher": {"name": "Test Publisher"},
-        }
-
-        result = hardcover.get_edition_details(edition_data)
-        self.assertEqual(result["format"], "Paperback")
-        self.assertEqual(result["publisher"], "Test Publisher")
-        self.assertEqual(result["isbn"], ["1234567890", "9781234567890"])
-
-        self.assertEqual(hardcover.get_edition_details(None), {})
-
-        no_publisher = {
-            "edition_format": "Paperback",
-            "isbn_13": "9781234567890",
-        }
-        result = hardcover.get_edition_details(no_publisher)
-        self.assertEqual(result["publisher"], None)
-
-    def test_handle_error_hardcover_unauthorized(self):
-        """Test the handle_error function with Hardcover unauthorized error."""
-        mock_response = MagicMock()
-        mock_response.status_code = 401  # Unauthorized
-        mock_response.json.return_value = {"error": "Invalid API key"}
-
-        error = requests.exceptions.HTTPError("401 Unauthorized")
-        error.response = mock_response
-
-        with self.assertRaises(services.ProviderAPIError) as cm:
-            hardcover.handle_error(error)
-
-        self.assertEqual(cm.exception.provider, Sources.HARDCOVER.value)
-
-    def test_handle_error_hardcover_other(self):
-        """Test the handle_error function with Hardcover other error."""
-        mock_response = MagicMock()
-        mock_response.status_code = 500  # Server error
-        mock_response.json.return_value = {"error": "Server error"}
-
-        error = requests.exceptions.HTTPError("500 Server Error")
-        error.response = mock_response
-
-        with self.assertRaises(services.ProviderAPIError) as cm:
-            hardcover.handle_error(error)
-
-        self.assertEqual(cm.exception.provider, Sources.HARDCOVER.value)
-
-    def test_handle_error_hardcover_json_error(self):
-        """Test the handle_error function with JSON decode error."""
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.json.side_effect = requests.exceptions.JSONDecodeError(
-            "Invalid JSON",
-            "",
-            0,
-        )
-
-        error = requests.exceptions.HTTPError("500 Server Error")
-        error.response = mock_response
-
-        with self.assertRaises(services.ProviderAPIError) as cm:
-            hardcover.handle_error(error)
-
-        self.assertEqual(cm.exception.provider, Sources.HARDCOVER.value)

@@ -514,6 +514,7 @@ class SyncMetadata(TestCase):
                     "media_type": MediaTypes.MOVIE.value,
                     "media_id": "238",
                 },
-            ) + "?next=/",
+            )
+            + "?next=/",
         )
         self.assertEqual(response.status_code, 302)
