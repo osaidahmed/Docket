@@ -132,9 +132,7 @@ class SearchSuggestRankingTests(TestCase):
 
     @patch("app.providers.mal.search")
     @patch("app.providers.tmdb.search_multi")
-    def test_cross_provider_dedup_keeps_preferred_anime(
-        self, mock_tmdb, mock_mal
-    ):
+    def test_cross_provider_dedup_keeps_preferred_anime(self, mock_tmdb, mock_mal):
         """When anime ranks higher than TV, duplicate TV result is removed."""
         mock_tmdb.return_value = [
             {
@@ -179,9 +177,7 @@ class SearchSuggestRankingTests(TestCase):
 
     @patch("app.providers.mal.search")
     @patch("app.providers.tmdb.search_multi")
-    def test_cross_provider_dedup_keeps_preferred_tv(
-        self, mock_tmdb, mock_mal
-    ):
+    def test_cross_provider_dedup_keeps_preferred_tv(self, mock_tmdb, mock_mal):
         """When TV ranks higher than anime, duplicate anime result is removed."""
         mock_tmdb.return_value = [
             {
@@ -226,9 +222,7 @@ class SearchSuggestRankingTests(TestCase):
 
     @patch("app.providers.mal.search")
     @patch("app.providers.tmdb.search_multi")
-    def test_cross_provider_dedup_matches_mal_title(
-        self, mock_tmdb, mock_mal
-    ):
+    def test_cross_provider_dedup_matches_mal_title(self, mock_tmdb, mock_mal):
         """Dedup matches when TMDB title equals MAL's main (Japanese) title."""
         mock_tmdb.return_value = [
             {
@@ -272,9 +266,7 @@ class SearchSuggestRankingTests(TestCase):
 
     @patch("app.providers.mal.search")
     @patch("app.providers.tmdb.search_multi")
-    def test_cross_provider_dedup_ignores_movie_types(
-        self, mock_tmdb, mock_mal
-    ):
+    def test_cross_provider_dedup_ignores_movie_types(self, mock_tmdb, mock_mal):
         """Movie results with same title as anime are NOT deduped."""
         mock_tmdb.return_value = [
             {
@@ -323,9 +315,7 @@ class SearchSuggestRankingTests(TestCase):
 
     @patch("app.providers.mal.search")
     @patch("app.providers.tmdb.search_multi")
-    def test_cross_provider_dedup_case_insensitive(
-        self, mock_tmdb, mock_mal
-    ):
+    def test_cross_provider_dedup_case_insensitive(self, mock_tmdb, mock_mal):
         """Title matching is case-insensitive."""
         mock_tmdb.return_value = [
             {

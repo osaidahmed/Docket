@@ -73,9 +73,7 @@ class MediaManagerFilterTests(MediaManagerTestBase):
         media_types = backlog._get_media_types_to_process(
             self.user, [MediaTypes.TV.value]
         )
-        self.assertEqual(
-            media_types, [MediaTypes.TV.value, MediaTypes.SEASON.value]
-        )
+        self.assertEqual(media_types, [MediaTypes.TV.value, MediaTypes.SEASON.value])
 
     def test_get_media_types_to_process_all(self):
         media_types = backlog._get_media_types_to_process(self.user, None)

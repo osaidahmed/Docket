@@ -42,58 +42,94 @@ class CalendarProcessorsTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = get_user_model().objects.create_user(
-            username="test", password="12345",
+            username="test",
+            password="12345",
         )
         cls.anime_item = Item.objects.create(
-            media_id="437", source=Sources.MAL.value,
-            media_type=MediaTypes.ANIME.value, title="Perfect Blue", image=IMG,
+            media_id="437",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Perfect Blue",
+            image=IMG,
         )
         Anime.objects.create(
-            item=cls.anime_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.anime_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
         cls.movie_item = Item.objects.create(
-            media_id="238", source=Sources.TMDB.value,
-            media_type=MediaTypes.MOVIE.value, title="The Godfather", image=IMG,
+            media_id="238",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="The Godfather",
+            image=IMG,
         )
         Movie.objects.create(
-            item=cls.movie_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.movie_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
         cls.tv_item = Item.objects.create(
-            media_id="1396", source=Sources.TMDB.value,
-            media_type=MediaTypes.TV.value, title="Breaking Bad", image=IMG,
+            media_id="1396",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.TV.value,
+            title="Breaking Bad",
+            image=IMG,
         )
         tv_object = TV.objects.create(
-            item=cls.tv_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.tv_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
         cls.season_item = Item.objects.create(
-            media_id="1396", source=Sources.TMDB.value,
-            media_type=MediaTypes.SEASON.value, title="Breaking Bad",
-            image=IMG, season_number=1,
+            media_id="1396",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            title="Breaking Bad",
+            image=IMG,
+            season_number=1,
         )
         Season.objects.create(
-            item=cls.season_item, related_tv=tv_object,
-            user=cls.user, status=Status.PLANNING.value,
+            item=cls.season_item,
+            related_tv=tv_object,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
         cls.manga_item = Item.objects.create(
-            media_id="1", source=Sources.MAL.value,
-            media_type=MediaTypes.MANGA.value, title="Berserk", image=IMG,
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Berserk",
+            image=IMG,
         )
         Manga.objects.create(
-            item=cls.manga_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.manga_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
         cls.book_item = Item.objects.create(
-            media_id="OL21733390M", source=Sources.OPENLIBRARY.value,
-            media_type=MediaTypes.BOOK.value, title="1984", image=IMG,
+            media_id="OL21733390M",
+            source=Sources.OPENLIBRARY.value,
+            media_type=MediaTypes.BOOK.value,
+            title="1984",
+            image=IMG,
         )
         Book.objects.create(
-            item=cls.book_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.book_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
         cls.comic_item = Item.objects.create(
-            media_id="60760", source=Sources.COMICVINE.value,
-            media_type=MediaTypes.COMIC.value, title="Batman", image=IMG,
+            media_id="60760",
+            source=Sources.COMICVINE.value,
+            media_type=MediaTypes.COMIC.value,
+            title="Batman",
+            image=IMG,
         )
         Comic.objects.create(
-            item=cls.comic_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.comic_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
 
     # --- fetch_releases ---
@@ -169,7 +205,8 @@ class CalendarProcessorsTests(TestCase):
         }
         mock_seasons.return_value = {
             "season/1": {
-                "image": IMG, "season_number": 1,
+                "image": IMG,
+                "season_number": 1,
                 "episodes": [
                     {"episode_number": 1, "air_date": "2008-01-20"},
                     {"episode_number": 2, "air_date": "2008-01-27"},
@@ -178,7 +215,8 @@ class CalendarProcessorsTests(TestCase):
                 "tvdb_id": "81189",
             },
             "season/2": {
-                "image": IMG, "season_number": 2,
+                "image": IMG,
+                "season_number": 2,
                 "episodes": [
                     {"episode_number": 1, "air_date": "2009-01-20"},
                     {"episode_number": 2, "air_date": "2009-01-27"},
@@ -186,7 +224,8 @@ class CalendarProcessorsTests(TestCase):
                 "tvdb_id": "81189",
             },
             "season/3": {
-                "image": IMG, "season_number": 3,
+                "image": IMG,
+                "season_number": 3,
                 "episodes": [{"episode_number": 1, "air_date": "2010-01-20"}],
                 "tvdb_id": "81189",
             },
@@ -214,19 +253,28 @@ class CalendarProcessorsTests(TestCase):
     @patch("events.calendar_processors.tmdb.tv")
     def test_get_seasons_next_episode(self, mock_tv):
         tv_item = Item.objects.create(
-            media_id="2000", source=Sources.TMDB.value,
-            media_type=MediaTypes.TV.value, title="Test TV", image=IMG,
+            media_id="2000",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.TV.value,
+            title="Test TV",
+            image=IMG,
         )
         TV.objects.create(
-            item=tv_item, user=self.user, status=Status.PLANNING.value,
+            item=tv_item,
+            user=self.user,
+            status=Status.PLANNING.value,
         )
         season_item = Item.objects.create(
-            media_id="2000", source=Sources.TMDB.value,
-            media_type=MediaTypes.SEASON.value, title="Test TV",
-            image=IMG, season_number=2,
+            media_id="2000",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            title="Test TV",
+            image=IMG,
+            season_number=2,
         )
         Event.objects.create(
-            item=season_item, content_number=1,
+            item=season_item,
+            content_number=1,
             datetime=timezone.now() - timezone.timedelta(days=30),
         )
         mock_tv.return_value = {
@@ -246,11 +294,13 @@ class CalendarProcessorsTests(TestCase):
                 "_embedded": {
                     "episodes": [
                         {
-                            "season": 1, "number": 1,
+                            "season": 1,
+                            "number": 1,
                             "airstamp": "2008-01-20T22:00:00+00:00",
                         },
                         {
-                            "season": 1, "number": 2,
+                            "season": 1,
+                            "number": 2,
                             "airstamp": "2008-01-27T22:00:00+00:00",
                         },
                     ],
@@ -284,14 +334,16 @@ class CalendarProcessorsTests(TestCase):
             "data": {
                 "Page": {
                     "pageInfo": {"hasNextPage": False},
-                    "media": [{
-                        "idMal": 437,
-                        "endDate": {"year": 1997, "month": 8, "day": 5},
-                        "episodes": 1,
-                        "airingSchedule": {
-                            "nodes": [{"episode": 1, "airingAt": 870739200}],
-                        },
-                    }],
+                    "media": [
+                        {
+                            "idMal": 437,
+                            "endDate": {"year": 1997, "month": 8, "day": 5},
+                            "episodes": 1,
+                            "airingSchedule": {
+                                "nodes": [{"episode": 1, "airingAt": 870739200}],
+                            },
+                        }
+                    ],
                 },
             },
         }
@@ -331,15 +383,17 @@ class CalendarProcessorsTests(TestCase):
             "data": {
                 "Page": {
                     "pageInfo": {"hasNextPage": False},
-                    "media": [{
-                        "idMal": 437,
-                        "startDate": {"year": 1997, "month": 8, "day": 5},
-                        "endDate": {"year": 1997, "month": 8, "day": 5},
-                        "episodes": 1,
-                        "airingSchedule": {
-                            "nodes": [{"episode": 1, "airingAt": 870739200}],
-                        },
-                    }],
+                    "media": [
+                        {
+                            "idMal": 437,
+                            "startDate": {"year": 1997, "month": 8, "day": 5},
+                            "endDate": {"year": 1997, "month": 8, "day": 5},
+                            "episodes": 1,
+                            "airingSchedule": {
+                                "nodes": [{"episode": 1, "airingAt": 870739200}],
+                            },
+                        }
+                    ],
                 },
             },
         }
@@ -357,12 +411,14 @@ class CalendarProcessorsTests(TestCase):
             "data": {
                 "Page": {
                     "pageInfo": {"hasNextPage": False},
-                    "media": [{
-                        "idMal": 437,
-                        "endDate": {"year": 1997, "month": 8, "day": 12},
-                        "episodes": 2,
-                        "airingSchedule": {"nodes": []},
-                    }],
+                    "media": [
+                        {
+                            "idMal": 437,
+                            "endDate": {"year": 1997, "month": 8, "day": 12},
+                            "episodes": 2,
+                            "airingSchedule": {"nodes": []},
+                        }
+                    ],
                 },
             },
         }
@@ -376,7 +432,8 @@ class CalendarProcessorsTests(TestCase):
         self.assertEqual(len(result["437"]), 1)
         self.assertEqual(result["437"][0]["episode"], 2)
         dt = datetime.datetime.fromtimestamp(
-            result["437"][0]["airingAt"], tz=ZoneInfo("UTC"),
+            result["437"][0]["airingAt"],
+            tz=ZoneInfo("UTC"),
         )
         self.assertEqual(dt.year, 1997)
         self.assertEqual(dt.month, 8)
@@ -388,17 +445,19 @@ class CalendarProcessorsTests(TestCase):
             "data": {
                 "Page": {
                     "pageInfo": {"hasNextPage": False},
-                    "media": [{
-                        "idMal": 437,
-                        "endDate": {"year": 1997, "month": 8, "day": 5},
-                        "episodes": 1,
-                        "airingSchedule": {
-                            "nodes": [
-                                {"episode": 1, "airingAt": 870739200},
-                                {"episode": 2, "airingAt": 870825600},
-                            ],
-                        },
-                    }],
+                    "media": [
+                        {
+                            "idMal": 437,
+                            "endDate": {"year": 1997, "month": 8, "day": 5},
+                            "episodes": 1,
+                            "airingSchedule": {
+                                "nodes": [
+                                    {"episode": 1, "airingAt": 870739200},
+                                    {"episode": 2, "airingAt": 870825600},
+                                ],
+                            },
+                        }
+                    ],
                 },
             },
         }
@@ -430,9 +489,7 @@ class CalendarProcessorsTests(TestCase):
         self.assertEqual(dt.day, 1)
 
     def test_anilist_date_parser_missing_year(self):
-        self.assertIsNone(
-            anilist_date_parser({"year": None, "month": 3, "day": 28})
-        )
+        self.assertIsNone(anilist_date_parser({"year": None, "month": 3, "day": 28}))
 
     # --- Other media processing ---
 
@@ -544,8 +601,11 @@ class CalendarProcessorsTests(TestCase):
     @patch("events.calendar_processors.comicvine.issue")
     def test_process_comic_with_store_date(self, mock_issue, mock_metadata):
         comic_item = Item.objects.create(
-            media_id="4050-18166", source=Sources.COMICVINE.value,
-            media_type=MediaTypes.COMIC.value, title="Batman", image=IMG,
+            media_id="4050-18166",
+            source=Sources.COMICVINE.value,
+            media_type=MediaTypes.COMIC.value,
+            title="Batman",
+            image=IMG,
         )
         mock_metadata.return_value = {
             "max_issue_number": 10,
@@ -569,8 +629,11 @@ class CalendarProcessorsTests(TestCase):
     @patch("events.calendar_processors.comicvine.issue")
     def test_process_comic_with_cover_date_only(self, mock_issue, mock_metadata):
         comic_item = Item.objects.create(
-            media_id="4050-18167", source=Sources.COMICVINE.value,
-            media_type=MediaTypes.COMIC.value, title="Superman", image=IMG,
+            media_id="4050-18167",
+            source=Sources.COMICVINE.value,
+            media_type=MediaTypes.COMIC.value,
+            title="Superman",
+            image=IMG,
         )
         mock_metadata.return_value = {
             "max_issue_number": 5,
@@ -590,8 +653,11 @@ class CalendarProcessorsTests(TestCase):
     @patch("events.calendar_processors.comicvine.issue")
     def test_process_comic_no_dates(self, mock_issue, mock_metadata):
         comic_item = Item.objects.create(
-            media_id="4050-18168", source=Sources.COMICVINE.value,
-            media_type=MediaTypes.COMIC.value, title="Wonder Woman", image=IMG,
+            media_id="4050-18168",
+            source=Sources.COMICVINE.value,
+            media_type=MediaTypes.COMIC.value,
+            title="Wonder Woman",
+            image=IMG,
         )
         mock_metadata.return_value = {
             "max_issue_number": 3,
@@ -607,11 +673,16 @@ class CalendarProcessorsTests(TestCase):
     @patch("events.calendar_processors.services.get_media_metadata")
     def test_process_comic_provider_api_error(self, mock_metadata):
         comic_item = Item.objects.create(
-            media_id="99999", source=Sources.COMICVINE.value,
-            media_type=MediaTypes.COMIC.value, title="Test Comic", image=IMG,
+            media_id="99999",
+            source=Sources.COMICVINE.value,
+            media_type=MediaTypes.COMIC.value,
+            title="Test Comic",
+            image=IMG,
         )
         Comic.objects.create(
-            item=comic_item, user=self.user, status=Status.PLANNING.value,
+            item=comic_item,
+            user=self.user,
+            status=Status.PLANNING.value,
         )
         response_mock = MagicMock()
         response_mock.status_code = 500

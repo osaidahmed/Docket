@@ -251,9 +251,7 @@ class GetMalIdFromTvdbOffsetTests(TestCase):
                 "tvdb_epoffset": 0,
             },
         }
-        mal_id, offset = self.processor._get_mal_id_from_tvdb(
-            mapping_data, 100, 1, 5
-        )
+        mal_id, offset = self.processor._get_mal_id_from_tvdb(mapping_data, 100, 1, 5)
         self.assertEqual(mal_id, 200)
         self.assertEqual(offset, 5)
 
@@ -272,9 +270,7 @@ class GetMalIdFromTvdbOffsetTests(TestCase):
                 "tvdb_epoffset": 12,
             },
         }
-        mal_id, offset = self.processor._get_mal_id_from_tvdb(
-            mapping_data, 100, 1, 15
-        )
+        mal_id, offset = self.processor._get_mal_id_from_tvdb(mapping_data, 100, 1, 15)
         self.assertEqual(mal_id, 300)
         self.assertEqual(offset, 3)
 
@@ -293,9 +289,7 @@ class GetMalIdFromTvdbOffsetTests(TestCase):
                 "tvdb_epoffset": 12,
             },
         }
-        mal_id, offset = self.processor._get_mal_id_from_tvdb(
-            mapping_data, 100, 1, 5
-        )
+        mal_id, offset = self.processor._get_mal_id_from_tvdb(mapping_data, 100, 1, 5)
         self.assertEqual(mal_id, 200)
         self.assertEqual(offset, 5)
 
@@ -308,8 +302,6 @@ class GetMalIdFromTvdbOffsetTests(TestCase):
                 "tvdb_epoffset": 0,
             },
         }
-        mal_id, offset = self.processor._get_mal_id_from_tvdb(
-            mapping_data, 100, 1, 1
-        )
+        mal_id, offset = self.processor._get_mal_id_from_tvdb(mapping_data, 100, 1, 1)
         self.assertEqual(mal_id, "123")
         self.assertEqual(offset, 1)

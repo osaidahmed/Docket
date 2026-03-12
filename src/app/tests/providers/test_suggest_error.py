@@ -47,9 +47,7 @@ class SearchSuggestErrorTests(TestCase):
             },
         ]
 
-        results = services.search_suggest_api(
-            "Naruto", self._all_types_enabled()
-        )
+        results = services.search_suggest_api("Naruto", self._all_types_enabled())
 
         self.assertGreater(len(results), 0)
         self.assertEqual(results[0]["source"], Sources.MAL.value)
@@ -69,9 +67,7 @@ class SearchSuggestErrorTests(TestCase):
         ]
         mock_mal.side_effect = Exception("MAL down")
 
-        results = services.search_suggest_api(
-            "Nar", self._all_types_enabled()
-        )
+        results = services.search_suggest_api("Nar", self._all_types_enabled())
 
         self.assertGreater(len(results), 0)
         self.assertEqual(results[0]["source"], Sources.TMDB.value)
@@ -83,9 +79,7 @@ class SearchSuggestErrorTests(TestCase):
         mock_tmdb.side_effect = Exception("TMDB down")
         mock_mal.side_effect = Exception("MAL down")
 
-        results = services.search_suggest_api(
-            "Naruto", self._all_types_enabled()
-        )
+        results = services.search_suggest_api("Naruto", self._all_types_enabled())
 
         self.assertEqual(results, [])
 
@@ -124,9 +118,7 @@ class SearchSuggestErrorTests(TestCase):
         ]
 
         start = time.monotonic()
-        results = services.search_suggest_api(
-            "Naruto", self._all_types_enabled()
-        )
+        results = services.search_suggest_api("Naruto", self._all_types_enabled())
         elapsed = time.monotonic() - start
 
         self.assertGreater(len(results), 0)

@@ -41,9 +41,7 @@ class BacklogSaveTests(TestCase):
             "link": "",
         }
         # Include progress only for types that have it on the form
-        if media.item.media_type not in (
-            MediaTypes.MOVIE.value,
-        ):
+        if media.item.media_type not in (MediaTypes.MOVIE.value,):
             data["progress"] = media.progress if media.progress is not None else ""
         if source_context:
             data["source_context"] = source_context
@@ -57,9 +55,7 @@ class BacklogSaveTests(TestCase):
             title=title,
             image="http://example.com/image.jpg",
         )
-        return Movie.objects.create(
-            item=item, user=self.user, status=status, **kwargs
-        )
+        return Movie.objects.create(item=item, user=self.user, status=status, **kwargs)
 
     def _make_anime(self, media_id, title, status, **kwargs):
         item = Item.objects.create(
@@ -69,9 +65,7 @@ class BacklogSaveTests(TestCase):
             title=title,
             image="http://example.com/image.jpg",
         )
-        return Anime.objects.create(
-            item=item, user=self.user, status=status, **kwargs
-        )
+        return Anime.objects.create(item=item, user=self.user, status=status, **kwargs)
 
     # --- Valid form, default context (backlog) ---
 
@@ -87,22 +81,16 @@ class BacklogSaveTests(TestCase):
 
     def test_valid_form_archive_context_renders_archive_card(self):
         """POST with source_context=archive renders the archive card template."""
-        movie = self._make_movie(
-            "101", "Archive Movie", Status.COMPLETED.value
-        )
+        movie = self._make_movie("101", "Archive Movie", Status.COMPLETED.value)
         data = self._backlog_save_data(movie, source_context="archive")
 
         response = self.client.post(reverse("backlog_save"), data)
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(
-            response, "app/components/backlog_card_archived.html"
-        )
+        self.assertTemplateUsed(response, "app/components/backlog_card_archived.html")
 
     @patch("app.providers.services.get_media_metadata")
-    def test_valid_form_medialist_context_renders_medialist_card(
-        self, mock_metadata
-    ):
+    def test_valid_form_medialist_context_renders_medialist_card(self, mock_metadata):
         """POST with source_context=medialist renders media list card."""
         mock_metadata.return_value = {"max_progress": None}
         anime = self._make_anime(
@@ -113,9 +101,7 @@ class BacklogSaveTests(TestCase):
         response = self.client.post(reverse("backlog_save"), data)
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(
-            response, "app/components/media_list_card.html"
-        )
+        self.assertTemplateUsed(response, "app/components/media_list_card.html")
 
     @patch("app.providers.services.get_media_metadata")
     @patch("app.models.Item.fetch_releases")
@@ -124,44 +110,32 @@ class BacklogSaveTests(TestCase):
     ):
         """Changing status to COMPLETED renders the completed card template."""
         mock_metadata.return_value = {"max_progress": None}
-        movie = self._make_movie(
-            "103", "Complete Movie", Status.IN_PROGRESS.value
-        )
+        movie = self._make_movie("103", "Complete Movie", Status.IN_PROGRESS.value)
         data = self._backlog_save_data(movie)
         data["status"] = Status.COMPLETED.value
 
         response = self.client.post(reverse("backlog_save"), data)
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(
-            response, "app/components/backlog_completed.html"
-        )
+        self.assertTemplateUsed(response, "app/components/backlog_completed.html")
 
     @patch("app.models.Item.fetch_releases")
-    def test_status_dropped_renders_dropped_card_with_refresh(
-        self, mock_releases
-    ):
+    def test_status_dropped_renders_dropped_card_with_refresh(self, mock_releases):
         """Changing status to DROPPED renders dropped card."""
-        movie = self._make_movie(
-            "104", "Drop Movie", Status.IN_PROGRESS.value
-        )
+        movie = self._make_movie("104", "Drop Movie", Status.IN_PROGRESS.value)
         data = self._backlog_save_data(movie)
         data["status"] = Status.DROPPED.value
 
         response = self.client.post(reverse("backlog_save"), data)
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(
-            response, "app/components/backlog_dropped.html"
-        )
+        self.assertTemplateUsed(response, "app/components/backlog_dropped.html")
 
     # --- Invalid form ---
 
     def test_invalid_form_score_out_of_range_shows_errors(self):
         """Invalid form (score > 10) returns form_errors in backlog card."""
-        movie = self._make_movie(
-            "105", "Bad Score Movie", Status.PLANNING.value
-        )
+        movie = self._make_movie("105", "Bad Score Movie", Status.PLANNING.value)
         data = self._backlog_save_data(movie)
         data["score"] = "15"
 
@@ -183,26 +157,20 @@ class BacklogSaveTests(TestCase):
         response = self.client.post(reverse("backlog_save"), data)
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(
-            response, "app/components/media_list_card.html"
-        )
+        self.assertTemplateUsed(response, "app/components/media_list_card.html")
         self.assertIn("form_errors", response.context)
         self.assertTrue(response.context["show_edit"])
 
     def test_invalid_form_archive_context_shows_errors(self):
         """Invalid form with source_context=archive renders archive error."""
-        movie = self._make_movie(
-            "107", "Bad Archive Movie", Status.COMPLETED.value
-        )
+        movie = self._make_movie("107", "Bad Archive Movie", Status.COMPLETED.value)
         data = self._backlog_save_data(movie, source_context="archive")
         data["score"] = "15"
 
         response = self.client.post(reverse("backlog_save"), data)
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(
-            response, "app/components/backlog_card_archived.html"
-        )
+        self.assertTemplateUsed(response, "app/components/backlog_card_archived.html")
         self.assertIn("form_errors", response.context)
         self.assertTrue(response.context["show_edit"])
 
@@ -349,9 +317,7 @@ class RewatchCancellationTests(TestCase):
         return data
 
     @patch("app.models.Item.fetch_releases")
-    def test_rewatch_cancelled_with_finished_entry_deletes_media(
-        self, mock_releases
-    ):
+    def test_rewatch_cancelled_with_finished_entry_deletes_media(self, mock_releases):
         """Unchecking is_rewatch on a Planning rewatch with a finished entry deletes it."""
         item = Item.objects.create(
             media_id="300",
@@ -361,9 +327,7 @@ class RewatchCancellationTests(TestCase):
             image="http://example.com/image.jpg",
         )
         # The finished (completed) entry
-        Movie.objects.create(
-            item=item, user=self.user, status=Status.COMPLETED.value
-        )
+        Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
         # The rewatch entry (Planning + is_rewatch=True)
         rewatch = Movie.objects.create(
             item=item,
@@ -435,9 +399,7 @@ class BulkActionTests(TestCase):
                 title=f"Bulk Movie {i}",
                 image="http://example.com/image.jpg",
             )
-            movie = Movie.objects.create(
-                item=item, user=self.user, status=status
-            )
+            movie = Movie.objects.create(item=item, user=self.user, status=status)
             movies.append(movie)
         return movies
 
@@ -500,9 +462,7 @@ class BulkActionTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["HX-Refresh"], "true")
-        self.assertEqual(
-            Movie.objects.filter(id__in=[m.id for m in movies]).count(), 0
-        )
+        self.assertEqual(Movie.objects.filter(id__in=[m.id for m in movies]).count(), 0)
 
     def test_invalid_action_returns_400(self):
         """An unrecognized action returns 400."""
@@ -569,9 +529,7 @@ class BulkActionTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     @patch("app.models.Item.fetch_releases")
-    def test_status_change_to_in_progress_sets_start_date(
-        self, mock_releases
-    ):
+    def test_status_change_to_in_progress_sets_start_date(self, mock_releases):
         """Bulk status change to IN_PROGRESS sets start_date on items without one."""
         movies = self._make_movies(2)
         ids = ",".join(str(m.id) for m in movies)
@@ -595,7 +553,7 @@ class BulkActionTests(TestCase):
     def test_bulk_score_clear_sets_none(self):
         """Bulk score with empty value clears score."""
         movies = self._make_movies(1, status=Status.PLANNING.value)
-        movies[0].score = Decimal("5")
+        movies[0].score = Decimal(5)
         movies[0].save(update_fields=["score"])
         ids = str(movies[0].id)
 

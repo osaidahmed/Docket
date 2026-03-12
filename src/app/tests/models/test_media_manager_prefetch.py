@@ -35,9 +35,7 @@ class MediaManagerPrefetchTests(MediaManagerTestBase):
 
     def test_get_historical_models(self):
         historical_models = self.manager.get_historical_models()
-        expected = [
-            f"historical{media_type}" for media_type in MediaTypes.values
-        ]
+        expected = [f"historical{media_type}" for media_type in MediaTypes.values]
         self.assertEqual(historical_models, expected)
 
     def _prefetch_for(self, model_cls, media_type):
@@ -62,9 +60,9 @@ class MediaManagerPrefetchTests(MediaManagerTestBase):
                 list(season.episodes.all())
 
     def test_tv_prefetch_avoids_extra_queries(self):
-        tv_list = list(self._get_media_list(
-            MediaTypes.TV.value, MediaStatusChoices.ALL, "score"
-        ))
+        tv_list = list(
+            self._get_media_list(MediaTypes.TV.value, MediaStatusChoices.ALL, "score")
+        )
 
         self._force_evaluate_tv_prefetch(tv_list)
 
@@ -72,9 +70,11 @@ class MediaManagerPrefetchTests(MediaManagerTestBase):
             self._force_evaluate_tv_prefetch(tv_list)
 
     def test_season_prefetch_avoids_extra_queries(self):
-        season_list = list(self._get_media_list(
-            MediaTypes.SEASON.value, MediaStatusChoices.ALL, "score"
-        ))
+        season_list = list(
+            self._get_media_list(
+                MediaTypes.SEASON.value, MediaStatusChoices.ALL, "score"
+            )
+        )
 
         for season in season_list:
             list(season.episodes.all())
@@ -85,9 +85,7 @@ class MediaManagerPrefetchTests(MediaManagerTestBase):
 
     def _prefetch_events_for(self, anime_list):
         for anime in anime_list:
-            anime.item.prefetched_events = list(
-                Event.objects.filter(item=anime.item)
-            )
+            anime.item.prefetched_events = list(Event.objects.filter(item=anime.item))
 
     def test_annotate_next_event_with_future_event(self):
         queryset = Anime.objects.filter(user=self.user.id).select_related("item")

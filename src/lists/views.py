@@ -87,6 +87,39 @@ def lists(request):
     )
 
 
+def _filter_list_items(items, params):
+    if params["search_query"]:
+        items = items.filter(title__icontains=params["search_query"])
+    if params["media_type"] != "all":
+        items = items.filter(media_type=params["media_type"])
+    return items
+
+
+def _apply_status_filter(items, status_filter, user):
+    if status_filter == MediaStatusChoices.ALL:
+        return items, {}
+    media_types = items.values_list("media_type", flat=True).distinct()
+    item_ids = items.values_list("id", flat=True)
+    media_by_item_id = MediaManager().fetch_media_for_items(
+        media_types,
+        item_ids,
+        user,
+        status_filter=status_filter,
+    )
+    return items.filter(id__in=media_by_item_id.keys()), media_by_item_id
+
+
+_SORT_MAPPING = {
+    "date_added": ["-customlistitem__date_added"],
+    "title": [
+        F("title").asc(nulls_last=True),
+        F("season_number").asc(nulls_first=True),
+        F("episode_number").asc(nulls_first=True),
+    ],
+    "media_type": ["media_type"],
+}
+
+
 @require_GET
 def list_detail(request, list_id):
     """Return the detail page of a custom list."""
@@ -94,83 +127,46 @@ def list_detail(request, list_id):
         CustomList.objects.select_related("owner").prefetch_related("collaborators"),
         id=list_id,
     )
-
     if not custom_list.user_can_view(request.user):
         msg = "List not found"
         raise Http404(msg)
 
-    # Get and process request parameters
-    params = {
-        "sort_by": request.user.update_preference(
-            "list_detail_sort",
-            request.GET.get("sort"),
-        ),
-        "media_type": request.GET.get("type", "all"),
-        "status_filter": request.user.update_preference(
-            "list_detail_status",
-            request.GET.get("status"),
-        ),
-        "page": int(request.GET.get("page", 1)),
-        "search_query": request.GET.get("q", ""),
-    }
+    sort_by = request.user.update_preference(
+        "list_detail_sort",
+        request.GET.get("sort"),
+    )
+    status_filter = request.user.update_preference(
+        "list_detail_status",
+        request.GET.get("status"),
+    )
+    page = int(request.GET.get("page", 1))
 
-    # Build and filter base queryset
-    items = custom_list.items.all()
-    if params["search_query"]:
-        items = items.filter(title__icontains=params["search_query"])
-    if params["media_type"] != "all":
-        items = items.filter(media_type=params["media_type"])
-
-    # Get distinct media types for filtering
-    media_types = items.values_list("media_type", flat=True).distinct()
-    media_manager = MediaManager()
-    media_by_item_id = {}
-
-    # Filter by status if specified
-    if params["status_filter"] != MediaStatusChoices.ALL:
-        item_ids = items.values_list("id", flat=True)
-        media_by_item_id = media_manager.fetch_media_for_items(
-            media_types,
-            item_ids,
-            request.user,
-            status_filter=params["status_filter"],
-        )
-        # Filter items to only those with the specified status
-        items = items.filter(id__in=media_by_item_id.keys())
-
-    # Apply sorting
-    sort_mapping = {
-        "date_added": ["-customlistitem__date_added"],
-        "title": [
-            F("title").asc(nulls_last=True),
-            F("season_number").asc(nulls_first=True),
-            F("episode_number").asc(nulls_first=True),
-        ],
-        "media_type": ["media_type"],
-    }
+    items = _filter_list_items(
+        custom_list.items.all(),
+        {
+            "search_query": request.GET.get("q", ""),
+            "media_type": request.GET.get("type", "all"),
+        },
+    )
+    items, media_by_item_id = _apply_status_filter(items, status_filter, request.user)
     items = items.order_by(
-        *sort_mapping.get(params["sort_by"], ["-customlistitem__date_added"]),
+        *_SORT_MAPPING.get(sort_by, ["-customlistitem__date_added"]),
     )
 
-    # Paginate
     paginator = Paginator(items, 16)
-    items_page = paginator.get_page(params["page"])
+    items_page = paginator.get_page(page)
 
-    # If no status filter was applied, fetch media objects for paginated items only
-    if params["status_filter"] == MediaStatusChoices.ALL:
-        media_types_in_page = {item.media_type for item in items_page}
-        page_item_ids = [item.id for item in items_page]
-        media_by_item_id = media_manager.fetch_media_for_items(
-            media_types_in_page,
-            page_item_ids,
+    if not media_by_item_id:
+        page_types = {item.media_type for item in items_page}
+        page_ids = [item.id for item in items_page]
+        media_by_item_id = MediaManager().fetch_media_for_items(
+            page_types,
+            page_ids,
             request.user,
         )
-
-    # Annotate items with media objects
     for item in items_page:
         item.media = media_by_item_id.get(item.id)
 
-    # Base context for both full and partial responses
     context = {
         "custom_list": custom_list,
         "items": items_page,
@@ -178,13 +174,12 @@ def list_detail(request, list_id):
         "next_page_number": items_page.next_page_number()
         if items_page.has_next()
         else None,
-        "current_sort": params["sort_by"],
-        "current_status": params["status_filter"] or MediaStatusChoices.ALL,
+        "current_sort": sort_by,
+        "current_status": status_filter or MediaStatusChoices.ALL,
         "sort_choices": ListDetailSortChoices.choices,
         "status_choices": MediaStatusChoices.choices,
     }
 
-    # Additional context for full page render
     if not request.headers.get("HX-Request"):
         context.update(
             {
@@ -192,11 +187,10 @@ def list_detail(request, list_id):
                 "media_types": MediaTypes.values,
                 "items_count": paginator.count,
                 "collaborators_count": custom_list.collaborators.count() + 1,
-            },
+            }
         )
         return render(request, "lists/list_detail.html", context)
 
-    # HTMX partial response
     return render(request, "lists/components/media_grid.html", context)
 
 

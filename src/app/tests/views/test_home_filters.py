@@ -423,7 +423,10 @@ class GetEnglishTitleTests(TestCase):
         """Test extraction of English title from alternative_titles."""
         response = {
             "title": "Shingeki no Kyojin",
-            "alternative_titles": {"en": "Attack on Titan", "ja": "\u9032\u6483\u306e\u5de8\u4eba"},
+            "alternative_titles": {
+                "en": "Attack on Titan",
+                "ja": "\u9032\u6483\u306e\u5de8\u4eba",
+            },
         }
         self.assertEqual(get_english_title(response), "Attack on Titan")
 
@@ -444,7 +447,10 @@ class GetEnglishTitleTests(TestCase):
         """Test that empty English title string is treated as no title."""
         response = {
             "title": "Some Anime",
-            "alternative_titles": {"en": "", "ja": "\u4f55\u304b\u306e\u30a2\u30cb\u30e1"},
+            "alternative_titles": {
+                "en": "",
+                "ja": "\u4f55\u304b\u306e\u30a2\u30cb\u30e1",
+            },
         }
         self.assertEqual(get_english_title(response), "")
 

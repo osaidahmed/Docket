@@ -21,7 +21,12 @@ class ComputeRecommendationsTaskTests(TestCase):
     @patch("django.core.cache.cache.set")
     @patch("app.services.recommendations.compute_recommendations")
     def test_exception_caches_empty_result_and_deletes_progress(
-        self, mock_compute, mock_cache_set, mock_cache_delete, mock_cache_key, mock_prog_key
+        self,
+        mock_compute,
+        mock_cache_set,
+        mock_cache_delete,
+        mock_cache_key,
+        mock_prog_key,
     ):
         """Test that on exception, empty result is cached and progress key deleted."""
         mock_compute.side_effect = RuntimeError("provider down")

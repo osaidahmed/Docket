@@ -1,6 +1,5 @@
 import logging
 
-from django.apps import apps
 from django.conf import settings
 from django.core.validators import (
     DecimalValidator,
@@ -10,16 +9,12 @@ from django.core.validators import (
 from django.db import models
 from django.db.models import (
     CheckConstraint,
-    Count,
-    F,
     IntegerField,
     Max,
-    Prefetch,
     Q,
     UniqueConstraint,
-    Window,
 )
-from django.db.models.functions import Cast, RowNumber
+from django.db.models.functions import Cast
 from django.utils import timezone
 from model_utils import FieldTracker
 from model_utils.fields import MonitorField
@@ -28,7 +23,6 @@ from simple_history.utils import bulk_create_with_history, bulk_update_with_hist
 
 import app
 import events
-import users
 from app import providers
 from app.mixins import CalendarTriggerMixin, disable_fetch_releases
 
@@ -226,464 +220,7 @@ class Item(CalendarTriggerMixin, models.Model):
             events.tasks.reload_calendar(items_to_process=items_to_process)
 
 
-class MediaManager(models.Manager):
-    """Custom manager for media models."""
-
-    def get_historical_models(self):
-        """Return list of historical model names."""
-        return [f"historical{media_type}" for media_type in MediaTypes.values]
-
-    def get_media_list(
-        self,
-        user,
-        media_type,
-        status_filter,
-        sort_filter,
-        search=None,
-        sort_dir=None,
-    ):
-        """Get media list based on filters, sorting and search."""
-        model = apps.get_model(app_label="app", model_name=media_type)
-        queryset = model.objects.filter(user=user.id)
-
-        if isinstance(status_filter, list):
-            queryset = queryset.filter(status__in=status_filter)
-        elif status_filter != users.models.MediaStatusChoices.ALL:
-            queryset = queryset.filter(status=status_filter)
-
-        if search:
-            queryset = queryset.filter(
-                Q(item__title__icontains=search)
-                | Q(item__english_title__icontains=search)
-            )
-
-        queryset = queryset.annotate(
-            repeats=Window(
-                expression=Count("id"),
-                partition_by=[F("item")],
-            ),
-            row_number=Window(
-                expression=RowNumber(),
-                partition_by=[F("item")],
-                order_by=F("created_at").desc(),
-            ),
-        ).filter(row_number=1)
-
-        queryset = queryset.select_related("item")
-        queryset = self._apply_prefetch_related(queryset, media_type)
-
-        if sort_filter:
-            return self._sort_media_list(
-                queryset,
-                sort_filter,
-                media_type,
-                sort_dir,
-            )
-        return queryset
-
-    def _apply_prefetch_related(self, queryset, media_type):
-        """Apply appropriate prefetch_related based on media type."""
-        # Apply media-specific prefetches
-        if media_type == MediaTypes.TV.value:
-            return queryset.prefetch_related(
-                Prefetch(
-                    "seasons",
-                    queryset=Season.objects.select_related("item"),
-                ),
-                Prefetch(
-                    "seasons__episodes",
-                    queryset=Episode.objects.select_related("item"),
-                ),
-            )
-
-        base_queryset = queryset.prefetch_related(
-            Prefetch(
-                "item__event_set",
-                queryset=events.models.Event.objects.all(),
-                to_attr="prefetched_events",
-            ),
-        )
-
-        if media_type == MediaTypes.SEASON.value:
-            return base_queryset.prefetch_related(
-                Prefetch(
-                    "episodes",
-                    queryset=Episode.objects.select_related("item"),
-                ),
-            )
-
-        return base_queryset
-
-    _DEFAULT_SORT_DIRS = {
-        "score": "desc",
-        "title": "asc",
-        "progress": "desc",
-        "status": "asc",
-        "start_date": "asc",
-        "end_date": "desc",
-    }
-
-    def _sort_media_list(
-        self,
-        queryset,
-        sort_filter,
-        media_type=None,
-        sort_dir=None,
-    ):
-        """Sort media list using SQL sorting with annotations for calculated fields."""
-        if sort_dir not in ("asc", "desc"):
-            sort_dir = self._DEFAULT_SORT_DIRS.get(sort_filter, "desc")
-
-        if media_type == MediaTypes.TV.value:
-            return self._sort_tv_media_list(queryset, sort_filter, sort_dir)
-        if media_type == MediaTypes.SEASON.value:
-            return self._sort_season_media_list(queryset, sort_filter, sort_dir)
-
-        return self._sort_generic_media_list(queryset, sort_filter, sort_dir)
-
-    def _sort_tv_media_list(self, queryset, sort_filter, sort_dir="desc"):
-        """Sort TV media list based on the sort criteria."""
-        ascending = sort_dir == "asc"
-        title_order = models.functions.Lower("item__title")
-
-        if sort_filter == "start_date":
-            queryset = queryset.annotate(
-                calculated_start_date=models.Min(
-                    "seasons__episodes__end_date",
-                    filter=models.Q(seasons__item__season_number__gt=0),
-                ),
-            )
-            order = (
-                models.F("calculated_start_date").asc(nulls_last=True)
-                if ascending
-                else models.F("calculated_start_date").desc(nulls_last=True)
-            )
-            return queryset.order_by(order, title_order)
-
-        if sort_filter == "end_date":
-            queryset = queryset.annotate(
-                calculated_end_date=models.Max(
-                    "seasons__episodes__end_date",
-                    filter=models.Q(seasons__item__season_number__gt=0),
-                ),
-            )
-            order = (
-                models.F("calculated_end_date").asc(nulls_last=True)
-                if ascending
-                else models.F("calculated_end_date").desc(nulls_last=True)
-            )
-            return queryset.order_by(order, title_order)
-
-        if sort_filter == "progress":
-            queryset = queryset.annotate(
-                calculated_progress=models.Count(
-                    "seasons__episodes",
-                    filter=models.Q(seasons__item__season_number__gt=0),
-                ),
-            )
-            order = "calculated_progress" if ascending else "-calculated_progress"
-            return queryset.order_by(order, title_order)
-
-        return self._sort_generic_media_list(queryset, sort_filter, sort_dir)
-
-    def _sort_season_media_list(self, queryset, sort_filter, sort_dir="desc"):
-        """Sort Season media list based on the sort criteria."""
-        ascending = sort_dir == "asc"
-        title_order = models.functions.Lower("item__title")
-
-        if sort_filter == "start_date":
-            queryset = queryset.annotate(
-                calculated_start_date=models.Min("episodes__end_date"),
-            )
-            order = (
-                models.F("calculated_start_date").asc(nulls_last=True)
-                if ascending
-                else models.F("calculated_start_date").desc(nulls_last=True)
-            )
-            return queryset.order_by(order, title_order)
-
-        if sort_filter == "end_date":
-            queryset = queryset.annotate(
-                calculated_end_date=models.Max("episodes__end_date"),
-            )
-            order = (
-                models.F("calculated_end_date").asc(nulls_last=True)
-                if ascending
-                else models.F("calculated_end_date").desc(nulls_last=True)
-            )
-            return queryset.order_by(order, title_order)
-
-        if sort_filter == "progress":
-            queryset = queryset.annotate(
-                calculated_progress=models.Max("episodes__item__episode_number"),
-            )
-            order = "calculated_progress" if ascending else "-calculated_progress"
-            return queryset.order_by(order, title_order)
-
-        return self._sort_generic_media_list(queryset, sort_filter, sort_dir)
-
-    def _sort_generic_media_list(self, queryset, sort_filter, sort_dir="desc"):
-        """Apply generic sorting logic for all media types."""
-        ascending = sort_dir == "asc"
-        title_order = models.functions.Lower("item__title")
-
-        if sort_filter == "title":
-            return queryset.order_by(
-                title_order if ascending else title_order.desc(),
-            )
-
-        if sort_filter in ("start_date", "end_date"):
-            order = (
-                models.F(sort_filter).asc(nulls_last=True)
-                if ascending
-                else models.F(sort_filter).desc(nulls_last=True)
-            )
-            return queryset.order_by(order, title_order)
-
-        item_fields = [f.name for f in Item._meta.fields]
-        field_ref = (
-            f"item__{sort_filter}" if sort_filter in item_fields else sort_filter
-        )
-
-        order = (
-            models.F(field_ref).asc(nulls_last=True)
-            if ascending
-            else models.F(field_ref).desc(nulls_last=True)
-        )
-        return queryset.order_by(order, title_order)
-
-    def annotate_max_progress(self, media_list, media_type):
-        """Annotate max_progress for all media items."""
-        current_datetime = timezone.now()
-
-        if media_type == MediaTypes.MOVIE.value:
-            for media in media_list:
-                media.max_progress = 1
-        elif media_type == MediaTypes.TV.value:
-            self._annotate_tv_released_episodes(media_list, current_datetime)
-        else:
-            self._annotate_event_based_max_progress(media_list, current_datetime)
-
-    def _annotate_event_based_max_progress(self, media_list, current_datetime):
-        """Annotate max_progress from events for non-movie, non-TV media."""
-        max_progress_dict = {}
-        item_ids = [media.item.id for media in media_list]
-
-        events_data = events.models.Event.objects.filter(
-            item_id__in=item_ids,
-            datetime__lte=current_datetime,
-        ).values("item_id", "content_number")
-
-        for event in events_data:
-            item_id = event["item_id"]
-            content_number = event["content_number"]
-            if content_number is not None:
-                current_max = max_progress_dict.get(item_id, 0)
-                max_progress_dict[item_id] = max(current_max, content_number)
-
-        for media in media_list:
-            media.max_progress = max_progress_dict.get(media.item.id)
-
-    def _annotate_tv_released_episodes(self, tv_list, current_datetime):
-        """Annotate TV shows with the number of released episodes."""
-        # Prefetch all relevant events in one query
-        released_events = events.models.Event.objects.filter(
-            item__media_id__in=[tv.item.media_id for tv in tv_list],
-            item__source=tv_list[0].item.source if tv_list else None,
-            item__media_type=MediaTypes.SEASON.value,
-            item__season_number__gt=0,
-            datetime__lte=current_datetime,
-            content_number__isnull=False,
-        ).select_related("item")
-
-        # Create a dictionary to store max episode numbers per season per show
-        released_episodes = {}
-
-        for event in released_events:
-            media_id = event.item.media_id
-            season_number = event.item.season_number
-            episode_number = event.content_number
-
-            if media_id not in released_episodes:
-                released_episodes[media_id] = {}
-
-            if (
-                season_number not in released_episodes[media_id]
-                or episode_number > released_episodes[media_id][season_number]
-            ):
-                released_episodes[media_id][season_number] = episode_number
-
-        # Calculate total released episodes per TV show
-        for tv in tv_list:
-            tv_episodes = released_episodes.get(tv.item.media_id, {})
-            tv.max_progress = sum(tv_episodes.values()) if tv_episodes else 0
-
-    def fetch_media_for_items(self, media_types, item_ids, user, status_filter=None):
-        """Fetch media objects for given items, optionally filtering by status.
-
-        Args:
-            media_types: Iterable of media type strings to query
-            item_ids: QuerySet or list of item IDs to fetch media for
-            user: User to filter media by
-            status_filter: Optional status value to filter by
-
-        Returns:
-            dict mapping item_id to media object
-        """
-        media_by_item_id = {}
-
-        for media_type in media_types:
-            model = apps.get_model("app", media_type)
-
-            if media_type == MediaTypes.EPISODE.value:
-                filter_kwargs = {
-                    "item__in": item_ids,
-                    "related_season__user": user,
-                }
-                if status_filter:
-                    filter_kwargs["related_season__status"] = status_filter
-            else:
-                filter_kwargs = {
-                    "item__in": item_ids,
-                    "user": user,
-                }
-                if status_filter:
-                    filter_kwargs["status"] = status_filter
-
-            queryset = model.objects.filter(**filter_kwargs).select_related("item")
-            queryset = self._apply_prefetch_related(queryset, media_type)
-            self.annotate_max_progress(queryset, media_type)
-
-            for entry in queryset:
-                media_by_item_id.setdefault(entry.item_id, entry)
-
-        return media_by_item_id
-
-    def get_media(
-        self,
-        user,
-        media_type,
-        instance_id,
-    ):
-        """Get user media object given the media type and item."""
-        model = apps.get_model(app_label="app", model_name=media_type)
-        params = self._get_media_params(
-            user,
-            media_type,
-            instance_id,
-        )
-
-        return model.objects.get(**params)
-
-    def get_media_prefetch(
-        self,
-        user,
-        media_type,
-        instance_id,
-    ):
-        """Get user media object with prefetch_related applied."""
-        model = apps.get_model(app_label="app", model_name=media_type)
-        params = self._get_media_params(
-            user,
-            media_type,
-            instance_id,
-        )
-
-        queryset = model.objects.filter(**params)
-
-        queryset = self._apply_prefetch_related(queryset, media_type)
-        self.annotate_max_progress(queryset, media_type)
-
-        return queryset[0]
-
-    def _get_media_params(
-        self,
-        user,
-        media_type,
-        instance_id,
-    ):
-        """Get the common filter parameters for media queries."""
-        params = {"id": instance_id}
-
-        if media_type == MediaTypes.EPISODE.value:
-            params["related_season__user"] = user
-        else:
-            params["user"] = user
-
-        return params
-
-    def filter_media(
-        self,
-        user,
-        media_id,
-        media_type,
-        source,
-        season_number=None,
-        episode_number=None,
-    ):
-        """Filter media objects based on parameters."""
-        model = apps.get_model(app_label="app", model_name=media_type)
-        params = self._filter_media_params(
-            media_type,
-            media_id,
-            source,
-            user,
-            season_number,
-            episode_number,
-        )
-
-        return model.objects.filter(**params)
-
-    def filter_media_prefetch(
-        self,
-        user,
-        media_id,
-        media_type,
-        source,
-        season_number=None,
-        episode_number=None,
-    ):
-        """Filter user media object with prefetch_related applied."""
-        queryset = self.filter_media(
-            user,
-            media_id,
-            media_type,
-            source,
-            season_number,
-            episode_number,
-        )
-        queryset = self._apply_prefetch_related(queryset, media_type)
-        self.annotate_max_progress(queryset, media_type)
-
-        return queryset
-
-    def _filter_media_params(
-        self,
-        media_type,
-        media_id,
-        source,
-        user,
-        season_number=None,
-        episode_number=None,
-    ):
-        """Get the common filter parameters for media queries."""
-        params = {
-            "item__media_type": media_type,
-            "item__source": source,
-            "item__media_id": media_id,
-        }
-
-        if media_type == MediaTypes.SEASON.value:
-            params["item__season_number"] = season_number
-            params["user"] = user
-        elif media_type == MediaTypes.EPISODE.value:
-            params["item__season_number"] = season_number
-            params["item__episode_number"] = episode_number
-            params["related_season__user"] = user
-        else:
-            params["user"] = user
-
-        return params
+from app.managers import MediaManager
 
 
 class Status(models.TextChoices):
@@ -787,15 +324,12 @@ class Media(models.Model):
     def process_status(self):
         """Update fields depending on the status of the media."""
         if self.status == Status.COMPLETED.value:
-            max_progress = providers.services.get_media_metadata(
+            metadata = providers.services.get_media_metadata(
                 self.item.media_type,
                 self.item.media_id,
                 self.item.source,
-            )["max_progress"]
-
-            if max_progress:
-                self.progress = max_progress
-
+            )
+            self.progress = metadata.get("max_progress") or self.progress
         self.item.fetch_releases(delay=True)
 
     @property
@@ -942,6 +476,46 @@ class TV(Media):
         ]
         return max(dates) if dates else None
 
+    def _complete_seasons(self, season_numbers, tv_with_seasons_metadata):
+        """Complete given seasons and create their episodes."""
+        seasons_to_create = []
+        seasons_to_update = []
+
+        for sn in season_numbers:
+            season_metadata = tv_with_seasons_metadata[f"season/{sn}"]
+            item, _ = Item.objects.get_or_create(
+                media_id=self.item.media_id,
+                source=self.item.source,
+                media_type=MediaTypes.SEASON.value,
+                season_number=sn,
+                defaults={"title": self.item.title, "image": season_metadata["image"]},
+            )
+            try:
+                season_instance = Season.objects.get(item=item, user=self.user)
+                if season_instance.status != Status.COMPLETED.value:
+                    season_instance.status = Status.COMPLETED.value
+                    seasons_to_update.append(season_instance)
+            except Season.DoesNotExist:
+                seasons_to_create.append(
+                    Season(
+                        item=item,
+                        score=None,
+                        status=Status.COMPLETED.value,
+                        notes="",
+                        related_tv=self,
+                        user=self.user,
+                    )
+                )
+
+        bulk_create_with_history(seasons_to_create, Season)
+        bulk_update_with_history(seasons_to_update, Season, ["status"])
+
+        episodes_to_create = []
+        for si in seasons_to_create + seasons_to_update:
+            sm = tv_with_seasons_metadata[f"season/{si.item.season_number}"]
+            episodes_to_create.extend(si.get_remaining_eps(sm))
+        bulk_create_with_history(episodes_to_create, Episode)
+
     def _completed(self):
         """Create remaining seasons and episodes for a TV show.
 
@@ -958,10 +532,6 @@ class TV(Media):
         if not max_progress or self.progress > max_progress:
             return next_episode_season is not None
 
-        seasons_to_create = []
-        seasons_to_update = []
-        episodes_to_create = []
-
         season_numbers = [
             season["season_number"]
             for season in tv_metadata["related"]["seasons"]
@@ -977,52 +547,7 @@ class TV(Media):
             self.item.source,
             season_numbers,
         )
-        for season_number in season_numbers:
-            season_metadata = tv_with_seasons_metadata[f"season/{season_number}"]
-
-            item, _ = Item.objects.get_or_create(
-                media_id=self.item.media_id,
-                source=self.item.source,
-                media_type=MediaTypes.SEASON.value,
-                season_number=season_number,
-                defaults={
-                    "title": self.item.title,
-                    "image": season_metadata["image"],
-                },
-            )
-            try:
-                season_instance = Season.objects.get(
-                    item=item,
-                    user=self.user,
-                )
-
-                if season_instance.status != Status.COMPLETED.value:
-                    season_instance.status = Status.COMPLETED.value
-                    seasons_to_update.append(season_instance)
-
-            except Season.DoesNotExist:
-                seasons_to_create.append(
-                    Season(
-                        item=item,
-                        score=None,
-                        status=Status.COMPLETED.value,
-                        notes="",
-                        related_tv=self,
-                        user=self.user,
-                    ),
-                )
-
-        bulk_create_with_history(seasons_to_create, Season)
-        bulk_update_with_history(seasons_to_update, Season, ["status"])
-
-        for season_instance in seasons_to_create + seasons_to_update:
-            season_metadata = tv_with_seasons_metadata[
-                f"season/{season_instance.item.season_number}"
-            ]
-            episodes_to_create.extend(
-                season_instance.get_remaining_eps(season_metadata),
-            )
-        bulk_create_with_history(episodes_to_create, Episode)
+        self._complete_seasons(season_numbers, tv_with_seasons_metadata)
 
         return next_episode_season is not None
 
@@ -1124,10 +649,43 @@ class Season(Media):
         """Return the title of the media and season number."""
         return f"{self.item.title} S{self.item.season_number}"
 
-    @tracker  # postpone field reset until after the save
+    def _on_completed(self):
+        """Handle season completion: backfill, create episodes, auto-advance."""
+        self._backfill_prior_seasons()
+
+        season_metadata = providers.services.get_media_metadata(
+            MediaTypes.SEASON.value,
+            self.item.media_id,
+            self.item.source,
+            [self.item.season_number],
+        )
+        episodes_to_create = self.get_remaining_eps(season_metadata)
+        if episodes_to_create:
+            bulk_create_with_history(episodes_to_create, Episode)
+
+        if self.related_tv.status not in (
+            Status.COMPLETED.value,
+            Status.DROPPED.value,
+        ):
+            self.related_tv._start_next_available_season()
+
+    def _on_in_progress(self):
+        """Handle season starting: backfill and update TV status."""
+        self._backfill_prior_seasons()
+
+        if self.related_tv.status != Status.IN_PROGRESS.value:
+            self.related_tv.status = Status.IN_PROGRESS.value
+            bulk_update_with_history([self.related_tv], TV, fields=["status"])
+
+    def _sync_tv_status(self, target_status):
+        """Propagate a status to the parent TV if it differs."""
+        if self.related_tv.status != target_status:
+            self.related_tv.status = target_status
+            bulk_update_with_history([self.related_tv], TV, fields=["status"])
+
+    @tracker
     def save(self, *args, **kwargs):
         """Save the media instance."""
-        # if related_tv is not set
         if self.related_tv_id is None:
             self.related_tv = self.get_tv()
 
@@ -1135,52 +693,13 @@ class Season(Media):
 
         if self.tracker.has_changed("status"):
             if self.status == Status.COMPLETED.value:
-                self._backfill_prior_seasons()
-
-                season_metadata = providers.services.get_media_metadata(
-                    MediaTypes.SEASON.value,
-                    self.item.media_id,
-                    self.item.source,
-                    [self.item.season_number],
-                )
-                episodes_to_create = self.get_remaining_eps(season_metadata)
-                if episodes_to_create:
-                    bulk_create_with_history(
-                        episodes_to_create,
-                        Episode,
-                    )
-
-                # Auto-advance to next season
-                if self.related_tv.status not in (
-                    Status.COMPLETED.value,
-                    Status.DROPPED.value,
-                ):
-                    self.related_tv._start_next_available_season()
-
+                self._on_completed()
             elif self.status == Status.IN_PROGRESS.value:
-                self._backfill_prior_seasons()
-
-                if self.related_tv.status != Status.IN_PROGRESS.value:
-                    self.related_tv.status = Status.IN_PROGRESS.value
-                    bulk_update_with_history(
-                        [self.related_tv],
-                        TV,
-                        fields=["status"],
-                    )
-
+                self._on_in_progress()
             elif self.status == Status.PLANNING.value:
                 self._forward_fill_planning_seasons()
-
-            elif (
-                self.status == Status.DROPPED.value
-                and self.related_tv.status != Status.DROPPED.value
-            ):
-                self.related_tv.status = Status.DROPPED.value
-                bulk_update_with_history(
-                    [self.related_tv],
-                    TV,
-                    fields=["status"],
-                )
+            elif self.status == Status.DROPPED.value:
+                self._sync_tv_status(Status.DROPPED.value)
 
             self.item.fetch_releases(delay=True)
 
@@ -1468,55 +987,11 @@ class Season(Media):
             prior_season_numbers,
         )
 
-        seasons_to_create = []
-        seasons_to_update = []
-
         with disable_fetch_releases():
-            for sn in prior_season_numbers:
-                season_metadata = tv_with_seasons_metadata[f"season/{sn}"]
-                item, _ = Item.objects.get_or_create(
-                    media_id=self.item.media_id,
-                    source=self.item.source,
-                    media_type=MediaTypes.SEASON.value,
-                    season_number=sn,
-                    defaults={
-                        "title": self.item.title,
-                        "image": season_metadata["image"],
-                    },
-                )
-
-                try:
-                    existing = Season.objects.get(item=item, user=self.user)
-                    if existing.status != Status.COMPLETED.value:
-                        existing.status = Status.COMPLETED.value
-                        seasons_to_update.append(existing)
-                except Season.DoesNotExist:
-                    seasons_to_create.append(
-                        Season(
-                            item=item,
-                            score=None,
-                            status=Status.COMPLETED.value,
-                            notes="",
-                            related_tv=self.related_tv,
-                            user=self.user,
-                        )
-                    )
-
-            if seasons_to_create:
-                bulk_create_with_history(seasons_to_create, Season)
-            if seasons_to_update:
-                bulk_update_with_history(seasons_to_update, Season, ["status"])
-
-            episodes_to_create = []
-            for season_instance in seasons_to_create + seasons_to_update:
-                season_metadata = tv_with_seasons_metadata[
-                    f"season/{season_instance.item.season_number}"
-                ]
-                episodes_to_create.extend(
-                    season_instance.get_remaining_eps(season_metadata)
-                )
-            if episodes_to_create:
-                bulk_create_with_history(episodes_to_create, Episode)
+            self.related_tv._complete_seasons(
+                prior_season_numbers,
+                tv_with_seasons_metadata,
+            )
 
     def _forward_fill_planning_seasons(self):
         """Create remaining seasons as PLANNING when a season is set to PLANNING."""
@@ -1669,20 +1144,15 @@ class Anime(Media):
                 self.item.media_id,
                 self.item.source,
             )
-
             is_ongoing = metadata.get("is_ongoing")
             if is_ongoing is None:
                 detail_status = metadata.get("details", {}).get("status", "")
                 is_ongoing = detail_status in ("Airing", "Upcoming")
 
+            self.progress = metadata.get("max_progress") or self.progress
             if is_ongoing:
                 self.status = Status.IN_PROGRESS.value
                 self.caught_up = True
-                if metadata["max_progress"]:
-                    self.progress = metadata["max_progress"]
-            elif metadata["max_progress"]:
-                self.progress = metadata["max_progress"]
-
         self.item.fetch_releases(delay=True)
 
 

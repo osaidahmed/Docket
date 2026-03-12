@@ -41,7 +41,9 @@ def save_events(events_bulk):
             items_updated.add(event.item)
 
         existing = _find_existing_event(
-            event, existing_with_content, existing_without_content,
+            event,
+            existing_with_content,
+            existing_without_content,
         )
         if existing:
             existing.datetime = event.datetime

@@ -224,10 +224,12 @@ def _fetch_media_tracking(items_by_type, user_ids):
     tracking_data = {}
     for media_type, item_ids in items_by_type.items():
         media_model = apps.get_model(
-            app_label="app", model_name=media_type.capitalize(),
+            app_label="app",
+            model_name=media_type.capitalize(),
         )
         media_objects = media_model.objects.filter(
-            user_id__in=user_ids, item_id__in=item_ids,
+            user_id__in=user_ids,
+            item_id__in=item_ids,
         ).select_related("item")
 
         for media_obj in media_objects:

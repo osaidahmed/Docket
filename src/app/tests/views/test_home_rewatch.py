@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from app.models import Anime, Item, MediaTypes, Movie, Sources, Status
+from app.models import Anime, MediaTypes, Movie, Sources, Status
 from app.tests.views._home_helpers import backlog_save_data, create_item
 from app.tests.views.test_home import _flatten_group_titles
 
@@ -24,7 +24,9 @@ class RewatchSectionTests(TestCase):
     def test_rewatch_in_dedicated_section_all_mode(self, mock_metadata):
         """Rewatch items appear in a Rewatches group, not in type groups."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("5000", Sources.TMDB.value, MediaTypes.MOVIE.value, "Rewatch Movie")
+        item = create_item(
+            "5000", Sources.TMDB.value, MediaTypes.MOVIE.value, "Rewatch Movie"
+        )
         Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
         Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value, is_rewatch=True
@@ -42,7 +44,9 @@ class RewatchSectionTests(TestCase):
 
     def test_rewatch_inline_in_type_filter(self):
         """Rewatch items appear in type group when filtering by type."""
-        item = create_item("5001", Sources.MAL.value, MediaTypes.ANIME.value, "Rewatch Anime")
+        item = create_item(
+            "5001", Sources.MAL.value, MediaTypes.ANIME.value, "Rewatch Anime"
+        )
         Anime.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value, is_rewatch=True
         )
@@ -58,7 +62,9 @@ class RewatchSectionTests(TestCase):
 
     def test_no_rewatch_section_when_empty(self):
         """No Rewatches group when no items have is_rewatch=True."""
-        item = create_item("5002", Sources.TMDB.value, MediaTypes.MOVIE.value, "Normal Movie")
+        item = create_item(
+            "5002", Sources.TMDB.value, MediaTypes.MOVIE.value, "Normal Movie"
+        )
         Movie.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
 
         response = self.client.get(reverse("home"))
@@ -69,7 +75,9 @@ class RewatchSectionTests(TestCase):
 
     def test_rewatch_manual_flag_no_history(self):
         """Single instance with is_rewatch=True appears in Rewatches group."""
-        item = create_item("5003", Sources.TMDB.value, MediaTypes.MOVIE.value, "Manual Rewatch")
+        item = create_item(
+            "5003", Sources.TMDB.value, MediaTypes.MOVIE.value, "Manual Rewatch"
+        )
         Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value, is_rewatch=True
         )
@@ -86,7 +94,9 @@ class RewatchSectionTests(TestCase):
 
     def test_quick_rewatch_sets_is_rewatch(self):
         """quick_rewatch creates an instance with is_rewatch=True."""
-        item = create_item("5004", Sources.TMDB.value, MediaTypes.MOVIE.value, "Quick Rewatch Movie")
+        item = create_item(
+            "5004", Sources.TMDB.value, MediaTypes.MOVIE.value, "Quick Rewatch Movie"
+        )
         Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
 
         self.client.post(
@@ -107,7 +117,9 @@ class RewatchSectionTests(TestCase):
 
     def test_backlog_save_rewatch_toggle(self):
         """Saving with is_rewatch=on sets the flag on the instance."""
-        item = create_item("5005", Sources.TMDB.value, MediaTypes.MOVIE.value, "Toggle Rewatch")
+        item = create_item(
+            "5005", Sources.TMDB.value, MediaTypes.MOVIE.value, "Toggle Rewatch"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value
         )
@@ -128,7 +140,9 @@ class RewatchSectionTests(TestCase):
             ("5011", Status.PLANNING.value),
             ("5012", Status.PAUSED.value),
         ]:
-            item = create_item(mid, Sources.TMDB.value, MediaTypes.MOVIE.value, f"Rewatch {status}")
+            item = create_item(
+                mid, Sources.TMDB.value, MediaTypes.MOVIE.value, f"Rewatch {status}"
+            )
             Movie.objects.create(
                 item=item, user=self.user, status=status, is_rewatch=True
             )
@@ -146,7 +160,9 @@ class RewatchSectionTests(TestCase):
 
     def test_backlog_save_rewatch_toggle_triggers_refresh(self):
         """Toggling is_rewatch on via backlog_save triggers HX-Refresh."""
-        item = create_item("5030", Sources.TMDB.value, MediaTypes.MOVIE.value, "Refresh Toggle Movie")
+        item = create_item(
+            "5030", Sources.TMDB.value, MediaTypes.MOVIE.value, "Refresh Toggle Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value
         )
@@ -159,7 +175,9 @@ class RewatchSectionTests(TestCase):
 
     def test_backlog_save_rewatch_untoggle_triggers_refresh(self):
         """Toggling is_rewatch off via backlog_save triggers HX-Refresh."""
-        item = create_item("5031", Sources.TMDB.value, MediaTypes.MOVIE.value, "Unrefresh Toggle Movie")
+        item = create_item(
+            "5031", Sources.TMDB.value, MediaTypes.MOVIE.value, "Unrefresh Toggle Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value, is_rewatch=True
         )
@@ -173,7 +191,9 @@ class RewatchSectionTests(TestCase):
     def test_backlog_save_rewatch_unchanged_no_refresh(self, mock_metadata):
         """Saving without changing is_rewatch does not trigger HX-Refresh."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("5032", Sources.TMDB.value, MediaTypes.MOVIE.value, "No Refresh Movie")
+        item = create_item(
+            "5032", Sources.TMDB.value, MediaTypes.MOVIE.value, "No Refresh Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -186,7 +206,9 @@ class RewatchSectionTests(TestCase):
 
     def test_archive_save_rewatch_toggle_triggers_refresh(self):
         """Toggling is_rewatch on archive card triggers HX-Refresh."""
-        item = create_item("5033", Sources.TMDB.value, MediaTypes.MOVIE.value, "Archive Rewatch Toggle")
+        item = create_item(
+            "5033", Sources.TMDB.value, MediaTypes.MOVIE.value, "Archive Rewatch Toggle"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.COMPLETED.value
         )
@@ -200,7 +222,9 @@ class RewatchSectionTests(TestCase):
 
     def test_rewatch_toggle_moves_item_on_reload(self):
         """Toggling is_rewatch moves item to Rewatches group on reload."""
-        item = create_item("5034", Sources.TMDB.value, MediaTypes.MOVIE.value, "Move To Rewatch")
+        item = create_item(
+            "5034", Sources.TMDB.value, MediaTypes.MOVIE.value, "Move To Rewatch"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value
         )
@@ -225,12 +249,16 @@ class RewatchSectionTests(TestCase):
 
     def test_rewatch_section_after_type_groups(self):
         """Rewatches group appears after all type groups."""
-        item_normal = create_item("5020", Sources.TMDB.value, MediaTypes.MOVIE.value, "Normal Movie")
+        item_normal = create_item(
+            "5020", Sources.TMDB.value, MediaTypes.MOVIE.value, "Normal Movie"
+        )
         Movie.objects.create(
             item=item_normal, user=self.user, status=Status.PLANNING.value
         )
 
-        item_rewatch = create_item("5021", Sources.TMDB.value, MediaTypes.MOVIE.value, "Rewatch Movie")
+        item_rewatch = create_item(
+            "5021", Sources.TMDB.value, MediaTypes.MOVIE.value, "Rewatch Movie"
+        )
         Movie.objects.create(
             item=item_rewatch,
             user=self.user,
@@ -246,7 +274,9 @@ class RewatchSectionTests(TestCase):
 
     def test_edit_form_has_is_rewatch_checkbox(self):
         """The backlog card edit form contains an is_rewatch checkbox."""
-        item = create_item("5040", Sources.TMDB.value, MediaTypes.MOVIE.value, "Checkbox Form Movie")
+        item = create_item(
+            "5040", Sources.TMDB.value, MediaTypes.MOVIE.value, "Checkbox Form Movie"
+        )
         Movie.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
 
         response = self.client.get(reverse("home"))
@@ -254,7 +284,9 @@ class RewatchSectionTests(TestCase):
 
     def test_is_rewatch_checkbox_checked_when_true(self):
         """The is_rewatch checkbox is checked when the field is True."""
-        item = create_item("5041", Sources.TMDB.value, MediaTypes.MOVIE.value, "Checked Rewatch Movie")
+        item = create_item(
+            "5041", Sources.TMDB.value, MediaTypes.MOVIE.value, "Checked Rewatch Movie"
+        )
         Movie.objects.create(
             item=item,
             user=self.user,
@@ -270,7 +302,9 @@ class RewatchSectionTests(TestCase):
 
     def test_backlog_save_is_rewatch_uncheck_persists(self):
         """Unchecking is_rewatch via edit form persists on reload."""
-        item = create_item("5042", Sources.TMDB.value, MediaTypes.MOVIE.value, "Uncheck Rewatch Movie")
+        item = create_item(
+            "5042", Sources.TMDB.value, MediaTypes.MOVIE.value, "Uncheck Rewatch Movie"
+        )
         movie = Movie.objects.create(
             item=item,
             user=self.user,
@@ -288,7 +322,9 @@ class RewatchSectionTests(TestCase):
     def test_archive_save_is_rewatch_untoggle_triggers_refresh(self, mock_metadata):
         """Toggling is_rewatch off on archive card triggers HX-Refresh."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("5043", Sources.TMDB.value, MediaTypes.MOVIE.value, "Archive Untoggle Movie")
+        item = create_item(
+            "5043", Sources.TMDB.value, MediaTypes.MOVIE.value, "Archive Untoggle Movie"
+        )
         movie = Movie.objects.create(
             item=item,
             user=self.user,
@@ -306,7 +342,12 @@ class RewatchSectionTests(TestCase):
     def test_archive_save_is_rewatch_unchanged_no_refresh(self, mock_metadata):
         """Archive edit without is_rewatch change has no refresh."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("5044", Sources.TMDB.value, MediaTypes.MOVIE.value, "Archive No Refresh Movie")
+        item = create_item(
+            "5044",
+            Sources.TMDB.value,
+            MediaTypes.MOVIE.value,
+            "Archive No Refresh Movie",
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.COMPLETED.value
         )
@@ -320,7 +361,9 @@ class RewatchSectionTests(TestCase):
 
     def test_is_rewatch_combined_with_status_change(self):
         """Both status and is_rewatch change in one save triggers refresh."""
-        item = create_item("5045", Sources.TMDB.value, MediaTypes.MOVIE.value, "Combined Change Movie")
+        item = create_item(
+            "5045", Sources.TMDB.value, MediaTypes.MOVIE.value, "Combined Change Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value
         )
@@ -337,7 +380,9 @@ class RewatchSectionTests(TestCase):
 
     def test_is_rewatch_with_caught_up_both_toggled(self):
         """Both is_rewatch and caught_up save correctly together."""
-        item = create_item("5046", Sources.MAL.value, MediaTypes.ANIME.value, "Both Flags Anime")
+        item = create_item(
+            "5046", Sources.MAL.value, MediaTypes.ANIME.value, "Both Flags Anime"
+        )
         anime = Anime.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value
         )
@@ -353,7 +398,9 @@ class RewatchSectionTests(TestCase):
 
     def test_type_group_disappears_when_all_items_are_rewatches(self):
         """Type group is removed when all its items are rewatches."""
-        item = create_item("5047", Sources.TMDB.value, MediaTypes.MOVIE.value, "Only Rewatch Movie")
+        item = create_item(
+            "5047", Sources.TMDB.value, MediaTypes.MOVIE.value, "Only Rewatch Movie"
+        )
         Movie.objects.create(
             item=item,
             user=self.user,
@@ -371,7 +418,9 @@ class RewatchSectionTests(TestCase):
 
     def test_quick_rewatch_archive_response_has_hx_refresh(self):
         """quick_rewatch from archive context returns HX-Refresh header."""
-        item = create_item("5048", Sources.TMDB.value, MediaTypes.MOVIE.value, "HX Refresh Rewatch")
+        item = create_item(
+            "5048", Sources.TMDB.value, MediaTypes.MOVIE.value, "HX Refresh Rewatch"
+        )
         Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
 
         response = self.client.post(
@@ -388,12 +437,16 @@ class RewatchSectionTests(TestCase):
 
     def test_rewatch_untoggle_moves_back_to_type_group(self):
         """Untoggling is_rewatch moves item back to type group on reload."""
-        normal_item = create_item("5049", Sources.TMDB.value, MediaTypes.MOVIE.value, "Keep In Type")
+        normal_item = create_item(
+            "5049", Sources.TMDB.value, MediaTypes.MOVIE.value, "Keep In Type"
+        )
         Movie.objects.create(
             item=normal_item, user=self.user, status=Status.PLANNING.value
         )
 
-        item = create_item("5050", Sources.TMDB.value, MediaTypes.MOVIE.value, "Back To Type Movie")
+        item = create_item(
+            "5050", Sources.TMDB.value, MediaTypes.MOVIE.value, "Back To Type Movie"
+        )
         movie = Movie.objects.create(
             item=item,
             user=self.user,
@@ -425,9 +478,7 @@ def _collect_type_and_special_titles(groups, special_media_type):
     special_titles = []
     for group in groups:
         target = (
-            special_titles
-            if group["media_type"] == special_media_type
-            else type_titles
+            special_titles if group["media_type"] == special_media_type else type_titles
         )
         for sg in group["status_groups"]:
             target.extend(m.item.title for m in sg["items"])

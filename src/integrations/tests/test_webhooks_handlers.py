@@ -354,9 +354,7 @@ class HandleAnimeTests(TestCase):
 
     @patch("app.providers.services.get_media_metadata")
     @patch("integrations.webhooks.base.app.providers.mal.anime")
-    def test_handle_anime_existing_completed_by_played(
-        self, mock_mal_anime, mock_meta
-    ):
+    def test_handle_anime_existing_completed_by_played(self, mock_mal_anime, mock_meta):
         """Existing PLANNING anime completed when max_progress reached."""
         mock_mal_anime.return_value = {
             "title": "Frieren",

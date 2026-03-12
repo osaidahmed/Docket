@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from app.models import Anime, Item, MediaTypes, Movie, Sources, Status
+from app.models import Anime, MediaTypes, Movie, Sources, Status
 from app.tests.views._home_helpers import backlog_save_data, create_item
 from app.tests.views.test_home import _flatten_group_titles
 from events.models import Event
@@ -29,7 +29,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_quick_complete_item_leaves_backlog_on_reload(self, mock_metadata):
         """Completing an item removes it from backlog groups on reload."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1000", Sources.TMDB.value, MediaTypes.MOVIE.value, "Will Complete")
+        item = create_item(
+            "1000", Sources.TMDB.value, MediaTypes.MOVIE.value, "Will Complete"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -47,7 +49,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_quick_complete_item_in_archive_on_reload(self, mock_metadata):
         """Completed item appears in archive on reload."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1001", Sources.TMDB.value, MediaTypes.MOVIE.value, "Archive Me")
+        item = create_item(
+            "1001", Sources.TMDB.value, MediaTypes.MOVIE.value, "Archive Me"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -67,7 +71,9 @@ class HomeViewConsistencyTests(TestCase):
         mock_metadata.return_value = {"max_progress": None}
         movies = []
         for mid in ["1010", "1011"]:
-            item = create_item(mid, Sources.TMDB.value, MediaTypes.MOVIE.value, f"Seq Movie {mid}")
+            item = create_item(
+                mid, Sources.TMDB.value, MediaTypes.MOVIE.value, f"Seq Movie {mid}"
+            )
             movies.append(
                 Movie.objects.create(
                     item=item,
@@ -99,7 +105,9 @@ class HomeViewConsistencyTests(TestCase):
 
     def test_quick_drop_absent_from_backlog_and_archive_on_reload(self):
         """Dropped item appears in neither backlog nor archive on reload."""
-        item = create_item("1020", Sources.TMDB.value, MediaTypes.MOVIE.value, "Drop Me Fully")
+        item = create_item(
+            "1020", Sources.TMDB.value, MediaTypes.MOVIE.value, "Drop Me Fully"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value
         )
@@ -119,7 +127,9 @@ class HomeViewConsistencyTests(TestCase):
 
     def test_quick_start_item_moves_to_in_progress_on_reload(self):
         """Started item appears in In Progress group on reload."""
-        item = create_item("1050", Sources.TMDB.value, MediaTypes.MOVIE.value, "Start Me")
+        item = create_item(
+            "1050", Sources.TMDB.value, MediaTypes.MOVIE.value, "Start Me"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value
         )
@@ -145,7 +155,9 @@ class HomeViewConsistencyTests(TestCase):
 
     def test_quick_plan_item_moves_to_planning_on_reload(self):
         """Planned item appears in Planning group on reload."""
-        item = create_item("1051", Sources.TMDB.value, MediaTypes.MOVIE.value, "Plan Me")
+        item = create_item(
+            "1051", Sources.TMDB.value, MediaTypes.MOVIE.value, "Plan Me"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PAUSED.value
         )
@@ -171,7 +183,9 @@ class HomeViewConsistencyTests(TestCase):
 
     def test_quick_start_sets_start_date_on_reload(self):
         """Started item has start_date set on reload."""
-        item = create_item("1052", Sources.TMDB.value, MediaTypes.MOVIE.value, "Start Date Check")
+        item = create_item(
+            "1052", Sources.TMDB.value, MediaTypes.MOVIE.value, "Start Date Check"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value
         )
@@ -194,7 +208,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_quick_catch_up_state_matches_reload(self, mock_metadata):
         """After catch_up, response and reload both show 'Caught Up'."""
         mock_metadata.return_value = {"max_progress": 24}
-        anime_item = create_item("1030", Sources.MAL.value, MediaTypes.ANIME.value, "Catch Up Consistency")
+        anime_item = create_item(
+            "1030", Sources.MAL.value, MediaTypes.ANIME.value, "Catch Up Consistency"
+        )
         anime = Anime.objects.create(
             item=anime_item,
             user=self.user,
@@ -228,7 +244,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_backlog_save_score_persists_on_reload(self, mock_metadata):
         """Score saved via inline edit appears on page reload."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1040", Sources.TMDB.value, MediaTypes.MOVIE.value, "Score Persist Movie")
+        item = create_item(
+            "1040", Sources.TMDB.value, MediaTypes.MOVIE.value, "Score Persist Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -247,7 +265,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_backlog_save_notes_persist_on_reload(self, mock_metadata):
         """Notes saved via inline edit appear on page reload."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1041", Sources.TMDB.value, MediaTypes.MOVIE.value, "Notes Persist Movie")
+        item = create_item(
+            "1041", Sources.TMDB.value, MediaTypes.MOVIE.value, "Notes Persist Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -263,7 +283,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_backlog_save_link_persists_on_reload(self, mock_metadata):
         """Link saved via inline edit persists in DB."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1042", Sources.TMDB.value, MediaTypes.MOVIE.value, "Link Persist Movie")
+        item = create_item(
+            "1042", Sources.TMDB.value, MediaTypes.MOVIE.value, "Link Persist Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -284,7 +306,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_backlog_save_complete_in_archive_on_reload(self, mock_metadata):
         """Completing via inline edit puts item in archive on reload."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1050b", Sources.TMDB.value, MediaTypes.MOVIE.value, "Save Complete Movie")
+        item = create_item(
+            "1050b", Sources.TMDB.value, MediaTypes.MOVIE.value, "Save Complete Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -301,7 +325,9 @@ class HomeViewConsistencyTests(TestCase):
 
     def test_backlog_save_drop_gone_on_reload(self):
         """Dropping via inline edit removes item from everything on reload."""
-        item = create_item("1051b", Sources.TMDB.value, MediaTypes.MOVIE.value, "Save Drop Movie")
+        item = create_item(
+            "1051b", Sources.TMDB.value, MediaTypes.MOVIE.value, "Save Drop Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value
         )
@@ -318,7 +344,9 @@ class HomeViewConsistencyTests(TestCase):
 
     def test_backlog_save_status_change_correct_group_on_reload(self):
         """Changing status via inline edit places item in correct group on reload."""
-        item = create_item("1052b", Sources.TMDB.value, MediaTypes.MOVIE.value, "Regroup Movie")
+        item = create_item(
+            "1052b", Sources.TMDB.value, MediaTypes.MOVIE.value, "Regroup Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.PLANNING.value
         )
@@ -339,7 +367,9 @@ class HomeViewConsistencyTests(TestCase):
 
     def test_backlog_save_paused_correct_group_on_reload(self):
         """Pausing via inline edit places item in Paused group on reload."""
-        item = create_item("1053", Sources.MAL.value, MediaTypes.ANIME.value, "Pause Me Anime")
+        item = create_item(
+            "1053", Sources.MAL.value, MediaTypes.ANIME.value, "Pause Me Anime"
+        )
         anime = Anime.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -364,7 +394,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_quick_rewatch_creates_planning_in_backlog_on_reload(self, mock_metadata):
         """Rewatching from archive creates a Planning item in backlog on reload."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1060", Sources.TMDB.value, MediaTypes.MOVIE.value, "Rewatch Target")
+        item = create_item(
+            "1060", Sources.TMDB.value, MediaTypes.MOVIE.value, "Rewatch Target"
+        )
         Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
 
         self.client.post(
@@ -391,7 +423,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_quick_rewatch_does_not_duplicate_if_active_exists(self, mock_metadata):
         """Rewatching when an active instance exists doesn't create a new one."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1061", Sources.TMDB.value, MediaTypes.MOVIE.value, "Already Active Movie")
+        item = create_item(
+            "1061", Sources.TMDB.value, MediaTypes.MOVIE.value, "Already Active Movie"
+        )
         Movie.objects.create(item=item, user=self.user, status=Status.COMPLETED.value)
         Movie.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
 
@@ -416,7 +450,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_complete_then_rewatch_lifecycle(self, mock_metadata):
         """Complete -> rewatch -> verify backlog and archive are both correct."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1070", Sources.TMDB.value, MediaTypes.MOVIE.value, "Lifecycle Movie")
+        item = create_item(
+            "1070", Sources.TMDB.value, MediaTypes.MOVIE.value, "Lifecycle Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -450,7 +486,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_complete_rewatch_complete_archive_count(self, mock_metadata):
         """Complete -> rewatch -> complete again: archive count increases by 1."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1071", Sources.TMDB.value, MediaTypes.MOVIE.value, "Double Complete Movie")
+        item = create_item(
+            "1071", Sources.TMDB.value, MediaTypes.MOVIE.value, "Double Complete Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -499,7 +537,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_backlog_save_response_shows_updated_score(self, mock_metadata):
         """The HTMX card response includes the updated score value."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1080", Sources.TMDB.value, MediaTypes.MOVIE.value, "Score Response Movie")
+        item = create_item(
+            "1080", Sources.TMDB.value, MediaTypes.MOVIE.value, "Score Response Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -514,7 +554,9 @@ class HomeViewConsistencyTests(TestCase):
     def test_backlog_save_response_shows_updated_link(self, mock_metadata):
         """The HTMX card response includes the external link icon when saved."""
         mock_metadata.return_value = {"max_progress": None}
-        item = create_item("1081", Sources.TMDB.value, MediaTypes.MOVIE.value, "Link Response Movie")
+        item = create_item(
+            "1081", Sources.TMDB.value, MediaTypes.MOVIE.value, "Link Response Movie"
+        )
         movie = Movie.objects.create(
             item=item, user=self.user, status=Status.IN_PROGRESS.value
         )
@@ -529,7 +571,12 @@ class HomeViewConsistencyTests(TestCase):
     def test_backlog_save_progress_response_matches_reload(self, mock_metadata):
         """Progress value in HTMX response matches page reload."""
         mock_metadata.return_value = {"max_progress": 24}
-        item = create_item("1082", Sources.MAL.value, MediaTypes.ANIME.value, "Progress Consistency Anime")
+        item = create_item(
+            "1082",
+            Sources.MAL.value,
+            MediaTypes.ANIME.value,
+            "Progress Consistency Anime",
+        )
         anime = Anime.objects.create(
             item=item,
             user=self.user,

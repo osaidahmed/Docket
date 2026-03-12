@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from app.models import Anime, Item, MediaTypes, Movie, Sources, Status
+from app.models import Anime, MediaTypes, Movie, Sources, Status
 from app.tests.views._home_helpers import backlog_save_data, create_item
 from app.tests.views.test_home import _flatten_group_titles
 from app.tests.views.test_home_rewatch import _collect_type_and_special_titles
@@ -61,7 +61,9 @@ class NotYetAiringTests(TestCase):
 
     def test_not_yet_airing_only_tv_anime(self):
         """Movies with future events are NOT extracted to Not Yet Airing."""
-        item = create_item("6002", Sources.TMDB.value, MediaTypes.MOVIE.value, "Future Movie")
+        item = create_item(
+            "6002", Sources.TMDB.value, MediaTypes.MOVIE.value, "Future Movie"
+        )
         Event.objects.create(
             item=item,
             content_number=None,
@@ -80,7 +82,9 @@ class NotYetAiringTests(TestCase):
 
     def test_not_yet_airing_mixed_events_stays_in_group(self):
         """Anime with past AND future events stays in regular group."""
-        item = create_item("6003", Sources.MAL.value, MediaTypes.ANIME.value, "Airing Anime")
+        item = create_item(
+            "6003", Sources.MAL.value, MediaTypes.ANIME.value, "Airing Anime"
+        )
         Event.objects.create(
             item=item,
             content_number=1,
@@ -132,7 +136,9 @@ class NotYetAiringTests(TestCase):
 
     def test_no_not_yet_airing_section_when_empty(self):
         """No Not Yet Airing group when no items meet criteria."""
-        item = create_item("6006", Sources.MAL.value, MediaTypes.ANIME.value, "Normal Anime")
+        item = create_item(
+            "6006", Sources.MAL.value, MediaTypes.ANIME.value, "Normal Anime"
+        )
         Anime.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
 
         response = self.client.get(reverse("home"))
@@ -143,7 +149,9 @@ class NotYetAiringTests(TestCase):
 
     def test_min_datetime_planning_is_not_yet_airing(self):
         """Anime with only datetime.min events in Planning is not-yet-airing."""
-        item = create_item("6007", Sources.MAL.value, MediaTypes.ANIME.value, "Upcoming Unknown Anime")
+        item = create_item(
+            "6007", Sources.MAL.value, MediaTypes.ANIME.value, "Upcoming Unknown Anime"
+        )
         Event.objects.create(
             item=item,
             content_number=None,
@@ -165,7 +173,9 @@ class NotYetAiringTests(TestCase):
 
     def test_min_datetime_in_progress_stays_in_regular_group(self):
         """Anime with only datetime.min events in In Progress stays in regular group."""
-        item = create_item("6008", Sources.MAL.value, MediaTypes.ANIME.value, "Airing Long Runner")
+        item = create_item(
+            "6008", Sources.MAL.value, MediaTypes.ANIME.value, "Airing Long Runner"
+        )
         Event.objects.create(
             item=item,
             content_number=None,
@@ -186,7 +196,9 @@ class NotYetAiringTests(TestCase):
 
     def test_not_yet_airing_future_plus_min_datetime(self):
         """Anime with future real dates + datetime.min events is not-yet-airing."""
-        item = create_item("6009", Sources.MAL.value, MediaTypes.ANIME.value, "Partial Schedule Anime")
+        item = create_item(
+            "6009", Sources.MAL.value, MediaTypes.ANIME.value, "Partial Schedule Anime"
+        )
         Event.objects.create(
             item=item,
             content_number=1,
@@ -224,7 +236,9 @@ class NotYetAiringActionGatingTests(TestCase):
         self.client.login(**self.credentials)
 
     def _create_not_yet_airing_anime(self, media_id="7000"):
-        item = create_item(media_id, Sources.MAL.value, MediaTypes.ANIME.value, "Future Anime")
+        item = create_item(
+            media_id, Sources.MAL.value, MediaTypes.ANIME.value, "Future Anime"
+        )
         Event.objects.create(
             item=item,
             content_number=1,
@@ -235,7 +249,9 @@ class NotYetAiringActionGatingTests(TestCase):
         )
 
     def _create_airing_anime(self, media_id="7100"):
-        item = create_item(media_id, Sources.MAL.value, MediaTypes.ANIME.value, "Airing Anime")
+        item = create_item(
+            media_id, Sources.MAL.value, MediaTypes.ANIME.value, "Airing Anime"
+        )
         Event.objects.create(
             item=item,
             content_number=1,
@@ -321,7 +337,9 @@ class NotYetAiringActionGatingTests(TestCase):
         self.assertNotContains(response, "quick_status_transition")
 
     def test_backlog_card_shows_start_button_for_airing_planning(self):
-        item = create_item("7200", Sources.MAL.value, MediaTypes.ANIME.value, "Airing Planning Anime")
+        item = create_item(
+            "7200", Sources.MAL.value, MediaTypes.ANIME.value, "Airing Planning Anime"
+        )
         Event.objects.create(
             item=item,
             content_number=1,

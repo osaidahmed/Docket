@@ -90,16 +90,12 @@ class MediaManagerSortTests(MediaManagerTestBase):
             queryset, MediaTypes.SEASON.value
         )
         return list(
-            self.manager._sort_media_list(
-                queryset, sort_field, MediaTypes.SEASON.value
-            )
+            self.manager._sort_media_list(queryset, sort_field, MediaTypes.SEASON.value)
         )
 
     def _sorted_tv(self, sort_field):
         queryset = TV.objects.filter(user=self.user).select_related("item")
-        queryset = self.manager._apply_prefetch_related(
-            queryset, MediaTypes.TV.value
-        )
+        queryset = self.manager._apply_prefetch_related(queryset, MediaTypes.TV.value)
         return list(
             self.manager._sort_media_list(queryset, sort_field, MediaTypes.TV.value)
         )

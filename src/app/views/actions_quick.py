@@ -58,8 +58,12 @@ def _create_media_from_search(request, status, *, caught_up=False):
 
     if existing:
         return _render_search_action(
-            request, media_id, source, media_type,
-            existing.item.title, existing,
+            request,
+            media_id,
+            source,
+            media_type,
+            existing.item.title,
+            existing,
         )
 
     item = _find_or_create_item(media_id, source, media_type)
@@ -85,7 +89,12 @@ def _create_media_from_search(request, status, *, caught_up=False):
     )
 
     return _render_search_action(
-        request, media_id, source, media_type, item.title, instance,
+        request,
+        media_id,
+        source,
+        media_type,
+        item.title,
+        instance,
     )
 
 
@@ -121,9 +130,7 @@ def quick_archive(request):
 @require_POST
 def quick_catch_up_add(request):
     """Add media as In Progress + Caught Up via HTMX."""
-    return _create_media_from_search(
-        request, Status.IN_PROGRESS.value, caught_up=True
-    )
+    return _create_media_from_search(request, Status.IN_PROGRESS.value, caught_up=True)
 
 
 def _render_medialist_card(request, media):
@@ -407,9 +414,7 @@ def quick_rewatch(request):
         item_kwargs["season_number"] = search_params["season_number"]
     item = Item.objects.get(**item_kwargs)
 
-    instance = _setup_rewatch_instance(
-        request, item, search_params["media_type"]
-    )
+    instance = _setup_rewatch_instance(request, item, search_params["media_type"])
 
     if source_context == "archive":
         response = render(
@@ -420,9 +425,7 @@ def quick_rewatch(request):
         response["HX-Refresh"] = "true"
         return response
 
-    return _render_rewatch_search_response(
-        request, item, instance, search_params
-    )
+    return _render_rewatch_search_response(request, item, instance, search_params)
 
 
 def get_max_pin_order(user):
@@ -430,9 +433,9 @@ def get_max_pin_order(user):
     orders = []
     for media_type in user.get_active_media_types():
         model = apps.get_model(app_label="app", model_name=media_type)
-        val = model.objects.filter(
-            user=user, pin_order__isnull=False
-        ).aggregate(Max("pin_order"))["pin_order__max"]
+        val = model.objects.filter(user=user, pin_order__isnull=False).aggregate(
+            Max("pin_order")
+        )["pin_order__max"]
         if val is not None:
             orders.append(val)
     return max(orders) if orders else None
@@ -465,8 +468,6 @@ def save_pin_order(request):
 
     for i, entry in enumerate(ordered_ids):
         model = apps.get_model(app_label="app", model_name=entry["media_type"])
-        model.objects.filter(id=entry["id"], user=request.user).update(
-            pin_order=i
-        )
+        model.objects.filter(id=entry["id"], user=request.user).update(pin_order=i)
 
     return HttpResponse(status=204)

@@ -65,8 +65,7 @@ class SeasonAutoFillTests(TestCase):
             return {
                 "related": {
                     "seasons": [
-                        {"season_number": i, "image": f"s{i}.jpg"}
-                        for i in range(1, 6)
+                        {"season_number": i, "image": f"s{i}.jpg"} for i in range(1, 6)
                     ],
                 },
             }

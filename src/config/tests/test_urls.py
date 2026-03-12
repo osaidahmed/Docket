@@ -1,5 +1,3 @@
-from importlib import import_module
-
 from django.test import SimpleTestCase, override_settings
 from django.urls import URLResolver
 

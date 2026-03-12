@@ -430,9 +430,7 @@ def _collect_season_items(groups):
     for group in groups:
         for sg in group["status_groups"]:
             season_items.extend(
-                m
-                for m in sg["items"]
-                if m.item.media_type == MediaTypes.SEASON.value
+                m for m in sg["items"] if m.item.media_type == MediaTypes.SEASON.value
             )
             if "pinned_items" in sg:
                 season_items.extend(

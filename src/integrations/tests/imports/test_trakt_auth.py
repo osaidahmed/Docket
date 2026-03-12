@@ -108,7 +108,8 @@ class TraktOAuthTests(TestCase):
 
     def test_update_refresh_token_with_matching_task(self):
         schedule, _ = IntervalSchedule.objects.get_or_create(
-            every=1, period=IntervalSchedule.DAYS,
+            every=1,
+            period=IntervalSchedule.DAYS,
         )
         old_encrypted = helpers.encrypt("old_token")
         task_kwargs = json.dumps({"token": old_encrypted, "user_id": 1})
@@ -162,7 +163,10 @@ class TraktAPIRequestTests(TestCase):
         mock_request.return_value = {"test": "data"}
         encrypted_token = helpers.encrypt("test_token")
         trakt_importer = TraktImporter(
-            "testuser", self.user, "new", refresh_token=encrypted_token,
+            "testuser",
+            self.user,
+            "new",
+            refresh_token=encrypted_token,
         )
 
         with patch(
@@ -189,7 +193,10 @@ class TraktAPIRequestTests(TestCase):
 
         encrypted_token = helpers.encrypt("test_token")
         trakt_importer = TraktImporter(
-            "testuser", self.user, "new", refresh_token=encrypted_token,
+            "testuser",
+            self.user,
+            "new",
+            refresh_token=encrypted_token,
         )
 
         result = trakt_importer._make_api_request("https://api.trakt.tv/test")

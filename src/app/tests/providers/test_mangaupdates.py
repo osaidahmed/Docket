@@ -39,13 +39,7 @@ class HandleErrorTests(SimpleTestCase):
             status_code=400,
             json_data={
                 "context": {
-                    "search": [
-                        {
-                            "errors": [
-                                '"" must have a length between 1 and 400'
-                            ]
-                        }
-                    ]
+                    "search": [{"errors": ['"" must have a length between 1 and 400']}]
                 }
             },
         )
@@ -57,13 +51,7 @@ class HandleErrorTests(SimpleTestCase):
         """Test 400 without matching search error raises ProviderAPIError."""
         error = self._make_http_error(
             status_code=400,
-            json_data={
-                "context": {
-                    "search": [
-                        {"errors": ["some other error"]}
-                    ]
-                }
-            },
+            json_data={"context": {"search": [{"errors": ["some other error"]}]}},
         )
 
         with self.assertRaises(services.ProviderAPIError):
