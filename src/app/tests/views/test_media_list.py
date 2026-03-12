@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -117,3 +119,75 @@ class MediaListViewTests(TestCase):
             response["HX-Redirect"],
             reverse("medialist", args=[MediaTypes.MOVIE.value]),
         )
+
+    def test_media_list_htmx_planning_page1_redirect(self):
+        headers = {"HTTP_HX_REQUEST": "true"}
+        url = (
+            reverse("medialist", args=[MediaTypes.MOVIE.value])
+            + "?status=Planning&page=1"
+        )
+        response = self.client.get(url, **headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("HX-Redirect", response)
+
+    def test_media_list_default_status_filter(self):
+        response = self.client.get(
+            reverse("medialist", args=[MediaTypes.MOVIE.value]),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["current_status"], "All")
+
+
+class RecommendationsSectionViewTests(TestCase):
+    """Test the recommendations_section view."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "recs_test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+        self.url = reverse(
+            "recommendations_section",
+            kwargs={"media_type": MediaTypes.MOVIE.value},
+        )
+
+    def test_unsupported_type_returns_empty(self):
+        url = reverse(
+            "recommendations_section",
+            kwargs={"media_type": MediaTypes.BOARDGAME.value},
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"")
+
+    @patch("app.services.recommendations.get_cache_key", return_value="test_recs_key")
+    def test_cache_hit_renders_recommendations(self, _mock_key):
+        from django.core.cache import cache
+
+        cache.set("test_recs_key", {"active": [], "full": [], "genres": []}, timeout=30)
+        self.addCleanup(cache.delete, "test_recs_key")
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "app/components/recommendations_section.html")
+
+    @patch("app.tasks.compute_recommendations_task.delay")
+    @patch("app.views.home.recs_service.get_progress", return_value=None)
+    def test_cache_miss_dispatches_task(self, _progress, mock_delay):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response, "app/components/recommendations_progress.html"
+        )
+        mock_delay.assert_called_once()
+
+    @patch("app.views.home.recs_service.get_progress")
+    def test_in_progress_renders_progress_bar(self, mock_progress):
+        mock_progress.return_value = {"current": 5, "total": 10}
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response, "app/components/recommendations_progress.html"
+        )
+        self.assertEqual(response.context["progress_pct"], 50)

@@ -6,7 +6,8 @@ from django.apps import apps
 from django.conf import settings
 from django.utils.dateparse import parse_datetime
 
-import app
+import app.forms
+import app.models
 from app import config
 from app.models import MediaTypes, Sources
 from app.providers import services

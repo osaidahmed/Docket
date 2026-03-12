@@ -9,8 +9,8 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 from app.providers.services import ProviderAPIError
 from integrations.imports import helpers
 from integrations.imports.helpers import MediaImportError
-from integrations.imports.trakt import (
-    TraktImporter,
+from integrations.imports.trakt import TraktImporter
+from integrations.imports.trakt_auth import (
     get_access_token,
     get_username_from_oauth,
     handle_oauth_callback,
@@ -25,7 +25,7 @@ class TraktOAuthTests(TestCase):
         credentials = {"username": "test", "password": "12345"}
         self.user = get_user_model().objects.create_user(**credentials)
 
-    @patch("integrations.imports.trakt.get_username_from_oauth")
+    @patch("integrations.imports.trakt_auth.get_username_from_oauth")
     @patch("app.providers.services.api_request")
     def test_handle_oauth_callback(self, mock_api_request, mock_get_username):
         mock_api_request.return_value = {
@@ -79,7 +79,7 @@ class TraktOAuthTests(TestCase):
         with self.assertRaises(MediaImportError):
             get_username_from_oauth("bad_token")
 
-    @patch("integrations.imports.trakt.update_refresh_token")
+    @patch("integrations.imports.trakt_auth.update_refresh_token")
     @patch("app.providers.services.api_request")
     def test_get_access_token(self, mock_api_request, mock_update_refresh):
         mock_api_request.return_value = {

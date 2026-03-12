@@ -1,6 +1,14 @@
 from django.test import SimpleTestCase
 
-from app.config import is_announced_media
+from app.config import (
+    get_property,
+    get_sample_search_url,
+    get_status_property,
+    get_unit,
+    has_explore_filters,
+    is_announced_media,
+)
+from app.models import MediaTypes, Status
 
 
 class IsAnnouncedMediaTests(SimpleTestCase):
@@ -41,3 +49,38 @@ class IsAnnouncedMediaTests(SimpleTestCase):
 
     def test_missing_status_is_not_announced(self):
         self.assertFalse(is_announced_media({"details": {}}))
+
+
+class ConfigHelperTests(SimpleTestCase):
+    """Test config helper functions for coverage gaps."""
+
+    def test_has_explore_filters_episode_type(self):
+        self.assertFalse(has_explore_filters(MediaTypes.EPISODE.value))
+
+    def test_has_explore_filters_movie_type(self):
+        self.assertTrue(has_explore_filters(MediaTypes.MOVIE.value))
+
+    def test_get_property_missing_raises(self):
+        with self.assertRaises(KeyError):
+            get_property(MediaTypes.MOVIE.value, "nonexistent_property")
+
+    def test_get_sample_search_url_season(self):
+        url = get_sample_search_url(MediaTypes.SEASON.value)
+        self.assertIn("media_type=tv", url)
+        self.assertIn("Breaking+Bad", url)
+
+    def test_get_unit_no_unit_type(self):
+        self.assertEqual(get_unit(MediaTypes.MOVIE.value, short=True), "")
+        self.assertEqual(get_unit(MediaTypes.MOVIE.value, short=False), "")
+
+    def test_get_unit_with_unit_type(self):
+        self.assertEqual(get_unit(MediaTypes.ANIME.value, short=True), "E")
+        self.assertEqual(get_unit(MediaTypes.ANIME.value, short=False), "Episode")
+
+    def test_get_status_property_invalid_status(self):
+        with self.assertRaises(KeyError):
+            get_status_property("nonexistent_status", "text_color")
+
+    def test_get_status_property_invalid_property(self):
+        with self.assertRaises(KeyError):
+            get_status_property(Status.COMPLETED.value, "nonexistent_property")

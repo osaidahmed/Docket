@@ -5,8 +5,11 @@ from django.test import TestCase
 from django.urls import reverse
 
 from app.models import (
+    Anime,
+    Item,
     MediaTypes,
     Sources,
+    Status,
 )
 
 
@@ -339,3 +342,78 @@ class ExplorePaginationDisplayTests(TestCase):
 
         self.assertNotContains(response, "of 6")
         self.assertNotContains(response, "120 results")
+
+
+class ExploreFilterTests(TestCase):
+    """Test explore filter and hide_watched_anime functionality."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "filter_test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_anime_with_genre_filter(self, mock_filtered):
+        mock_filtered.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            + "?category=all&genres=1,2",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["has_active_filters"])
+        mock_filtered.assert_called_once()
+
+    @patch("app.providers.services.browse")
+    def test_hide_watched_anime_filters_manga(self, mock_browse):
+        anime_item = Item.objects.create(
+            media_id="100",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Attack on Titan",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=anime_item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+
+        mock_browse.return_value = {
+            "page": 1,
+            "total_results": 2,
+            "total_pages": 1,
+            "results": [
+                {
+                    "media_id": "200",
+                    "title": "Attack on Titan",
+                    "media_type": MediaTypes.MANGA.value,
+                    "source": Sources.MAL.value,
+                    "image": "http://example.com/image.jpg",
+                    "synopsis": "",
+                },
+                {
+                    "media_id": "201",
+                    "title": "Berserk",
+                    "media_type": MediaTypes.MANGA.value,
+                    "source": Sources.MAL.value,
+                    "image": "http://example.com/image2.jpg",
+                    "synopsis": "",
+                },
+            ],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MANGA.value})
+            + "?category=all&hide_watched_anime=1",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["hide_watched_anime"])
+        self.assertIn("hide_watched_anime=1", response.context["extra_params"])

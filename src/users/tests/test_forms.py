@@ -1,9 +1,9 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
-from users.forms import NotificationSettingsForm
+from users.forms import CustomLoginForm, CustomSignupForm, NotificationSettingsForm
 
 
 class NotificationSettingsFormTests(TestCase):
@@ -219,3 +219,30 @@ class NotificationSettingsFormTests(TestCase):
         self.user.refresh_from_db()
         self.assertFalse(self.user.daily_digest_enabled)
         self.assertTrue(self.user.release_notifications_enabled)
+
+
+class CustomLoginFormTests(SimpleTestCase):
+    """Tests for CustomLoginForm __init__."""
+
+    def test_login_form_has_placeholders(self):
+        form = CustomLoginForm()
+        self.assertEqual(
+            form.fields["login"].widget.attrs["placeholder"], "Enter your username"
+        )
+        self.assertEqual(
+            form.fields["password"].widget.attrs["placeholder"],
+            "Enter your password",
+        )
+
+
+class CustomSignupFormTests(SimpleTestCase):
+    """Tests for CustomSignupForm __init__."""
+
+    def test_signup_form_removes_email_and_sets_labels(self):
+        form = CustomSignupForm()
+        self.assertNotIn("email", form.fields)
+        self.assertEqual(form.fields["password2"].label, "Confirm Password")
+        self.assertEqual(
+            form.fields["password2"].widget.attrs["placeholder"],
+            "Confirm your password",
+        )

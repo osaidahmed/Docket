@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from app.models import MediaTypes
+from integrations import tasks
 from integrations.tasks import (
     format_import_message,
     format_media_type_display,
@@ -90,3 +91,38 @@ class ImportMediaTests(TestCase):
         result = import_media(mock_importer, "test_id", self.user.id, "full")
         self.assertIn("Imported", result)
         self.assertIn("Failed", result)
+
+
+class TaskWrapperTests(TestCase):
+    """Test that each @shared_task wrapper calls import_media correctly."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="task_wrap", password="12345"
+        )
+
+    @patch("integrations.tasks.import_media", return_value="ok")
+    def test_task_wrappers_call_import_media(self, mock_import):
+        cases = [
+            ("import_trakt", {"user_id": self.user.id, "mode": "new", "token": "t"}),
+            ("import_simkl", {"token": "t", "user_id": self.user.id, "mode": "new"}),
+            ("import_mal", {"username": "u", "user_id": self.user.id, "mode": "new"}),
+            ("import_anilist", {"user_id": self.user.id, "mode": "new", "token": "t"}),
+            ("import_kitsu", {"username": "u", "user_id": self.user.id, "mode": "new"}),
+            ("import_yamtrack", {"file": "f", "user_id": self.user.id, "mode": "new"}),
+            ("import_hltb", {"file": "f", "user_id": self.user.id, "mode": "new"}),
+            ("import_steam", {"username": "u", "user_id": self.user.id, "mode": "new"}),
+            ("import_imdb", {"file": "f", "user_id": self.user.id, "mode": "new"}),
+            (
+                "import_goodreads",
+                {"file": "f", "user_id": self.user.id, "mode": "new"},
+            ),
+        ]
+        for task_name, kwargs in cases:
+            mock_import.reset_mock()
+            with self.subTest(task=task_name):
+                task_func = getattr(tasks, task_name)
+                result = task_func(**kwargs)
+                self.assertEqual(result, "ok")
+                mock_import.assert_called_once()

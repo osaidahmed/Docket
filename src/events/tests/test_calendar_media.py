@@ -50,51 +50,85 @@ class CalendarMediaTests(TestCase):
             password="12345",
         )
         cls.anime_item = Item.objects.create(
-            media_id="437", source=Sources.MAL.value,
-            media_type=MediaTypes.ANIME.value, title="Perfect Blue", image=IMG,
+            media_id="437",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Perfect Blue",
+            image=IMG,
         )
         cls.movie_item = Item.objects.create(
-            media_id="238", source=Sources.TMDB.value,
-            media_type=MediaTypes.MOVIE.value, title="The Godfather", image=IMG,
+            media_id="238",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="The Godfather",
+            image=IMG,
         )
         cls.manga_item = Item.objects.create(
-            media_id="1", source=Sources.MAL.value,
-            media_type=MediaTypes.MANGA.value, title="Berserk", image=IMG,
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Berserk",
+            image=IMG,
         )
         cls.book_item = Item.objects.create(
-            media_id="OL21733390M", source=Sources.OPENLIBRARY.value,
-            media_type=MediaTypes.BOOK.value, title="1984", image=IMG,
+            media_id="OL21733390M",
+            source=Sources.OPENLIBRARY.value,
+            media_type=MediaTypes.BOOK.value,
+            title="1984",
+            image=IMG,
         )
         cls.comic_item = Item.objects.create(
-            media_id="60760", source=Sources.COMICVINE.value,
-            media_type=MediaTypes.COMIC.value, title="Batman", image=IMG,
+            media_id="60760",
+            source=Sources.COMICVINE.value,
+            media_type=MediaTypes.COMIC.value,
+            title="Batman",
+            image=IMG,
         )
         cls.batman_comic = Item.objects.create(
-            media_id="4050-18166", source=Sources.COMICVINE.value,
-            media_type=MediaTypes.COMIC.value, title="Batman", image=IMG,
+            media_id="4050-18166",
+            source=Sources.COMICVINE.value,
+            media_type=MediaTypes.COMIC.value,
+            title="Batman",
+            image=IMG,
         )
         cls.superman_comic = Item.objects.create(
-            media_id="4050-18167", source=Sources.COMICVINE.value,
-            media_type=MediaTypes.COMIC.value, title="Superman", image=IMG,
+            media_id="4050-18167",
+            source=Sources.COMICVINE.value,
+            media_type=MediaTypes.COMIC.value,
+            title="Superman",
+            image=IMG,
         )
         cls.wonderwoman_comic = Item.objects.create(
-            media_id="4050-18168", source=Sources.COMICVINE.value,
-            media_type=MediaTypes.COMIC.value, title="Wonder Woman", image=IMG,
+            media_id="4050-18168",
+            source=Sources.COMICVINE.value,
+            media_type=MediaTypes.COMIC.value,
+            title="Wonder Woman",
+            image=IMG,
         )
         Anime.objects.create(
-            item=cls.anime_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.anime_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
         Movie.objects.create(
-            item=cls.movie_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.movie_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
         Book.objects.create(
-            item=cls.book_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.book_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
         Comic.objects.create(
-            item=cls.comic_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.comic_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
         Manga.objects.create(
-            item=cls.manga_item, user=cls.user, status=Status.PLANNING.value,
+            item=cls.manga_item,
+            user=cls.user,
+            status=Status.PLANNING.value,
         )
 
     @patch("events.calendar_processors.services.get_media_metadata")
@@ -222,32 +256,44 @@ class CalendarMediaTests(TestCase):
             (
                 self.movie_item,
                 {"max_progress": 1, "details": {"release_date": "1999-10-15"}},
-                1, None, date_parser("1999-10-15"),
+                1,
+                None,
+                date_parser("1999-10-15"),
             ),
             (
                 self.book_item,
                 {"max_progress": 328, "details": {"publish_date": "1949-06-08"}},
-                1, 328, date_parser("1949-06-08"),
+                1,
+                328,
+                date_parser("1949-06-08"),
             ),
             (
                 self.manga_item,
                 {"max_progress": 375, "details": {"end_date": "2023-12-22"}},
-                1, 375, date_parser("2023-12-22"),
+                1,
+                375,
+                date_parser("2023-12-22"),
             ),
             (
                 self.manga_item,
                 {"details": {"end_date": None}, "max_progress": None},
-                1, None, sentinel_dt,
+                1,
+                None,
+                sentinel_dt,
             ),
             (
                 self.manga_item,
                 {"details": {"end_date": "2023-12-22"}, "max_progress": None},
-                1, None, date_parser("2023-12-22"),
+                1,
+                None,
+                date_parser("2023-12-22"),
             ),
             (
                 self.movie_item,
                 {"max_progress": None, "details": {"release_date": "invalid-date"}},
-                0, None, None,
+                0,
+                None,
+                None,
             ),
             (self.movie_item, {"max_progress": None, "details": {}}, 0, None, None),
         ]
@@ -295,7 +341,9 @@ class CalendarMediaTests(TestCase):
                 self.batman_comic,
                 base_meta,
                 {"store_date": "2023-04-15", "cover_date": "2023-05-01"},
-                1, 10, date_parser("2023-04-15"),
+                1,
+                10,
+                date_parser("2023-04-15"),
             ),
             (
                 self.superman_comic,
@@ -305,7 +353,9 @@ class CalendarMediaTests(TestCase):
                     "last_issue": {"issue_number": "5"},
                 },
                 {"store_date": None, "cover_date": "2023-05-01"},
-                1, 5, date_parser("2023-05-01"),
+                1,
+                5,
+                date_parser("2023-05-01"),
             ),
             (
                 self.wonderwoman_comic,
@@ -315,7 +365,9 @@ class CalendarMediaTests(TestCase):
                     "last_issue": {"issue_number": "3"},
                 },
                 {"store_date": None, "cover_date": None},
-                0, None, None,
+                0,
+                None,
+                None,
             ),
         ]
         for comic_item, meta, issue_data, count, number, dt in cases:
@@ -353,3 +405,71 @@ class CalendarMediaTests(TestCase):
         events_bulk = []
         process_comic(self.comic_item, events_bulk)
         self.assertEqual(len(events_bulk), 0)
+
+    def test_process_anime_bulk_empty(self):
+        """Test process_anime_bulk with empty items list returns early."""
+        events_bulk = []
+        process_anime_bulk([], events_bulk)
+        self.assertEqual(len(events_bulk), 0)
+
+    @patch("events.calendar_processors.comicvine.issue")
+    @patch("events.calendar_processors.services.get_media_metadata")
+    def test_process_comic_issue_fetch_error(self, mock_metadata, mock_issue):
+        """Test process_comic handles issue fetch ProviderAPIError."""
+        mock_metadata.return_value = {
+            "max_issue_number": 10,
+            "last_issue_id": "4000-123456",
+            "last_issue": {"issue_number": "10"},
+        }
+        error_response = MagicMock()
+        error_response.status_code = 500
+        error_response.text = "Server error"
+        mock_issue.side_effect = services.ProviderAPIError(
+            provider=Sources.COMICVINE.value,
+            error=error_response,
+            details="Issue fetch error",
+        )
+        events_bulk = []
+        process_comic(self.batman_comic, events_bulk)
+        self.assertEqual(len(events_bulk), 0)
+
+    @patch("events.calendar_processors.services.get_media_metadata")
+    def test_process_other_mangaupdates_sentinel(self, mock_metadata):
+        """Test MangaUpdates item gets sentinel datetime when no date key."""
+        mangaupdates_item = Item.objects.create(
+            media_id="100",
+            source=Sources.MANGAUPDATES.value,
+            media_type=MediaTypes.MANGA.value,
+            title="MU Manga",
+            image=IMG,
+        )
+        mock_metadata.return_value = {
+            "max_progress": 50,
+            "details": {},
+        }
+        events_bulk = []
+        process_other(mangaupdates_item, events_bulk)
+        self.assertEqual(len(events_bulk), 1)
+        self.assertEqual(events_bulk[0].content_number, 50)
+
+    @patch("events.calendar_processors.services.get_media_metadata")
+    @patch("events.calendar_processors.services.api_request")
+    def test_anime_mal_more_episodes_skips(self, mock_api, mock_metadata):
+        """Test anime skipped when MAL has more episodes than AniList."""
+        mock_api.return_value = _anilist_page(
+            [
+                {
+                    "idMal": 437,
+                    "endDate": {"year": 1997, "month": 8, "day": 5},
+                    "episodes": 1,
+                    "airingSchedule": {"nodes": []},
+                },
+            ],
+        )
+        mock_metadata.return_value = {
+            "max_progress": 5,
+            "details": {"end_date": "1997-08-05"},
+        }
+        events_bulk = []
+        process_anime_bulk([self.anime_item], events_bulk)
+        self.assertEqual(len(events_bulk), 1)

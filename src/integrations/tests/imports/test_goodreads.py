@@ -1,15 +1,20 @@
+from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from app.models import (
     Book,
+    MediaTypes,
+    Sources,
     Status,
 )
 from integrations.imports import (
     goodreads,
 )
+from integrations.imports.helpers import MediaImportError
 
 mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 app_mock_path = (
@@ -48,3 +53,53 @@ class ImportGoodreads(TestCase):
         read_book = Book.objects.get(status=Status.IN_PROGRESS.value)
         self.assertEqual(read_book.status, Status.IN_PROGRESS.value)
         self.assertEqual(read_book.progress, 0)
+
+
+class GoodReadsEdgeCaseTests(TestCase):
+    """Test edge cases and error paths in GoodReads importer."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="gr_edge", password="12345"
+        )
+
+    def test_unicode_decode_error(self):
+        file = BytesIO(b"\x80\x81\x82\x83")
+        with self.assertRaises(MediaImportError):
+            goodreads.importer(file, self.user, "new")
+
+    @patch("integrations.imports.goodreads.services.search")
+    def test_search_returns_single_result(self, mock_search):
+        mock_search.return_value = {
+            "results": [
+                {
+                    "media_id": "42",
+                    "title": "Found Book",
+                    "image": "http://example.com/img.jpg",
+                    "source": Sources.HARDCOVER.value,
+                },
+            ],
+        }
+        csv_content = (
+            b"Title,ISBN13,Exclusive Shelf,My Rating,Number of Pages,"
+            b"Private Notes,Date Added,Date Read\n"
+            b"Found Book,1234567890123,read,4,200,,2024/01/01,2024/06/01\n"
+        )
+        file = BytesIO(csv_content)
+        counts, _ = goodreads.importer(file, self.user, "new")
+        self.assertEqual(counts.get(MediaTypes.BOOK.value, 0), 1)
+
+    @patch("integrations.imports.goodreads.services.search")
+    def test_book_not_found(self, mock_search):
+        mock_search.return_value = {"results": []}
+
+        csv_content = (
+            b"Title,ISBN13,Exclusive Shelf,My Rating,Number of Pages,"
+            b"Private Notes,Date Added,Date Read\n"
+            b"Nonexistent Book,0000000000000,read,3,100,,"
+            b"2024/01/01,2024/06/01\n"
+        )
+        file = BytesIO(csv_content)
+        _, warnings = goodreads.importer(file, self.user, "new")
+        self.assertIn("Nonexistent Book", warnings)

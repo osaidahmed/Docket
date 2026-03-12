@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
@@ -9,13 +11,16 @@ from app.models import (
     Anime,
     Book,
     Episode,
+    Item,
     Manga,
     Movie,
     Season,
+    Sources,
 )
 from integrations.imports import (
     yamtrack,
 )
+from integrations.imports.helpers import MediaImportError
 
 mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 app_mock_path = (
@@ -215,3 +220,30 @@ class ImportYamtrackPartials(TestCase):
             books[2].end_date,
             datetime(2024, 3, 9, 0, 0, 0, tzinfo=UTC),
         )
+
+
+class YamtrackEdgeCaseTests(TestCase):
+    """Test edge cases and error paths for Yamtrack CSV importer."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="yt_edge", password="12345"
+        )
+
+    def test_unicode_decode_error(self):
+        file = BytesIO(b"\x80\x81\x82\x83")
+        with self.assertRaises(MediaImportError):
+            yamtrack.importer(file, self.user, "new")
+
+    def test_manual_source_missing_image(self):
+        csv_content = (
+            "media_id,source,media_type,title,image,season_number,episode_number,"
+            "status,score,progress,start_date,end_date,notes,link,progressed_at,"
+            "english_title\n"
+            "1,manual,movie,Manual Movie,,,,Completed,8,1,,,,,,"
+        )
+        file = BytesIO(csv_content.encode("utf-8"))
+        yamtrack.importer(file, self.user, "new")
+        item = Item.objects.get(media_id="1", source=Sources.MANUAL.value)
+        self.assertEqual(item.image, settings.IMG_NONE)

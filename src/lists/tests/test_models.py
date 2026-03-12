@@ -107,3 +107,39 @@ class CustomListManagerTest(TestCase):
         self.assertEqual(user_lists.count(), 2)
         self.assertIn(self.list1, user_lists)
         self.assertIn(self.list2, user_lists)
+
+
+class CustomListItemManagerTest(TestCase):
+    """Test case for CustomListItemManager."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="test_item_mgr", password="12345"
+        )
+        cls.custom_list = CustomList.objects.create(
+            name="Item Manager List", owner=cls.user
+        )
+        cls.item = Item.objects.create(
+            title="Test Item",
+            media_id="456",
+            media_type=MediaTypes.MOVIE.value,
+            source=Sources.TMDB.value,
+        )
+
+    def test_get_last_added_date_empty_list(self):
+        result = CustomListItem.objects.get_last_added_date(self.custom_list)
+        self.assertIsNone(result)
+
+    def test_get_last_added_date_with_items(self):
+        cli = CustomListItem.objects.create(
+            item=self.item, custom_list=self.custom_list
+        )
+        result = CustomListItem.objects.get_last_added_date(self.custom_list)
+        self.assertEqual(result, cli.date_added)
+
+    def test_custom_list_item_str(self):
+        cli = CustomListItem.objects.create(
+            item=self.item, custom_list=self.custom_list
+        )
+        self.assertEqual(str(cli), "Test Item")

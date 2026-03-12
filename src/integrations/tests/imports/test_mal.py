@@ -116,3 +116,75 @@ class ImportMAL(TestCase):
             self.user,
             "new",
         )
+
+
+class MALHelperTests(TestCase):
+    """Test MAL importer helper methods."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="mal_helper", password="12345"
+        )
+        cls.importer = mal.MyAnimeListImporter("testuser", cls.user, "new")
+
+    def test_parse_mal_date_year_only(self):
+        result = self.importer._parse_mal_date("2024")
+        self.assertEqual(result.year, 2024)
+        self.assertEqual(result.month, 1)
+        self.assertEqual(result.day, 1)
+
+    def test_parse_mal_date_year_month(self):
+        result = self.importer._parse_mal_date("2024-06")
+        self.assertEqual(result.year, 2024)
+        self.assertEqual(result.month, 6)
+        self.assertEqual(result.day, 1)
+
+    def test_parse_mal_date_none(self):
+        self.assertIsNone(self.importer._parse_mal_date(None))
+
+    def test_english_title_equals_main_title(self):
+        node = {"title": "Test Title", "alternative_titles": {"en": "Test Title"}}
+        self.assertEqual(mal.MyAnimeListImporter._get_english_title(node), "")
+
+    def test_english_title_different(self):
+        node = {"title": "Original Title", "alternative_titles": {"en": "EN Title"}}
+        self.assertEqual(mal.MyAnimeListImporter._get_english_title(node), "EN Title")
+
+    @patch("requests.Session.get")
+    def test_pagination(self, mock_get):
+        page1 = MagicMock()
+        page1.json.return_value = {
+            "data": [
+                {
+                    "node": {
+                        "id": 1,
+                        "title": "Anime 1",
+                        "main_picture": {"large": "http://example.com/1.jpg"},
+                    },
+                    "list_status": {
+                        "status": "completed",
+                        "score": 8,
+                        "num_episodes_watched": 12,
+                        "num_times_rewatched": 0,
+                        "is_rewatching": False,
+                        "start_date": None,
+                        "finish_date": None,
+                        "comments": "",
+                        "updated_at": "2024-01-01T00:00:00+00:00",
+                    },
+                },
+            ],
+            "paging": {"next": "https://api.myanimelist.net/v2/next"},
+        }
+        page2 = MagicMock()
+        page2.json.return_value = {
+            "data": [],
+            "paging": {},
+        }
+        manga_empty = MagicMock()
+        manga_empty.json.return_value = {"data": [], "paging": {}}
+        mock_get.side_effect = [page1, page2, manga_empty]
+
+        mal.importer("pagtest", self.user, "new")
+        self.assertEqual(mock_get.call_count, 3)

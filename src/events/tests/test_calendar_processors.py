@@ -1,6 +1,7 @@
 import datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import requests
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase
@@ -19,6 +20,7 @@ from app.models import (
     Sources,
     Status,
 )
+from app.providers import services
 from events.calendar_processors import (
     fetch_releases,
     get_seasons_to_process,
@@ -307,3 +309,113 @@ class CalendarProcessorsTests(TestCase):
         mock_api.side_effect = None
         mock_api.return_value = None
         self.assertEqual(get_tvmaze_episode_map("invalid_id"), {})
+
+    def test_fetch_releases_manual_source(self):
+        """Test fetch_releases returns early for manual sources."""
+        manual_item = Item.objects.create(
+            media_id="999",
+            source=Sources.MANUAL.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Manual Movie",
+            image=IMG,
+        )
+        result = fetch_releases(self.user.id, [manual_item])
+        self.assertEqual(result, "Manual sources are not processed")
+
+    @patch("events.calendar_processors.get_items_to_process")
+    def test_fetch_releases_no_items(self, mock_get_items):
+        """Test fetch_releases returns message when no items to process."""
+        mock_get_items.return_value = []
+        result = fetch_releases(self.user.id)
+        self.assertEqual(result, "No items to process")
+
+    @patch("events.calendar_processors.tmdb.tv")
+    def test_process_tv_provider_error(self, mock_tv):
+        """Test process_tv handles ProviderAPIError gracefully."""
+        error_response = MagicMock()
+        error_response.status_code = 500
+        error_response.text = "Server error"
+        mock_tv.side_effect = services.ProviderAPIError(
+            provider=Sources.TMDB.value,
+            error=error_response,
+            details="API error",
+        )
+        events_bulk = []
+        process_tv(self.tv_item, events_bulk)
+        self.assertEqual(len(events_bulk), 0)
+
+    @patch("events.calendar_processors.tmdb.tv_with_seasons")
+    @patch("events.calendar_processors.tmdb.tv")
+    def test_process_tv_missing_season_and_no_tvdb(self, mock_tv, mock_seasons):
+        """Test missing season key in data and no TVDB ID path."""
+        mock_tv.return_value = {
+            "related": {
+                "seasons": [{"season_number": 1}, {"season_number": 2}],
+            },
+        }
+        mock_seasons.return_value = {
+            "season/1": {
+                "image": IMG,
+                "season_number": 1,
+                "tvdb_id": None,
+                "episodes": [{"episode_number": 1, "air_date": "2008-01-20"}],
+            },
+        }
+        events_bulk = []
+        process_tv(self.tv_item, events_bulk)
+        self.assertEqual(len(events_bulk), 1)
+
+    @patch("events.calendar_processors.get_tvmaze_episode_map")
+    @patch("events.calendar_processors.tmdb.tv_with_seasons")
+    @patch("events.calendar_processors.tmdb.tv")
+    def test_process_season_no_episodes(self, mock_tv, mock_seasons, mock_tvmaze):
+        """Test season with no episodes returns early."""
+        mock_tv.return_value = {
+            "related": {"seasons": [{"season_number": 1}]},
+        }
+        mock_seasons.return_value = {
+            "season/1": {
+                "image": IMG,
+                "season_number": 1,
+                "tvdb_id": "81189",
+                "episodes": [],
+            },
+        }
+        mock_tvmaze.return_value = {}
+        events_bulk = []
+        process_tv(self.tv_item, events_bulk)
+        self.assertEqual(len(events_bulk), 0)
+
+    @patch("events.calendar_processors.services.api_request")
+    def test_lookup_tvmaze_404(self, mock_api):
+        """Test TVMaze lookup with 404 response."""
+        cache.clear()
+        error_response = MagicMock()
+        error_response.status_code = 404
+        error_response.text = "Not found"
+        mock_api.side_effect = requests.exceptions.HTTPError(
+            response=error_response,
+        )
+        result = get_tvmaze_episode_map("tvdb_404")
+        self.assertEqual(result, {})
+
+    @patch("events.calendar_processors.services.api_request")
+    def test_lookup_tvmaze_500(self, mock_api):
+        """Test TVMaze lookup with 500 response."""
+        cache.clear()
+        error_response = MagicMock()
+        error_response.status_code = 500
+        error_response.text = "Server error"
+        mock_api.side_effect = requests.exceptions.HTTPError(
+            response=error_response,
+        )
+        result = get_tvmaze_episode_map("tvdb_500")
+        self.assertEqual(result, {})
+
+    @patch("events.calendar_processors.services.api_request")
+    def test_lookup_tvmaze_no_id_in_response(self, mock_api):
+        """Test TVMaze lookup returns no id field."""
+        cache.clear()
+        mock_api.return_value = {"name": "Some Show"}
+        result = get_tvmaze_episode_map("tvdb_noid")
+        self.assertEqual(result, {})
