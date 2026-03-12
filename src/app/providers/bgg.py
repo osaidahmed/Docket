@@ -41,7 +41,6 @@ def search(query, page):
     data = cache.get(cache_key)
 
     if data is None:
-        # Cache search results separately so page changes don't re-query BGG
         search_results_cache_key = (
             f"search_results_{Sources.BGG.value}_{MediaTypes.BOARDGAME.value}_{query}"
         )
@@ -60,53 +59,59 @@ def search(query, page):
             except requests.exceptions.HTTPError as error:
                 handle_error(error)
 
-            # Parse all results (BGG returns all at once, no server-side pagination)
-            all_results = []
-            for item in root.findall(".//item"):
-                game_id = item.get("id")
-                name_elem = item.find("name")
-                if name_elem is not None and game_id:
-                    all_results.append(
-                        {
-                            "id": game_id,
-                            "name": name_elem.get("value", "Unknown"),
-                        }
-                    )
-
+            all_results = _parse_item_list(root)
             cache.set(search_results_cache_key, all_results)
 
-        # Client-side pagination
-        total_results = len(all_results)
-        start_idx = (page - 1) * RESULTS_PER_PAGE
-        end_idx = start_idx + RESULTS_PER_PAGE
-        page_results = all_results[start_idx:end_idx]
-
-        details = _fetch_details([r["id"] for r in page_results])
-
-        results = [
-            {
-                "media_id": r["id"],
-                "source": Sources.BGG.value,
-                "media_type": MediaTypes.BOARDGAME.value,
-                "title": r["name"],
-                "image": details.get(r["id"], {}).get("image", settings.IMG_NONE),
-                "synopsis": html_module.unescape(
-                    details.get(r["id"], {}).get("description", "")
-                ),
-            }
-            for r in page_results
-        ]
-
-        data = helpers.format_search_response(
-            page,
-            RESULTS_PER_PAGE,
-            total_results,
-            results,
-        )
-
+        data = _paginate_and_enrich(all_results, page)
         cache.set(cache_key, data)
 
     return data
+
+
+def _parse_item_list(root):
+    """Parse BGG XML response into a list of {id, name} dicts."""
+    results = []
+    for item in root.findall(".//item"):
+        game_id = item.get("id")
+        name_elem = item.find("name")
+        if name_elem is not None and game_id:
+            results.append(
+                {
+                    "id": game_id,
+                    "name": name_elem.get("value", "Unknown"),
+                }
+            )
+    return results
+
+
+def _paginate_and_enrich(all_results, page):
+    """Paginate results and enrich with details from BGG."""
+    total_results = len(all_results)
+    start_idx = (page - 1) * RESULTS_PER_PAGE
+    page_results = all_results[start_idx : start_idx + RESULTS_PER_PAGE]
+
+    details = _fetch_details([r["id"] for r in page_results])
+
+    results = [
+        {
+            "media_id": r["id"],
+            "source": Sources.BGG.value,
+            "media_type": MediaTypes.BOARDGAME.value,
+            "title": r["name"],
+            "image": details.get(r["id"], {}).get("image", settings.IMG_NONE),
+            "synopsis": html_module.unescape(
+                details.get(r["id"], {}).get("description", ""),
+            ),
+        }
+        for r in page_results
+    ]
+
+    return helpers.format_search_response(
+        page,
+        RESULTS_PER_PAGE,
+        total_results,
+        results,
+    )
 
 
 def _fetch_details(game_ids):
@@ -123,35 +128,33 @@ def _fetch_details(game_ids):
             headers={"Authorization": f"Bearer {settings.BGG_API_TOKEN}"},
             response_format="xml",
         )
-
-        details = {}
-        for item in root.findall(".//item"):
-            game_id = item.get("id")
-            image = None
-            thumbnail_elem = item.find("thumbnail")
-            if thumbnail_elem is not None and thumbnail_elem.text:
-                image = thumbnail_elem.text
-            else:
-                image_elem = item.find("image")
-                if image_elem is not None and image_elem.text:
-                    image = image_elem.text
-
-            description = ""
-            desc_elem = item.find("description")
-            if desc_elem is not None and desc_elem.text:
-                description = desc_elem.text
-
-            detail = {}
-            if image:
-                detail["image"] = image
-            if description:
-                detail["description"] = description
-            details[game_id] = detail
     except (requests.exceptions.HTTPError, services.ProviderAPIError):
         logger.exception("Failed to fetch details from BGG")
         return {}
-    else:
-        return details
+
+    return {
+        item.get("id"): _parse_detail_item(item) for item in root.findall(".//item")
+    }
+
+
+def _parse_detail_item(item):
+    """Parse a single BGG /thing item into image and description."""
+    detail = {}
+    image = _get_elem_text(item, "thumbnail") or _get_elem_text(item, "image")
+    if image:
+        detail["image"] = image
+    description = _get_elem_text(item, "description")
+    if description:
+        detail["description"] = description
+    return detail
+
+
+def _get_elem_text(item, tag):
+    """Get text content from an XML element, or None."""
+    elem = item.find(tag)
+    if elem is not None and elem.text:
+        return elem.text
+    return None
 
 
 def browse(category, page):
@@ -180,44 +183,10 @@ def browse(category, page):
             except requests.exceptions.HTTPError as error:
                 handle_error(error)
 
-            all_results = []
-            for item in root.findall(".//item"):
-                game_id = item.get("id")
-                name_elem = item.find("name")
-                if name_elem is not None and game_id:
-                    all_results.append(
-                        {
-                            "id": game_id,
-                            "name": name_elem.get("value", "Unknown"),
-                        }
-                    )
-
+            all_results = _parse_item_list(root)
             cache.set(hot_cache_key, all_results)
 
-        total_results = len(all_results)
-        start_idx = (page - 1) * RESULTS_PER_PAGE
-        end_idx = start_idx + RESULTS_PER_PAGE
-        page_results = all_results[start_idx:end_idx]
-
-        details = _fetch_details([r["id"] for r in page_results])
-
-        results = [
-            {
-                "media_id": r["id"],
-                "source": Sources.BGG.value,
-                "media_type": MediaTypes.BOARDGAME.value,
-                "title": r["name"],
-                "image": details.get(r["id"], {}).get("image", settings.IMG_NONE),
-                "synopsis": html_module.unescape(
-                    details.get(r["id"], {}).get("description", "")
-                ),
-            }
-            for r in page_results
-        ]
-
-        data = helpers.format_search_response(
-            page, RESULTS_PER_PAGE, total_results, results
-        )
+        data = _paginate_and_enrich(all_results, page)
         cache.set(cache_key, data)
 
     return data

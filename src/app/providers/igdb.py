@@ -107,53 +107,75 @@ def get_access_token():
     return access_token
 
 
+def _igdb_request(url, data):
+    """Make an IGDB API request with auth token and 401 retry."""
+    access_token = get_access_token()
+    headers = {
+        "Client-ID": settings.IGDB_ID,
+        "Authorization": f"Bearer {access_token}",
+    }
+    try:
+        return services.api_request(
+            Sources.IGDB.value,
+            "POST",
+            url,
+            data=data,
+            headers=headers,
+        )
+    except requests.exceptions.HTTPError as error:
+        error_resp = handle_error(error)
+        if error_resp and error_resp.get("retry"):
+            headers["Authorization"] = f"Bearer {get_access_token()}"
+            return services.api_request(
+                Sources.IGDB.value,
+                "POST",
+                url,
+                data=data,
+                headers=headers,
+            )
+        raise
+
+
+def _extract_multiquery_results(response, results_name, count_name):
+    """Extract results and count from a multiquery response."""
+    results = next(
+        (item["result"] for item in response if item["name"] == results_name),
+        [],
+    )
+    total = next(
+        (item["count"] for item in response if item["name"] == count_name),
+        0,
+    )
+    return results, total
+
+
+def _format_game_results(search_results):
+    """Format IGDB search/browse results into standard media dicts."""
+    return [
+        {
+            "media_id": media["id"],
+            "source": Sources.IGDB.value,
+            "media_type": MediaTypes.GAME.value,
+            "title": media["name"],
+            "image": get_image_url(media),
+            "synopsis": media.get("summary", ""),
+        }
+        for media in search_results
+    ]
+
+
 def external_game(external_id, source=ExternalGameSource.STEAM):
-    """Find IGDB game by external ID using the external_game endpoint.
-
-    Args:
-        external_id (str): The external ID (e.g., Steam App ID)
-        source (ExternalGameSource): The external game source (defaults to Steam)
-
-    Returns:
-        int or None: IGDB game ID if found, None otherwise
-    """
+    """Find IGDB game by external ID using the external_game endpoint."""
     cache_key = f"external_game_{Sources.IGDB.value}_{source}_{external_id}"
     data = cache.get(cache_key)
 
     if data is None:
-        access_token = get_access_token()
-        url = f"{base_url}/external_games"
         query = (
             f'fields game; where uid = "{external_id}" & '
             f"external_game_source = {source};"
         )
-        headers = {
-            "Client-ID": settings.IGDB_ID,
-            "Authorization": f"Bearer {access_token}",
-        }
+        response = _igdb_request(f"{base_url}/external_games", query)
 
-        try:
-            response = services.api_request(
-                Sources.IGDB.value,
-                "POST",
-                url,
-                data=query,
-                headers=headers,
-            )
-        except requests.exceptions.HTTPError as error:
-            error_resp = handle_error(error)
-            if error_resp and error_resp.get("retry"):
-                # Retry the request with the new access token
-                headers["Authorization"] = f"Bearer {get_access_token()}"
-                response = services.api_request(
-                    Sources.IGDB.value,
-                    "POST",
-                    url,
-                    data=query,
-                    headers=headers,
-                )
-
-        # Return the IGDB game ID if found, None otherwise
         if response and len(response) > 0:
             data = response[0].get("game")
             logger.debug(
@@ -181,23 +203,13 @@ def search(query, page):
     data = cache.get(cache_key)
 
     if data is None:
-        access_token = get_access_token()
-        url = f"{base_url}/multiquery"
-        headers = {
-            "Client-ID": settings.IGDB_ID,
-            "Authorization": f"Bearer {access_token}",
-        }
-
         base_conditions = (
             f'where name ~ *"{query}"* & game_type = (0,1,2,3,4,5,6,7,8,9,10)'
         )
-
         if not settings.IGDB_NSFW:
             base_conditions += " & themes != (42)"
 
         offset = (page - 1) * settings.PER_PAGE
-
-        # Create the multiquery with both search and count
         multiquery = (
             'query games "SearchResults" {'
             "fields name,cover.image_id,summary;"
@@ -211,56 +223,19 @@ def search(query, page):
             "};"
         )
 
-        try:
-            response = services.api_request(
-                Sources.IGDB.value,
-                "POST",
-                url,
-                data=multiquery,
-                headers=headers,
-            )
-
-        except requests.exceptions.HTTPError as error:
-            error_resp = handle_error(error)
-            if error_resp and error_resp.get("retry"):
-                # Retry the request with the new access token
-                headers["Authorization"] = f"Bearer {get_access_token()}"
-                response = services.api_request(
-                    Sources.IGDB.value,
-                    "POST",
-                    url,
-                    data=multiquery,
-                    headers=headers,
-                )
-
-        search_results = next(
-            (item["result"] for item in response if item["name"] == "SearchResults"),
-            [],
+        response = _igdb_request(f"{base_url}/multiquery", multiquery)
+        search_results, total_results = _extract_multiquery_results(
+            response,
+            "SearchResults",
+            "TotalCount",
         )
-        total_results = next(
-            (item["count"] for item in response if item["name"] == "TotalCount"),
-            0,
-        )
-
-        results = [
-            {
-                "media_id": media["id"],
-                "source": Sources.IGDB.value,
-                "media_type": MediaTypes.GAME.value,
-                "title": media["name"],
-                "image": get_image_url(media),
-                "synopsis": media.get("summary", ""),
-            }
-            for media in search_results
-        ]
 
         data = helpers.format_search_response(
             page,
             settings.PER_PAGE,
             total_results,
-            results,
+            _format_game_results(search_results),
         )
-
         cache.set(cache_key, data)
 
     return data
@@ -272,13 +247,6 @@ def browse(category, page):
     data = cache.get(cache_key)
 
     if data is None:
-        access_token = get_access_token()
-        url = f"{base_url}/multiquery"
-        headers = {
-            "Client-ID": settings.IGDB_ID,
-            "Authorization": f"Bearer {access_token}",
-        }
-
         now_timestamp = int(timezone.now().timestamp())
         offset = (page - 1) * settings.PER_PAGE
 
@@ -323,54 +291,19 @@ def browse(category, page):
             "};"
         )
 
-        try:
-            response = services.api_request(
-                Sources.IGDB.value,
-                "POST",
-                url,
-                data=multiquery,
-                headers=headers,
-            )
-        except requests.exceptions.HTTPError as error:
-            error_resp = handle_error(error)
-            if error_resp and error_resp.get("retry"):
-                headers["Authorization"] = f"Bearer {get_access_token()}"
-                response = services.api_request(
-                    Sources.IGDB.value,
-                    "POST",
-                    url,
-                    data=multiquery,
-                    headers=headers,
-                )
-
-        search_results = next(
-            (item["result"] for item in response if item["name"] == "BrowseResults"),
-            [],
+        response = _igdb_request(f"{base_url}/multiquery", multiquery)
+        search_results, total_results = _extract_multiquery_results(
+            response,
+            "BrowseResults",
+            "TotalCount",
         )
-        total_results = next(
-            (item["count"] for item in response if item["name"] == "TotalCount"),
-            0,
-        )
-
-        results = [
-            {
-                "media_id": media["id"],
-                "source": Sources.IGDB.value,
-                "media_type": MediaTypes.GAME.value,
-                "title": media["name"],
-                "image": get_image_url(media),
-                "synopsis": media.get("summary", ""),
-            }
-            for media in search_results
-        ]
 
         data = helpers.format_search_response(
             page,
             settings.PER_PAGE,
             total_results,
-            results,
+            _format_game_results(search_results),
         )
-
         cache.set(cache_key, data)
 
     return data
@@ -386,29 +319,8 @@ def browse_filtered(filters, page):
     data = cache.get(cache_key)
 
     if data is None:
-        access_token = get_access_token()
-        url = f"{base_url}/multiquery"
-        headers = {
-            "Client-ID": settings.IGDB_ID,
-            "Authorization": f"Bearer {access_token}",
-        }
-
         offset = (page - 1) * settings.PER_PAGE
-
-        where_parts = ["game_type = (0,1,2,3,4,5,6,7,8,9,10)"]
-        if not settings.IGDB_NSFW:
-            where_parts.append("themes != (42)")
-        if filters.get("genres"):
-            where_parts.append(f"genres = ({filters['genres']})")
-        if filters.get("themes"):
-            where_parts.append(f"themes = ({filters['themes']})")
-        if filters.get("platforms"):
-            where_parts.append(f"platforms = ({filters['platforms']})")
-        if filters.get("min_score"):
-            where_parts.append(f"total_rating >= {float(filters['min_score'])}")
-            where_parts.append("total_rating_count > 5")
-
-        where_clause = " & ".join(where_parts)
+        where_clause = _build_filter_where_clause(filters)
 
         sort_map = {
             "popularity": "total_rating_count desc",
@@ -417,7 +329,8 @@ def browse_filtered(filters, page):
             "hype": "hypes desc",
         }
         sort = sort_map.get(
-            filters.get("sort_by", "popularity"), "total_rating_count desc"
+            filters.get("sort_by", "popularity"),
+            "total_rating_count desc",
         )
 
         multiquery = (
@@ -433,86 +346,48 @@ def browse_filtered(filters, page):
             "};"
         )
 
-        try:
-            response = services.api_request(
-                Sources.IGDB.value,
-                "POST",
-                url,
-                data=multiquery,
-                headers=headers,
-            )
-        except requests.exceptions.HTTPError as error:
-            error_resp = handle_error(error)
-            if error_resp and error_resp.get("retry"):
-                headers["Authorization"] = f"Bearer {get_access_token()}"
-                response = services.api_request(
-                    Sources.IGDB.value,
-                    "POST",
-                    url,
-                    data=multiquery,
-                    headers=headers,
-                )
-
-        search_results = next(
-            (item["result"] for item in response if item["name"] == "BrowseResults"),
-            [],
+        response = _igdb_request(f"{base_url}/multiquery", multiquery)
+        search_results, total_results = _extract_multiquery_results(
+            response,
+            "BrowseResults",
+            "TotalCount",
         )
-        total_results = next(
-            (item["count"] for item in response if item["name"] == "TotalCount"),
-            0,
-        )
-
-        results = [
-            {
-                "media_id": media["id"],
-                "source": Sources.IGDB.value,
-                "media_type": MediaTypes.GAME.value,
-                "title": media["name"],
-                "image": get_image_url(media),
-                "synopsis": media.get("summary", ""),
-            }
-            for media in search_results
-        ]
 
         data = helpers.format_search_response(
-            page, settings.PER_PAGE, total_results, results
+            page,
+            settings.PER_PAGE,
+            total_results,
+            _format_game_results(search_results),
         )
         cache.set(cache_key, data)
 
     return data
 
 
+def _build_filter_where_clause(filters):
+    """Build IGDB where clause from filter dict."""
+    where_parts = ["game_type = (0,1,2,3,4,5,6,7,8,9,10)"]
+    if not settings.IGDB_NSFW:
+        where_parts.append("themes != (42)")
+    if filters.get("genres"):
+        where_parts.append(f"genres = ({filters['genres']})")
+    if filters.get("themes"):
+        where_parts.append(f"themes = ({filters['themes']})")
+    if filters.get("platforms"):
+        where_parts.append(f"platforms = ({filters['platforms']})")
+    if filters.get("min_score"):
+        where_parts.append(f"total_rating >= {float(filters['min_score'])}")
+        where_parts.append("total_rating_count > 5")
+    return " & ".join(where_parts)
+
+
 def _get_enum_list(endpoint, cache_key, extra_filter=None):
     """Fetch an IGDB enum list (genres, platforms, themes)."""
     data = cache.get(cache_key)
     if data is None:
-        access_token = get_access_token()
-        url = f"{base_url}/{endpoint}"
         where = f"where {extra_filter}; " if extra_filter else ""
         query = f"fields id,name; {where}sort name asc; limit 500;"
-        headers = {
-            "Client-ID": settings.IGDB_ID,
-            "Authorization": f"Bearer {access_token}",
-        }
-        try:
-            response = services.api_request(
-                Sources.IGDB.value,
-                "POST",
-                url,
-                data=query,
-                headers=headers,
-            )
-        except requests.exceptions.HTTPError as error:
-            error_resp = handle_error(error)
-            if error_resp and error_resp.get("retry"):
-                headers["Authorization"] = f"Bearer {get_access_token()}"
-                response = services.api_request(
-                    Sources.IGDB.value,
-                    "POST",
-                    url,
-                    data=query,
-                    headers=headers,
-                )
+        response = _igdb_request(f"{base_url}/{endpoint}", query)
         data = [{"id": item["id"], "name": item["name"]} for item in response]
         cache.set(cache_key, data, timeout=60 * 60 * 24 * 7)
     return data
@@ -545,9 +420,7 @@ def game(media_id):
     cache_key = f"{Sources.IGDB.value}_{MediaTypes.GAME.value}_{media_id}"
     data = cache.get(cache_key)
     if data is None:
-        access_token = get_access_token()
-        url = f"{base_url}/games"
-        data = (
+        query = (
             "fields name,cover.image_id,artworks.image_id,"
             "url,summary,game_type,first_release_date,total_rating,total_rating_count,"
             "genres.name,themes.name,platforms.name,involved_companies.company.name,"
@@ -561,75 +434,50 @@ def game(media_id):
             "dlcs.name,dlcs.cover.image_id;"
             f"where id = {media_id};"
         )
-        headers = {
-            "Client-ID": settings.IGDB_ID,
-            "Authorization": f"Bearer {access_token}",
-        }
+        response = _igdb_request(f"{base_url}/games", query)
 
-        try:
-            response = services.api_request(
-                Sources.IGDB.value,
-                "POST",
-                url,
-                data=data,
-                headers=headers,
-            )
-        except requests.exceptions.HTTPError as error:
-            error_resp = handle_error(error)
-            if error_resp and error_resp.get("retry"):
-                # Retry the request with the new access token
-                headers["Authorization"] = f"Bearer {get_access_token()}"
-                response = services.api_request(
-                    Sources.IGDB.value,
-                    "POST",
-                    url,
-                    data=data,
-                    headers=headers,
-                )
-
-        # Check if response is empty (no results found)
         if not response:
-            services.raise_not_found_error(
-                Sources.IGDB.value,
-                media_id,
-                "game",
-            )
+            services.raise_not_found_error(Sources.IGDB.value, media_id, "game")
 
-        response = response[0]  # response is a list with a single element
-        data = {
-            "media_id": response["id"],
-            "source": Sources.IGDB.value,
-            "source_url": response["url"],
-            "media_type": MediaTypes.GAME.value,
-            "title": response["name"],
-            "max_progress": None,
-            "image": get_image_url(response),
-            "synopsis": response.get("summary", "No synopsis available."),
-            "genres": get_list(response, "genres"),
-            "score": get_score(response),
-            "score_count": response.get("total_rating_count"),
-            "details": {
-                "format": get_game_type(response["game_type"]),
-                "release_date": get_start_date(response),
-                "themes": get_list(response, "themes"),
-                "platforms": get_list(response, "platforms"),
-                "companies": get_companies(response),
-            },
-            "related": {
-                "parent_game": get_parent(response.get("parent_game")),
-                "remasters": get_related(response.get("remasters")),
-                "remakes": get_related(response.get("remakes")),
-                "expansions": get_related(response.get("expansions")),
-                "dlcs": get_related(response.get("dlcs")),
-                "standalone_expansions": get_related(
-                    response.get("standalone_expansions"),
-                ),
-                "expanded_games": get_related(response.get("expanded_games")),
-                "recommendations": get_related(response.get("similar_games")),
-            },
-        }
+        data = _build_game_metadata(response[0])
         cache.set(cache_key, data)
     return data
+
+
+def _build_game_metadata(response):
+    """Build game metadata dict from IGDB API response."""
+    return {
+        "media_id": response["id"],
+        "source": Sources.IGDB.value,
+        "source_url": response["url"],
+        "media_type": MediaTypes.GAME.value,
+        "title": response["name"],
+        "max_progress": None,
+        "image": get_image_url(response),
+        "synopsis": response.get("summary", "No synopsis available."),
+        "genres": get_list(response, "genres"),
+        "score": get_score(response),
+        "score_count": response.get("total_rating_count"),
+        "details": {
+            "format": get_game_type(response["game_type"]),
+            "release_date": get_start_date(response),
+            "themes": get_list(response, "themes"),
+            "platforms": get_list(response, "platforms"),
+            "companies": get_companies(response),
+        },
+        "related": {
+            "parent_game": get_parent(response.get("parent_game")),
+            "remasters": get_related(response.get("remasters")),
+            "remakes": get_related(response.get("remakes")),
+            "expansions": get_related(response.get("expansions")),
+            "dlcs": get_related(response.get("dlcs")),
+            "standalone_expansions": get_related(
+                response.get("standalone_expansions"),
+            ),
+            "expanded_games": get_related(response.get("expanded_games")),
+            "recommendations": get_related(response.get("similar_games")),
+        },
+    }
 
 
 def get_image_url(response):

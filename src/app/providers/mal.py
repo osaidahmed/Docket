@@ -34,24 +34,69 @@ def handle_error(error):
     error_resp = error.response
     status_code = error_resp.status_code
 
+    if status_code == requests.codes.forbidden:
+        raise services.ProviderAPIError(
+            Sources.MAL.value,
+            error,
+            "API key is missing",
+        )
+
+    error_json = _parse_error_json(error)
+    if status_code == requests.codes.bad_request and error_json:
+        return _handle_bad_request(error, error_json)
+
+    raise services.ProviderAPIError(Sources.MAL.value, error)
+
+
+def _parse_error_json(error):
     try:
-        error_json = error_resp.json()
+        return error.response.json()
     except requests.exceptions.JSONDecodeError as json_error:
         logger.exception("Failed to decode JSON response")
         raise services.ProviderAPIError(Sources.MAL.value, error) from json_error
 
-    if status_code == requests.codes.forbidden:
-        details = "API key is missing"
-        raise services.ProviderAPIError(Sources.MAL.value, error, details)
-    if status_code == requests.codes.bad_request:
-        error_message = error_json.get("message")
-        if error_message == "Invalid client id":
-            details = "Invalid API key"
-            raise services.ProviderAPIError(Sources.MAL.value, error, details)
-        if error_message == "invalid q":
-            return {"data": []}
 
+def _handle_bad_request(error, error_json):
+    error_message = error_json.get("message")
+    if error_message == "Invalid client id":
+        raise services.ProviderAPIError(
+            Sources.MAL.value,
+            error,
+            "Invalid API key",
+        )
+    if error_message == "invalid q":
+        return {"data": []}
     raise services.ProviderAPIError(Sources.MAL.value, error)
+
+
+def _mal_request(url, params):
+    """Make a MAL API request with error handling."""
+    if settings.MAL_NSFW:
+        params["nsfw"] = "true"
+    try:
+        return services.api_request(
+            Sources.MAL.value,
+            "GET",
+            url,
+            params=params,
+            headers={"X-MAL-CLIENT-ID": settings.MAL_API},
+        )
+    except requests.exceptions.HTTPError as error:
+        return handle_error(error)
+
+
+def _build_media_result(node, media_type):
+    """Build a standard media result dict from a MAL node."""
+    return {
+        "media_id": node["id"],
+        "source": Sources.MAL.value,
+        "media_type": media_type,
+        "title": node["title"],
+        "english_title": get_english_title(node),
+        "image": get_image_url(node),
+        "synopsis": node.get("synopsis", ""),
+        "is_ongoing": _is_ongoing(node, media_type),
+    }
 
 
 def search(media_type, query, page):
@@ -60,51 +105,41 @@ def search(media_type, query, page):
     data = cache.get(cache_key)
 
     if data is None:
-        url = f"{base_url}/{media_type}"
-        params = {
-            "q": query,
-            "fields": "media_type,synopsis,alternative_titles,status,num_chapters",
-            "limit": settings.PER_PAGE,
-        }
-        if settings.MAL_NSFW:
-            params["nsfw"] = "true"
-
-        try:
-            response = services.api_request(
-                Sources.MAL.value,
-                "GET",
-                url,
-                params=params,
-                headers={"X-MAL-CLIENT-ID": settings.MAL_API},
-            )
-        except requests.exceptions.HTTPError as error:
-            response = handle_error(error)
-
-        response = response["data"]
-        results = [
+        response = _mal_request(
+            f"{base_url}/{media_type}",
             {
-                "media_id": media["node"]["id"],
-                "source": Sources.MAL.value,
-                "media_type": media_type,
-                "title": media["node"]["title"],
-                "english_title": get_english_title(media["node"]),
-                "image": get_image_url(media["node"]),
-                "synopsis": media["node"].get("synopsis", ""),
-                "is_ongoing": _is_ongoing(media["node"], media_type),
-            }
-            for media in response
-        ]
-
-        data = helpers.format_search_response(
-            page,
-            100,
-            len(results),
-            results,
+                "q": query,
+                "fields": "media_type,synopsis,alternative_titles,status,num_chapters",
+                "limit": settings.PER_PAGE,
+            },
         )
 
+        results = [
+            _build_media_result(entry["node"], media_type) for entry in response["data"]
+        ]
+
+        data = helpers.format_search_response(page, 100, len(results), results)
         cache.set(cache_key, data)
 
     return data
+
+
+def _paginate_response(response, page, offset, results):
+    """Build paginated search response from MAL API response."""
+    has_next = "next" in response.get("paging", {})
+    if has_next:
+        total_results = max(offset + settings.PER_PAGE * 5, len(results))
+        total_exact = False
+    else:
+        total_results = offset + len(results)
+        total_exact = True
+    return helpers.format_search_response(
+        page,
+        settings.PER_PAGE,
+        total_results,
+        results,
+        total_exact=total_exact,
+    )
 
 
 def browse(media_type, category, page):
@@ -113,58 +148,21 @@ def browse(media_type, category, page):
     data = cache.get(cache_key)
 
     if data is None:
-        url = f"{base_url}/{media_type}/ranking"
         offset = (page - 1) * settings.PER_PAGE
-        params = {
-            "ranking_type": category,
-            "fields": "media_type,synopsis,alternative_titles,status,num_chapters",
-            "limit": settings.PER_PAGE,
-            "offset": offset,
-        }
-        if settings.MAL_NSFW:
-            params["nsfw"] = "true"
-
-        try:
-            response = services.api_request(
-                Sources.MAL.value,
-                "GET",
-                url,
-                params=params,
-                headers={"X-MAL-CLIENT-ID": settings.MAL_API},
-            )
-        except requests.exceptions.HTTPError as error:
-            response = handle_error(error)
-
-        has_next = "next" in response.get("paging", {})
-        results = [
+        response = _mal_request(
+            f"{base_url}/{media_type}/ranking",
             {
-                "media_id": entry["node"]["id"],
-                "source": Sources.MAL.value,
-                "media_type": media_type,
-                "title": entry["node"]["title"],
-                "english_title": get_english_title(entry["node"]),
-                "image": get_image_url(entry["node"]),
-                "synopsis": entry["node"].get("synopsis", ""),
-                "is_ongoing": _is_ongoing(entry["node"], media_type),
-            }
-            for entry in response["data"]
-        ]
-
-        if has_next:
-            total_results = max(offset + settings.PER_PAGE * 5, len(results))
-            total_exact = False
-        else:
-            total_results = offset + len(results)
-            total_exact = True
-
-        data = helpers.format_search_response(
-            page,
-            settings.PER_PAGE,
-            total_results,
-            results,
-            total_exact=total_exact,
+                "ranking_type": category,
+                "fields": "media_type,synopsis,alternative_titles,status,num_chapters",
+                "limit": settings.PER_PAGE,
+                "offset": offset,
+            },
         )
 
+        results = [
+            _build_media_result(entry["node"], media_type) for entry in response["data"]
+        ]
+        data = _paginate_response(response, page, offset, results)
         cache.set(cache_key, data)
 
     return data
@@ -176,194 +174,126 @@ def browse_seasonal(year, season, page):
     data = cache.get(cache_key)
 
     if data is None:
-        url = f"{base_url}/anime/season/{year}/{season}"
         offset = (page - 1) * settings.PER_PAGE
-        params = {
-            "fields": "media_type,synopsis,alternative_titles,status",
-            "sort": "anime_num_list_users",
-            "limit": settings.PER_PAGE,
-            "offset": offset,
-        }
-        if settings.MAL_NSFW:
-            params["nsfw"] = "true"
-
-        try:
-            response = services.api_request(
-                Sources.MAL.value,
-                "GET",
-                url,
-                params=params,
-                headers={"X-MAL-CLIENT-ID": settings.MAL_API},
-            )
-        except requests.exceptions.HTTPError as error:
-            response = handle_error(error)
-
-        has_next = "next" in response.get("paging", {})
-        results = [
+        response = _mal_request(
+            f"{base_url}/anime/season/{year}/{season}",
             {
-                "media_id": entry["node"]["id"],
-                "source": Sources.MAL.value,
-                "media_type": MediaTypes.ANIME.value,
-                "title": entry["node"]["title"],
-                "english_title": get_english_title(entry["node"]),
-                "image": get_image_url(entry["node"]),
-                "synopsis": entry["node"].get("synopsis", ""),
-                "is_ongoing": _is_ongoing(entry["node"], MediaTypes.ANIME.value),
-            }
-            for entry in response["data"]
-        ]
-
-        if has_next:
-            total_results = max(offset + settings.PER_PAGE * 5, len(results))
-            total_exact = False
-        else:
-            total_results = offset + len(results)
-            total_exact = True
-
-        data = helpers.format_search_response(
-            page,
-            settings.PER_PAGE,
-            total_results,
-            results,
-            total_exact=total_exact,
+                "fields": "media_type,synopsis,alternative_titles,status",
+                "sort": "anime_num_list_users",
+                "limit": settings.PER_PAGE,
+                "offset": offset,
+            },
         )
 
+        results = [
+            _build_media_result(entry["node"], MediaTypes.ANIME.value)
+            for entry in response["data"]
+        ]
+        data = _paginate_response(response, page, offset, results)
         cache.set(cache_key, data)
 
     return data
 
 
 def anime(media_id):
-    """Return the metadata for the selected anime or manga from MyAnimeList."""
+    """Return the metadata for the selected anime from MyAnimeList."""
     cache_key = f"{Sources.MAL.value}_{MediaTypes.ANIME.value}_{media_id}"
     data = cache.get(cache_key)
 
     if data is None:
-        url = f"{base_url}/anime/{media_id}"
-        params = {
-            "fields": f"{base_fields},num_episodes,average_episode_duration,studios,start_season,broadcast,source,related_anime{{node{{alternative_titles}}}}",  # noqa: E501
-        }
-
-        try:
-            response = services.api_request(
-                Sources.MAL.value,
-                "GET",
-                url,
-                params=params,
-                headers={"X-MAL-CLIENT-ID": settings.MAL_API},
-            )
-        except requests.exceptions.HTTPError as error:
-            handle_error(error)
+        response = _mal_request(
+            f"{base_url}/anime/{media_id}",
+            {
+                "fields": f"{base_fields},num_episodes,average_episode_duration,studios,start_season,broadcast,source,related_anime{{node{{alternative_titles}}}}",  # noqa: E501
+            },
+        )
 
         num_episodes = get_number_of_episodes(response)
-
-        is_ongoing = response.get("status") in (
+        data = _build_metadata_base(response, media_id, MediaTypes.ANIME.value)
+        data["max_progress"] = num_episodes
+        data["is_ongoing"] = response.get("status") in (
             "currently_airing",
             "not_yet_aired",
         )
-
-        data = {
-            "media_id": media_id,
-            "source": Sources.MAL.value,
-            "source_url": f"https://myanimelist.net/anime/{media_id}",
-            "media_type": MediaTypes.ANIME.value,
-            "title": response["title"],
-            "english_title": get_english_title(response),
-            "max_progress": num_episodes,
-            "is_ongoing": is_ongoing,
-            "image": get_image_url(response),
-            "synopsis": get_synopsis(response),
-            "genres": get_genres(response),
-            "score": get_score(response),
-            "score_count": get_score_count(response),
-            "details": {
-                "format": get_format(response),
-                "start_date": response.get("start_date"),
-                "end_date": response.get("end_date"),
-                "status": get_readable_status(response),
+        data["details"].update(
+            {
                 "episodes": num_episodes,
                 "runtime": get_runtime(response),
                 "studios": get_studios(response),
                 "season": get_season(response),
                 "broadcast": get_broadcast(response),
                 "source": get_source(response),
-            },
-            "related": {
-                "related_anime": get_related(
-                    response.get("related_anime"),
-                    MediaTypes.ANIME.value,
-                ),
-                "recommendations": get_related(
-                    response.get("recommendations"),
-                    MediaTypes.ANIME.value,
-                ),
-            },
+            }
+        )
+        data["related"] = {
+            "related_anime": get_related(
+                response.get("related_anime"),
+                MediaTypes.ANIME.value,
+            ),
+            "recommendations": get_related(
+                response.get("recommendations"),
+                MediaTypes.ANIME.value,
+            ),
         }
-
         cache.set(cache_key, data)
 
     return data
 
 
 def manga(media_id):
-    """Return the metadata for the selected anime or manga from MyAnimeList."""
+    """Return the metadata for the selected manga from MyAnimeList."""
     cache_key = f"{Sources.MAL.value}_{MediaTypes.MANGA.value}_{media_id}"
     data = cache.get(cache_key)
 
     if data is None:
-        url = f"{base_url}/manga/{media_id}"
-        params = {
-            "fields": f"{base_fields},num_chapters,related_manga{{node{{alternative_titles}}}}",  # noqa: E501
-        }
-
-        try:
-            response = services.api_request(
-                Sources.MAL.value,
-                "GET",
-                url,
-                params=params,
-                headers={"X-MAL-CLIENT-ID": settings.MAL_API},
-            )
-        except requests.exceptions.HTTPError as error:
-            handle_error(error)
+        response = _mal_request(
+            f"{base_url}/manga/{media_id}",
+            {
+                "fields": f"{base_fields},num_chapters,related_manga{{node{{alternative_titles}}}}",  # noqa: E501
+            },
+        )
 
         num_chapters = get_number_of_episodes(response)
-
-        data = {
-            "media_id": media_id,
-            "source": Sources.MAL.value,
-            "source_url": f"https://myanimelist.net/manga/{media_id}",
-            "media_type": MediaTypes.MANGA.value,
-            "title": response["title"],
-            "english_title": get_english_title(response),
-            "image": get_image_url(response),
-            "synopsis": get_synopsis(response),
-            "max_progress": num_chapters,
-            "genres": get_genres(response),
-            "score": get_score(response),
-            "score_count": get_score_count(response),
-            "details": {
-                "format": get_format(response),
-                "start_date": response.get("start_date"),
-                "end_date": response.get("end_date"),
-                "status": get_readable_status(response),
-                "number_of_chapters": num_chapters,
-            },
-            "related": {
-                "related_manga": get_related(
-                    response.get("related_manga"),
-                    MediaTypes.MANGA.value,
-                ),
-                "recommendations": get_related(
-                    response.get("recommendations"),
-                    MediaTypes.MANGA.value,
-                ),
-            },
+        data = _build_metadata_base(response, media_id, MediaTypes.MANGA.value)
+        data["max_progress"] = num_chapters
+        data["details"]["number_of_chapters"] = num_chapters
+        data["related"] = {
+            "related_manga": get_related(
+                response.get("related_manga"),
+                MediaTypes.MANGA.value,
+            ),
+            "recommendations": get_related(
+                response.get("recommendations"),
+                MediaTypes.MANGA.value,
+            ),
         }
-
         cache.set(cache_key, data)
 
     return data
+
+
+def _build_metadata_base(response, media_id, media_type):
+    """Build shared metadata dict for anime/manga."""
+    slug = "anime" if media_type == MediaTypes.ANIME.value else "manga"
+    return {
+        "media_id": media_id,
+        "source": Sources.MAL.value,
+        "source_url": f"https://myanimelist.net/{slug}/{media_id}",
+        "media_type": media_type,
+        "title": response["title"],
+        "english_title": get_english_title(response),
+        "image": get_image_url(response),
+        "synopsis": get_synopsis(response),
+        "genres": get_genres(response),
+        "score": get_score(response),
+        "score_count": get_score_count(response),
+        "details": {
+            "format": get_format(response),
+            "start_date": response.get("start_date"),
+            "end_date": response.get("end_date"),
+            "status": get_readable_status(response),
+        },
+    }
 
 
 def get_format(response):

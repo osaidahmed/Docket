@@ -162,61 +162,52 @@ def api_request(
         Parsed JSON dict or ElementTree for XML
     """
     try:
-        request_kwargs = {
-            "url": url,
-            "headers": headers,
-            "timeout": settings.REQUEST_TIMEOUT,
-        }
-
-        if method == "GET":
-            request_kwargs["params"] = params
-            request_func = session.get
-        elif method == "POST":
-            request_kwargs["data"] = data
-            request_kwargs["json"] = params
-            request_func = session.post
-
-        response = request_func(**request_kwargs)
-        response.raise_for_status()
-
+        response = _execute_request(method, url, params, data, headers)
         if response_format == "xml":
             return ElementTree.fromstring(response.text)
         return response.json()
 
     except requests.exceptions.HTTPError as error:
-        error_resp = error.response
-        status_code = error_resp.status_code
-
-        # handle rate limiting
-        if status_code == requests.codes.too_many_requests:
-            seconds_to_wait = int(error_resp.headers.get("Retry-After", 5))
+        if error.response.status_code == requests.codes.too_many_requests:
+            seconds_to_wait = int(error.response.headers.get("Retry-After", 5))
             logger.warning("Rate limited, waiting %s seconds", seconds_to_wait)
             time.sleep(seconds_to_wait + 3)
-            logger.info("Retrying request")
             return api_request(
                 provider,
                 method,
                 url,
-                params=params,
-                data=data,
-                headers=headers,
-                response_format=response_format,
+                params,
+                data,
+                headers,
+                response_format,
             )
-
         raise error from None
 
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as error:
         logger.exception("Connection error for %s", provider)
-        mock_response = type(
-            "obj",
-            (object,),
-            {"status_code": 503, "text": str(error)},
-        )()
-        raise ProviderAPIError(
-            provider,
-            requests.exceptions.HTTPError(response=mock_response),
-            "Connection failed — the provider may be temporarily unavailable",
-        ) from error
+        raise _connection_error(provider, error) from error
+
+
+def _execute_request(method, url, params, data, headers):
+    kwargs = {"url": url, "headers": headers, "timeout": settings.REQUEST_TIMEOUT}
+    if method == "GET":
+        kwargs["params"] = params
+        response = session.get(**kwargs)
+    else:
+        kwargs["data"] = data
+        kwargs["json"] = params
+        response = session.post(**kwargs)
+    response.raise_for_status()
+    return response
+
+
+def _connection_error(provider, error):
+    mock_response = type("obj", (object,), {"status_code": 503, "text": str(error)})()
+    return ProviderAPIError(
+        provider,
+        requests.exceptions.HTTPError(response=mock_response),
+        "Connection failed — the provider may be temporarily unavailable",
+    )
 
 
 def get_media_metadata(
@@ -369,11 +360,7 @@ UNIFIED_SEARCH_TIMEOUT = 5  # seconds per future
 
 
 def search_all(query, enabled_types):
-    """Search all enabled media types in parallel.
-
-    Returns [{"media_type": str, "results": list}, ...] ordered by
-    enabled_types, empty types omitted.
-    """
+    """Search all enabled media types in parallel."""
     from app import config  # noqa: PLC0415
 
     searchable = [
@@ -386,31 +373,34 @@ def search_all(query, enabled_types):
     if not searchable:
         return []
 
-    def _search_one(media_type):
-        source = config.get_default_source_name(media_type).value
-        data = search(media_type, query, 1, source)
-        results = data.get("results", [])[:UNIFIED_SEARCH_MAX_PER_TYPE]
-        return media_type, results
-
-    grouped = {}
-    with ThreadPoolExecutor(max_workers=len(searchable)) as executor:
-        futures = {executor.submit(_search_one, mt): mt for mt in searchable}
-        for future in as_completed(futures):
-            media_type = futures[future]
-            try:
-                mt, results = future.result(
-                    timeout=UNIFIED_SEARCH_TIMEOUT,
-                )
-                if results:
-                    grouped[mt] = results
-            except Exception:
-                logger.exception("Unified search failed for %s", media_type)
+    grouped = _parallel_search(query, searchable)
 
     return [
         {"media_type": mt, "results": grouped[mt]}
         for mt in enabled_types
         if mt in grouped
     ]
+
+
+def _parallel_search(query, searchable):
+    from app import config  # noqa: PLC0415
+
+    def _search_one(media_type):
+        source = config.get_default_source_name(media_type).value
+        data = search(media_type, query, 1, source)
+        return media_type, data.get("results", [])[:UNIFIED_SEARCH_MAX_PER_TYPE]
+
+    grouped = {}
+    with ThreadPoolExecutor(max_workers=len(searchable)) as executor:
+        futures = {executor.submit(_search_one, mt): mt for mt in searchable}
+        for future in as_completed(futures):
+            try:
+                mt, results = future.result(timeout=UNIFIED_SEARCH_TIMEOUT)
+                if results:
+                    grouped[mt] = results
+            except Exception:
+                logger.exception("Unified search failed for %s", futures[future])
+    return grouped
 
 
 SUGGEST_API_TIMEOUT = 2  # seconds per future
@@ -483,13 +473,20 @@ def _cross_provider_dedup(all_results, enabled_types):
     if tv_type not in enabled_types or anime_type not in enabled_types:
         return all_results
 
-    tv_preferred = enabled_types.index(tv_type) < enabled_types.index(anime_type)
-
     tv_results = [r for r in all_results if r["media_type"] == tv_type]
     anime_results = [r for r in all_results if r["media_type"] == anime_type]
 
     if not tv_results or not anime_results:
         return all_results
+
+    to_remove = _find_dedup_removals(tv_results, anime_results, enabled_types)
+    return [r for r in all_results if id(r) not in to_remove]
+
+
+def _find_dedup_removals(tv_results, anime_results, enabled_types):
+    tv_type = MediaTypes.TV.value
+    anime_type = MediaTypes.ANIME.value
+    tv_preferred = enabled_types.index(tv_type) < enabled_types.index(anime_type)
 
     anime_titles = {}
     for r in anime_results:
@@ -499,16 +496,8 @@ def _cross_provider_dedup(all_results, enabled_types):
             anime_titles[english.lower()] = r
 
     tv_titles = {r["title"].lower(): r for r in tv_results}
-
-    to_remove = set()
-    for tv_title_lower, tv_result in tv_titles.items():
-        if tv_title_lower in anime_titles:
-            if tv_preferred:
-                to_remove.add(id(anime_titles[tv_title_lower]))
-            else:
-                to_remove.add(id(tv_result))
-
-    return [r for r in all_results if id(r) not in to_remove]
+    loser_index = anime_titles if tv_preferred else tv_titles
+    return {id(loser_index[t]) for t in tv_titles if t in anime_titles}
 
 
 def _interleave_results(all_results, enabled_types, limit):
@@ -519,23 +508,17 @@ def _interleave_results(all_results, enabled_types, limit):
     for item in all_results:
         grouped[item["media_type"]].append(item)
 
-    type_order_list = [mt for mt in enabled_types if mt in grouped]
-    final = []
-    round_idx = 0
-    while len(final) < limit and type_order_list:
-        exhausted = []
-        for mt in type_order_list:
-            if round_idx < len(grouped[mt]):
-                final.append(grouped[mt][round_idx])
-                if len(final) >= limit:
-                    break
-            else:
-                exhausted.append(mt)
-        for mt in exhausted:
-            type_order_list.remove(mt)
-        round_idx += 1
+    type_order = [mt for mt in enabled_types if mt in grouped]
+    max_len = max((len(grouped[mt]) for mt in type_order), default=0)
 
-    return final[:limit]
+    flat = [
+        grouped[mt][i]
+        for i in range(max_len)
+        for mt in type_order
+        if i < len(grouped[mt])
+    ]
+
+    return flat[:limit]
 
 
 def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_LIMIT):
