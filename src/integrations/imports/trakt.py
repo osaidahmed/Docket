@@ -232,7 +232,7 @@ class TraktImporter:
         if status == requests.codes.unauthorized:
             msg = "This account is set to private, use OAuth import instead."
             raise MediaImportError(msg) from error
-        raise
+        raise error
 
     def _get_paginated_data(self, endpoint, item_type="items"):
         """Get paginated data from Trakt API."""
