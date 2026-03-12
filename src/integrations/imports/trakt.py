@@ -220,6 +220,20 @@ class TraktImporter:
             headers=headers,
         )
 
+    def _handle_api_error(self, error):
+        """Translate common HTTP errors into user-facing messages."""
+        status = error.response.status_code
+        if status == requests.codes.not_found:
+            msg = (
+                f"User slug {self.username} not found. "
+                "User slug can be found in your Trakt profile URL."
+            )
+            raise MediaImportError(msg) from error
+        if status == requests.codes.unauthorized:
+            msg = "This account is set to private, use OAuth import instead."
+            raise MediaImportError(msg) from error
+        raise
+
     def _get_paginated_data(self, endpoint, item_type="items"):
         """Get paginated data from Trakt API."""
         page = 1
@@ -231,20 +245,9 @@ class TraktImporter:
             try:
                 page_data = self._make_api_request(url)
             except requests.exceptions.HTTPError as error:
-                if error.response.status_code == requests.codes.not_found:
-                    msg = (
-                        f"User slug {self.username} not found. "
-                        "User slug can be found in your Trakt profile URL."
-                    )
-                    raise MediaImportError(msg) from error
-
-                if error.response.status_code == requests.codes.unauthorized:
-                    msg = "This account is set to private, use OAuth import instead."
-                    raise MediaImportError(msg) from error
-                raise
+                self._handle_api_error(error)
 
             if not page_data:
-                # We've reached the end of the data
                 break
 
             all_data.extend(page_data)
