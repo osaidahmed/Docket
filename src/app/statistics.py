@@ -30,89 +30,18 @@ def get_user_media(user, start_date, end_date):
     user_media = {}
     media_count = {"total": 0}
 
-    # Cache the base episodes query
-    base_episodes = None
-    if TV in media_models or Season in media_models:
-        if start_date is None and end_date is None:
-            # No date filtering for "All Time"
-            base_episodes = Episode.objects.filter(
-                related_season__user=user,
-            )
-        else:
-            base_episodes = Episode.objects.filter(
-                related_season__user=user,
-                end_date__range=(start_date, end_date),
-            )
+    base_episodes = _build_base_episodes(user, media_models, start_date, end_date)
 
     for model in media_models:
         media_type = model.__name__.lower()
-        queryset = None
+        queryset = _build_model_queryset(
+            model,
+            user,
+            base_episodes,
+            start_date,
+            end_date,
+        ).select_related("item")
 
-        if model == TV:
-            tv_ids = base_episodes.values_list(
-                "related_season__related_tv",
-                flat=True,
-            ).distinct()
-            queryset = TV.objects.filter(id__in=tv_ids).prefetch_related(
-                Prefetch(
-                    "seasons",
-                    queryset=Season.objects.select_related(
-                        "item",
-                    ).prefetch_related(
-                        Prefetch(
-                            "episodes",
-                            queryset=base_episodes.filter(
-                                related_season__related_tv__in=tv_ids,
-                            ),
-                        ),
-                    ),
-                ),
-            )
-        elif model == Season:
-            season_ids = base_episodes.values_list(
-                "related_season",
-                flat=True,
-            ).distinct()
-            queryset = Season.objects.filter(
-                id__in=season_ids,
-            ).prefetch_related(
-                Prefetch("episodes", queryset=base_episodes),
-            )
-        # For other models, apply date filtering conditionally
-        elif start_date is None and end_date is None:
-            # No date filtering for "All Time"
-            queryset = model.objects.filter(user=user)
-        else:
-            queryset = model.objects.filter(user=user).filter(
-                # Case 1: Media has both start_date and end_date
-                # Include if ranges overlap
-                # (exclude if media ends before filter start or starts after filter end)
-                (
-                    Q(start_date__isnull=False)
-                    & Q(end_date__isnull=False)
-                    & ~(Q(end_date__lt=start_date) | Q(start_date__gt=end_date))
-                )
-                |
-                # Case 2: Media only has start_date (end_date is null)
-                # Include if start_date is within filter range
-                (
-                    Q(start_date__isnull=False)
-                    & Q(end_date__isnull=True)
-                    & Q(start_date__gte=start_date)
-                    & Q(start_date__lte=end_date)
-                )
-                |
-                # Case 3: Media only has end_date (start_date is null)
-                # Include if end_date is within filter range
-                (
-                    Q(start_date__isnull=True)
-                    & Q(end_date__isnull=False)
-                    & Q(end_date__gte=start_date)
-                    & Q(end_date__lte=end_date)
-                ),
-            )
-
-        queryset = queryset.select_related("item")
         user_media[media_type] = queryset
         count = queryset.count()
         media_count[media_type] = count
@@ -124,6 +53,78 @@ def get_user_media(user, start_date, end_date):
         "for all time" if start_date is None else f"from {start_date} to {end_date}",
     )
     return user_media, media_count
+
+
+def _build_base_episodes(user, media_models, start_date, end_date):
+    if TV not in media_models and Season not in media_models:
+        return None
+    if start_date is None and end_date is None:
+        return Episode.objects.filter(related_season__user=user)
+    return Episode.objects.filter(
+        related_season__user=user,
+        end_date__range=(start_date, end_date),
+    )
+
+
+def _build_model_queryset(model, user, base_episodes, start_date, end_date):
+    if model == TV:
+        return _build_tv_queryset(base_episodes)
+    if model == Season:
+        return _build_season_queryset(base_episodes)
+    if start_date is None and end_date is None:
+        return model.objects.filter(user=user)
+    return model.objects.filter(user=user).filter(
+        _build_date_range_filter(start_date, end_date),
+    )
+
+
+def _build_tv_queryset(base_episodes):
+    tv_ids = base_episodes.values_list(
+        "related_season__related_tv",
+        flat=True,
+    ).distinct()
+    return TV.objects.filter(id__in=tv_ids).prefetch_related(
+        Prefetch(
+            "seasons",
+            queryset=Season.objects.select_related("item").prefetch_related(
+                Prefetch(
+                    "episodes",
+                    queryset=base_episodes.filter(
+                        related_season__related_tv__in=tv_ids,
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
+def _build_season_queryset(base_episodes):
+    season_ids = base_episodes.values_list("related_season", flat=True).distinct()
+    return Season.objects.filter(id__in=season_ids).prefetch_related(
+        Prefetch("episodes", queryset=base_episodes),
+    )
+
+
+def _build_date_range_filter(start_date, end_date):
+    return (
+        (
+            Q(start_date__isnull=False)
+            & Q(end_date__isnull=False)
+            & ~(Q(end_date__lt=start_date) | Q(start_date__gt=end_date))
+        )
+        | (
+            Q(start_date__isnull=False)
+            & Q(end_date__isnull=True)
+            & Q(start_date__gte=start_date)
+            & Q(start_date__lte=end_date)
+        )
+        | (
+            Q(start_date__isnull=True)
+            & Q(end_date__isnull=False)
+            & Q(end_date__gte=start_date)
+            & Q(end_date__lte=end_date)
+        )
+    )
 
 
 def get_media_type_distribution(media_count):
@@ -222,10 +223,7 @@ def get_score_distribution(user_media):
     distribution = {}
     total_scored = 0
     total_score_sum = 0
-
-    top_rated = []
-    top_rated_count = 14
-    counter = itertools.count()  # Ensures stable sorting for equal scores
+    all_scored_media = []
     score_range = range(11)
 
     for media_type, media_list in user_media.items():
@@ -233,19 +231,8 @@ def get_score_distribution(user_media):
         scored_media = media_list.exclude(score__isnull=True).select_related("item")
 
         for media in scored_media:
-            if len(top_rated) < top_rated_count:
-                heapq.heappush(
-                    top_rated,
-                    (float(media.score), next(counter), media),
-                )
-            else:
-                heapq.heappushpop(
-                    top_rated,
-                    (float(media.score), next(counter), media),
-                )
-
-            binned_score = int(media.score)
-            score_counts[binned_score] += 1
+            all_scored_media.append(media)
+            score_counts[int(media.score)] += 1
             total_scored += 1
             total_score_sum += media.score
 
@@ -255,10 +242,7 @@ def get_score_distribution(user_media):
         round(total_score_sum / total_scored, 2) if total_scored > 0 else None
     )
 
-    top_rated_media = [
-        media for _, _, media in sorted(top_rated, key=lambda x: (-x[0], x[1]))
-    ]
-
+    top_rated_media = _select_top_rated(all_scored_media, 14)
     top_rated_media = _annotate_top_rated_media(top_rated_media)
 
     return {
@@ -276,38 +260,38 @@ def get_score_distribution(user_media):
     }, top_rated_media
 
 
+def _select_top_rated(all_scored_media, count):
+    counter = itertools.count()
+    heap = []
+    for media in all_scored_media:
+        entry = (float(media.score), next(counter), media)
+        if len(heap) < count:
+            heapq.heappush(heap, entry)
+        else:
+            heapq.heappushpop(heap, entry)
+    return [m for _, _, m in sorted(heap, key=lambda x: (-x[0], x[1]))]
+
+
 def _annotate_top_rated_media(top_rated_media):
     """Apply prefetch_related and annotate max_progress for top rated media."""
     if not top_rated_media:
         return top_rated_media
 
-    # Group by media type to batch database operations
-    media_by_type = {}
+    media_by_type = defaultdict(list)
     for media in top_rated_media:
-        media_type = media.item.media_type
-        if media_type not in media_by_type:
-            media_by_type[media_type] = []
-        media_by_type[media_type].append(media)
+        media_by_type[media.item.media_type].append(media)
 
+    prefetched = {}
     media_manager = MediaManager()
-
     for media_type, media_list in media_by_type.items():
         model = apps.get_model(app_label="app", model_name=media_type)
-        media_ids = [media.id for media in media_list]
-
-        # Fetch fresh instances with proper relationships and annotations
+        media_ids = [m.id for m in media_list]
         queryset = model.objects.filter(id__in=media_ids)
         queryset = media_manager._apply_prefetch_related(queryset, media_type)
         media_manager.annotate_max_progress(queryset, media_type)
+        prefetched.update({(media_type, m.id): m for m in queryset})
 
-        prefetched_media_map = {media.id: media for media in queryset}
-
-        # Replace original instances with enhanced ones
-        for i, media in enumerate(top_rated_media):
-            if media.item.media_type == media_type:
-                top_rated_media[i] = prefetched_media_map[media.id]
-
-    return top_rated_media
+    return [prefetched.get((m.item.media_type, m.id), m) for m in top_rated_media]
 
 
 def get_status_color(status):
@@ -322,63 +306,36 @@ def get_timeline(user_media):
     """Build a timeline of media consumption organized by month-year."""
     timeline = defaultdict(list)
 
-    # Process each media type
-    for media_type, queryset in user_media.items():
-        if media_type == MediaTypes.TV.value:
-            continue
-        for media in queryset:
-            local_start_date = timezone.localdate(media.start_date)
-            local_end_date = timezone.localdate(media.end_date)
+    querysets = (qs for mt, qs in user_media.items() if mt != MediaTypes.TV.value)
+    for media in itertools.chain.from_iterable(querysets):
+        for year, month in _get_media_months(media):
+            timeline[(year, month)].append(media)
 
-            if media.start_date and media.end_date:
-                # add media to all months between start and end
-                current_date = local_start_date
-                while current_date <= local_end_date:
-                    year = current_date.year
-                    month = current_date.month
-                    month_name = calendar.month_name[month]
-                    month_year = f"{month_name} {year}"
+    sorted_keys = sorted(timeline, reverse=True)
+    return {
+        f"{calendar.month_name[month]} {year}": sorted(
+            timeline[(year, month)],
+            key=time_line_sort_key,
+            reverse=True,
+        )
+        for year, month in sorted_keys
+    }
 
-                    timeline[month_year].append(media)
 
-                    # Move to next month
-                    current_date += relativedelta(months=1)
-                    current_date = current_date.replace(day=1)
-            elif media.start_date:
-                # If only start date, add to the start month
-                year = local_start_date.year
-                month = local_start_date.month
-                month_name = calendar.month_name[month]
-                month_year = f"{month_name} {year}"
-
-                timeline[month_year].append(media)
-            elif media.end_date:
-                # If only end date, add to the end month
-                year = local_end_date.year
-                month = local_end_date.month
-                month_name = calendar.month_name[month]
-                month_year = f"{month_name} {year}"
-
-                timeline[month_year].append(media)
-
-    # Convert to sorted dictionary with media sorted by start date
-    # Create a list sorted by year and month in reverse order
-    sorted_items = []
-    for month_year, media_list in timeline.items():
-        month_name, year_str = month_year.split()
-        year = int(year_str)
-        month = list(calendar.month_name).index(month_name)
-        sorted_items.append((month_year, media_list, year, month))
-
-    # Sort by year and month in reverse chronological order
-    sorted_items.sort(key=lambda x: (x[2], x[3]), reverse=True)
-
-    # Create the final result dictionary
-    result = {}
-    for month_year, media_list, _, _ in sorted_items:
-        # Sort the media list using our custom sort key
-        result[month_year] = sorted(media_list, key=time_line_sort_key, reverse=True)
-    return result
+def _get_media_months(media):
+    if media.start_date and media.end_date:
+        start = timezone.localdate(media.start_date)
+        end = timezone.localdate(media.end_date)
+        current = start
+        while current <= end:
+            yield current.year, current.month
+            current = (current + relativedelta(months=1)).replace(day=1)
+    elif media.start_date:
+        d = timezone.localdate(media.start_date)
+        yield d.year, d.month
+    elif media.end_date:
+        d = timezone.localdate(media.end_date)
+        yield d.year, d.month
 
 
 def time_line_sort_key(media):
@@ -394,10 +351,8 @@ def get_activity_data(user, start_date, end_date):
         end_date = timezone.localtime()
 
     start_date_aligned = get_aligned_monday(start_date)
-
     combined_data = get_filtered_historical_data(start_date_aligned, end_date, user)
 
-    # update start_date values from historical records if not provided
     if start_date is None:
         dates = [item["date"] for item in combined_data]
         start_date = datetime.datetime.combine(
@@ -406,7 +361,6 @@ def get_activity_data(user, start_date, end_date):
         )
         start_date_aligned = get_aligned_monday(start_date)
 
-    # Aggregate counts by date
     date_counts = {}
     for item in combined_data:
         date = item["date"]
@@ -417,7 +371,6 @@ def get_activity_data(user, start_date, end_date):
         for x in range((end_date.date() - start_date_aligned.date()).days + 1)
     ]
 
-    # Calculate activity statistics
     most_active_day, day_percentage = calculate_day_of_week_stats(
         date_counts,
         start_date.date(),
@@ -427,7 +380,6 @@ def get_activity_data(user, start_date, end_date):
         end_date.date(),
     )
 
-    # Create complete date range including padding days
     activity_data = [
         {
             "date": current_date.strftime("%Y-%m-%d"),
@@ -437,39 +389,11 @@ def get_activity_data(user, start_date, end_date):
         for current_date in date_range
     ]
 
-    # Format data into calendar weeks
     calendar_weeks = [activity_data[i : i + 7] for i in range(0, len(activity_data), 7)]
-
-    # Generate months list with their Monday counts
-    months = []
-    mondays_per_month = []
-    current_month = date_range[0].strftime("%b")
-    monday_count = 0
-
-    for current_date in date_range:
-        if current_date.weekday() == 0:  # Monday
-            month = current_date.strftime("%b")
-
-            if current_month != month:
-                if current_month is not None:
-                    if monday_count > 1:
-                        months.append(current_month)
-                        mondays_per_month.append(monday_count)
-                    else:
-                        months.append("")
-                        mondays_per_month.append(monday_count)
-                current_month = month
-                monday_count = 0
-
-            monday_count += 1
-    # For the last month
-    if monday_count > 1:
-        months.append(current_month)
-        mondays_per_month.append(monday_count)
 
     return {
         "calendar_weeks": calendar_weeks,
-        "months": list(zip(months, mondays_per_month, strict=False)),
+        "months": _generate_month_labels(date_range),
         "stats": {
             "most_active_day": most_active_day,
             "most_active_day_percentage": day_percentage,
@@ -477,6 +401,21 @@ def get_activity_data(user, start_date, end_date):
             "longest_streak": longest_streak,
         },
     }
+
+
+def _generate_month_labels(date_range):
+    mondays = [d for d in date_range if d.weekday() == 0]
+    if not mondays:
+        return []
+
+    result = []
+    for label, group in itertools.groupby(mondays, key=lambda d: d.strftime("%b")):
+        count = sum(1 for _ in group)
+        result.append((label if count > 1 else "", count))
+
+    if result and result[-1][1] <= 1:
+        result.pop()
+    return result
 
 
 def get_aligned_monday(datetime_obj):
@@ -558,7 +497,6 @@ def calculate_day_of_week_stats(date_counts, start_date):
 
 def calculate_streaks(date_counts, end_date):
     """Calculate current and longest activity streaks."""
-    # Get active dates and sort them in descending order (newest first)
     active_dates = sorted(
         [date for date, count in date_counts.items() if count > 0],
         reverse=True,
@@ -567,30 +505,17 @@ def calculate_streaks(date_counts, end_date):
     if not active_dates:
         return 0, 0
 
-    longest_streak = 1
+    streaks = []
     streak_count = 1
 
-    # Check if the most recent active date is today/end_date
-    is_current = active_dates[0] == end_date
-
-    current_streak = 1 if is_current else 0
-
     for i in range(1, len(active_dates)):
-        # Check if this date is consecutive with the previous one
         if (active_dates[i - 1] - active_dates[i]).days == 1:
             streak_count += 1
-
-            if is_current:
-                current_streak += 1
         else:
-            longest_streak = max(longest_streak, streak_count)
+            streaks.append(streak_count)
             streak_count = 1
+    streaks.append(streak_count)
 
-            if is_current:
-                is_current = False
-
-    # Check final streak for longest calculation
-    # needed if the last date is today/end_date
-    longest_streak = max(longest_streak, streak_count)
-
+    longest_streak = max(streaks)
+    current_streak = streaks[0] if active_dates[0] == end_date else 0
     return current_streak, longest_streak

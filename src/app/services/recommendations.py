@@ -54,27 +54,56 @@ def _matches_cross_media(title, cross_media_titles):
 
 
 def compute_recommendations(user_id, media_type):
-    """Build frequency-ranked recommendations from all tracked items.
-
-    Groups results into "active" (from Planning/In Progress sources)
-    and "full" (from all non-Dropped sources, excluding active results).
-    """
+    """Build frequency-ranked recommendations from all tracked items."""
     progress_key = get_progress_key(user_id, media_type)
     model = apps.get_model(app_label="app", model_name=media_type)
     all_items = list(model.objects.filter(user_id=user_id).select_related("item"))
 
     processable = [m for m in all_items if m.status != Status.DROPPED.value]
-    total = len(processable)
-    cache.set(progress_key, {"current": 0, "total": total}, PROGRESS_TIMEOUT)
+    cache.set(
+        progress_key,
+        {"current": 0, "total": len(processable)},
+        PROGRESS_TIMEOUT,
+    )
 
+    freq_data = _collect_frequencies(processable, progress_key)
     tracked_keys = {(str(m.item.media_id), m.item.source) for m in all_items}
+    cross_media_titles = _build_cross_media_titles(user_id, media_type)
 
-    active_statuses = {Status.IN_PROGRESS.value, Status.PLANNING.value}
-    active_freq = Counter()
-    full_freq = Counter()
-    rec_details = {}
-    genre_freq = Counter()
-    genre_recs = defaultdict(Counter)
+    deduper = _Deduplicator(tracked_keys, freq_data.rec_details, cross_media_titles)
+    active_recs = deduper.select(
+        freq_data.active_freq.most_common(), MAX_RECOMMENDATIONS
+    )
+    full_recs = deduper.select(freq_data.full_freq.most_common(), MAX_RECOMMENDATIONS)
+    genre_sections = _build_genre_sections(
+        freq_data.genre_freq,
+        freq_data.genre_recs,
+        deduper,
+    )
+
+    result = {"active": active_recs, "full": full_recs, "genres": genre_sections}
+    cache.set(get_cache_key(user_id, media_type), result, settings.CACHE_TIMEOUT)
+    cache.delete(progress_key)
+    return result
+
+
+class _FrequencyData:
+    __slots__ = ("active_freq", "full_freq", "genre_freq", "genre_recs", "rec_details")
+
+    def __init__(self):
+        self.active_freq = Counter()
+        self.full_freq = Counter()
+        self.rec_details = {}
+        self.genre_freq = Counter()
+        self.genre_recs = defaultdict(Counter)
+
+
+_ACTIVE_STATUSES = {Status.IN_PROGRESS.value, Status.PLANNING.value}
+
+
+def _collect_frequencies(processable, progress_key):
+    data = _FrequencyData()
+    total = len(processable)
 
     for i, media in enumerate(processable):
         try:
@@ -90,72 +119,82 @@ def compute_recommendations(user_id, media_type):
                 media.item.media_id,
             )
             cache.set(
-                progress_key, {"current": i + 1, "total": total}, PROGRESS_TIMEOUT
+                progress_key,
+                {"current": i + 1, "total": total},
+                PROGRESS_TIMEOUT,
             )
             continue
 
         genres = metadata.get("genres") or []
         for genre in genres:
-            genre_freq[genre] += 1
+            data.genre_freq[genre] += 1
 
-        recs = metadata.get("related", {}).get("recommendations", [])
-        for rec in recs:
+        is_active = media.status in _ACTIVE_STATUSES
+        for rec in metadata.get("related", {}).get("recommendations", []):
             key = (str(rec["media_id"]), rec["source"])
-            rec_details[key] = rec
-            full_freq[key] += 1
-            if media.status in active_statuses:
-                active_freq[key] += 1
+            data.rec_details[key] = rec
+            data.full_freq[key] += 1
+            if is_active:
+                data.active_freq[key] += 1
             for genre in genres:
-                genre_recs[genre][key] += 1
+                data.genre_recs[genre][key] += 1
 
-        cache.set(progress_key, {"current": i + 1, "total": total}, PROGRESS_TIMEOUT)
+        cache.set(
+            progress_key,
+            {"current": i + 1, "total": total},
+            PROGRESS_TIMEOUT,
+        )
+    return data
 
-    seen_titles = set()
-    cross_media_titles = set()
 
-    if media_type == MediaTypes.MANGA.value:
-        anime_model = apps.get_model(app_label="app", model_name=MediaTypes.ANIME.value)
-        anime_items = anime_model.objects.filter(user_id=user_id).select_related("item")
-        for m in anime_items:
-            _add_title_variants(cross_media_titles, m.item.title)
-            if m.item.english_title:
-                _add_title_variants(cross_media_titles, m.item.english_title)
+def _build_cross_media_titles(user_id, media_type):
+    if media_type != MediaTypes.MANGA.value:
+        return set()
+    titles = set()
+    anime_model = apps.get_model(app_label="app", model_name=MediaTypes.ANIME.value)
+    for m in anime_model.objects.filter(user_id=user_id).select_related("item"):
+        _add_title_variants(titles, m.item.title)
+        if m.item.english_title:
+            _add_title_variants(titles, m.item.english_title)
+    return titles
 
-    def _dedup(candidates, limit):
+
+class _Deduplicator:
+    def __init__(self, tracked_keys, rec_details, cross_media_titles):
+        self._shown_keys = set(tracked_keys)
+        self._seen_titles = set()
+        self._rec_details = rec_details
+        self._cross_media_titles = cross_media_titles
+
+    def select(self, candidates, limit):
         result = []
         for key, _ in candidates:
-            if key in tracked_keys or key in shown_keys:
+            if key in self._shown_keys:
                 continue
-            rec = rec_details[key]
+            rec = self._rec_details[key]
             norm_title = rec.get("title", "").strip().lower()
-            if norm_title in seen_titles:
+            if norm_title in self._seen_titles:
                 continue
-            if _matches_cross_media(norm_title, cross_media_titles):
+            if _matches_cross_media(norm_title, self._cross_media_titles):
                 continue
-            seen_titles.add(norm_title)
-            shown_keys.add(key)
+            self._seen_titles.add(norm_title)
+            self._shown_keys.add(key)
             result.append(rec)
             if len(result) >= limit:
                 break
         return result
 
-    shown_keys = set(tracked_keys)
-    active_recs = _dedup(active_freq.most_common(), MAX_RECOMMENDATIONS)
-    full_recs = _dedup(full_freq.most_common(), MAX_RECOMMENDATIONS)
 
+def _build_genre_sections(genre_freq, genre_recs, deduper):
     sorted_genres = sorted(
         genre_freq,
         key=lambda g: (-genre_freq[g], -sum(genre_recs[g].values()), g),
     )
-    genre_sections = []
+    sections = []
     for genre in sorted_genres:
-        if len(genre_sections) >= MAX_GENRE_SECTIONS:
+        if len(sections) >= MAX_GENRE_SECTIONS:
             break
-        recs = _dedup(genre_recs[genre].most_common(), MAX_GENRE_RECS)
+        recs = deduper.select(genre_recs[genre].most_common(), MAX_GENRE_RECS)
         if len(recs) >= MIN_GENRE_RECS:
-            genre_sections.append({"name": genre, "recs": recs})
-
-    result = {"active": active_recs, "full": full_recs, "genres": genre_sections}
-    cache.set(get_cache_key(user_id, media_type), result, settings.CACHE_TIMEOUT)
-    cache.delete(progress_key)
-    return result
+            sections.append({"name": genre, "recs": recs})
+    return sections

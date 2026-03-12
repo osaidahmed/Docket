@@ -31,33 +31,15 @@ def process_history_entry(entry, media_type, user):
     }
 
     if old_record is not None:
-        return process_changed_entry(
-            new_record,
-            old_record,
-            media_type,
-            processed_entry,
-            user,
+        delta = new_record.diff_against(old_record)
+        changes = organize_changes(delta.changes, media_type, user)
+    else:
+        history_model = apps.get_model(
+            app_label="app",
+            model_name=f"historical{media_type}",
         )
-    return process_creation_entry(new_record, media_type, processed_entry, user)
+        changes = collect_creation_changes(new_record, history_model, media_type, user)
 
-
-def process_changed_entry(new_record, old_record, media_type, processed_entry, user):
-    """Process an entry representing a change to existing media."""
-    delta = new_record.diff_against(old_record)
-    changes = organize_changes(delta.changes, media_type, user)
-    apply_date_status_integration(changes, user)
-    build_changes_list(changes, processed_entry)
-    return processed_entry
-
-
-def process_creation_entry(new_record, media_type, processed_entry, user):
-    """Process an entry representing media creation."""
-    history_model = apps.get_model(
-        app_label="app",
-        model_name=f"historical{media_type}",
-    )
-
-    changes = collect_creation_changes(new_record, history_model, media_type, user)
     apply_date_status_integration(changes, user)
     build_changes_list(changes, processed_entry)
     return processed_entry
@@ -90,19 +72,26 @@ def organize_changes(changes, media_type, user):
             "new": change.new,
         }
 
-        if change.field == "status":
-            organized["status_change"] = change_data
-        elif change.field == "end_date":
+        if change.field == "end_date":
             end_date_change = change_data
-        elif change.field in organized["date_changes"]:
-            organized["date_changes"][change.field] = change_data
         else:
-            organized["other_changes"].append(change_data)
+            _categorize_change(organized, change.field, change_data)
 
     if end_date_change:
         organized["date_changes"]["end_date"] = end_date_change
 
     return organized
+
+
+_CREATION_SKIP_FIELDS = {"item", "user", "related_tv"}
+
+
+def _should_skip_creation_field(field, new_record, media_type):
+    if field.name.startswith("history_") or field.name == "id":
+        return True
+    if not hasattr(new_record, field.attname):
+        return True
+    return field.name == "progress" and media_type == MediaTypes.MOVIE.value
 
 
 def collect_creation_changes(new_record, history_model, media_type, user):
@@ -114,12 +103,7 @@ def collect_creation_changes(new_record, history_model, media_type, user):
     }
 
     for field in history_model._meta.get_fields():
-        if (
-            field.name.startswith("history_")
-            or field.name == "id"
-            or not hasattr(new_record, field.attname)
-            or (field.name == "progress" and media_type == MediaTypes.MOVIE.value)
-        ):
+        if _should_skip_creation_field(field, new_record, media_type):
             continue
 
         value = getattr(new_record, field.attname, None)
@@ -138,42 +122,36 @@ def collect_creation_changes(new_record, history_model, media_type, user):
             ),
         }
 
-        if field.name == "status":
-            organized["status_change"] = change_data
-        elif field.name in organized["date_changes"]:
-            organized["date_changes"][field.name] = change_data
-        elif field.name not in ["item", "user", "related_tv"]:
-            organized["other_changes"].append(change_data)
+        _categorize_change(organized, field.name, change_data)
 
     return organized
 
 
+def _categorize_change(organized, field_name, change_data):
+    if field_name == "status":
+        organized["status_change"] = change_data
+    elif field_name in organized["date_changes"]:
+        organized["date_changes"][field_name] = change_data
+    elif field_name not in _CREATION_SKIP_FIELDS:
+        organized["other_changes"].append(change_data)
+
+
 def apply_date_status_integration(changes, user):
     """Integrate status changes with date changes where appropriate."""
-    date_changes = changes["date_changes"]
     status_change = changes["status_change"]
+    if not status_change:
+        return
 
-    # Process start date with status
-    if (
-        date_changes["start_date"]
-        and status_change
-        and status_change["new"] == Status.IN_PROGRESS.value
-    ):
-        date_changes["start_date"]["description"] = (
-            f"Started on "
-            f"{app_tags.date_format(date_changes['start_date']['new'], user)}"
-        )
+    date_changes = changes["date_changes"]
+    new_status = status_change["new"]
+
+    if date_changes["start_date"] and new_status == Status.IN_PROGRESS.value:
+        formatted = app_tags.date_format(date_changes["start_date"]["new"], user)
+        date_changes["start_date"]["description"] = f"Started on {formatted}"
         changes["status_change"] = None
-
-    # Process end date with status
-    if (
-        date_changes["end_date"]
-        and status_change
-        and status_change["new"] == Status.COMPLETED.value
-    ):
-        date_changes["end_date"]["description"] = (
-            f"Finished on {app_tags.date_format(date_changes['end_date']['new'], user)}"
-        )
+    elif date_changes["end_date"] and new_status == Status.COMPLETED.value:
+        formatted = app_tags.date_format(date_changes["end_date"]["new"], user)
+        date_changes["end_date"]["description"] = f"Finished on {formatted}"
         changes["status_change"] = None
 
 
@@ -193,116 +171,129 @@ def build_changes_list(changes, processed_entry):
     processed_entry["changes"].extend(changes["other_changes"])
 
 
-def format_description(field_name, old_value, new_value, media_type=None, user=None):  # noqa: C901, PLR0911, PLR0912
-    """Format change description in a human-readable way.
-
-    Provides natural language descriptions for various types of changes,
-    taking into account the media type and status transitions.
-    """
+def format_description(field_name, old_value, new_value, media_type=None, user=None):
+    """Format change description in a human-readable way."""
     if field_name in {"start_date", "end_date"}:
         new_value = app_tags.date_format(new_value, user)
         old_value = app_tags.date_format(old_value, user)
 
-    # If old_value is None, treat it as an initial setting
     if old_value is None:
-        if field_name == "status":
-            verb = config.get_verb(media_type, past_tense=False)
-            action = "Marked as"
-            if new_value == Status.IN_PROGRESS.value:
-                return f"{action} currently {verb}ing"
-            if new_value == Status.COMPLETED.value:
-                return f"{action} finished {verb}ing"
-            if new_value == Status.PLANNING.value:
-                return f"Added to {verb}ing list"
-            if new_value == Status.DROPPED.value:
-                return f"{action} dropped"
-            if new_value == Status.PAUSED.value:
-                return f"{action} paused {verb}ing"
+        formatter = _INITIAL_FORMATTERS.get(field_name, _fmt_generic_initial)
+        return formatter(field_name, new_value, media_type)
 
-        if field_name == "score":
-            return f"Rated {new_value}/10"
+    formatter = _CHANGE_FORMATTERS.get(field_name, _fmt_generic_change)
+    return formatter(field_name, old_value, new_value, media_type)
 
-        if field_name == "progress" and media_type:
-            verb = config.get_verb(media_type, past_tense=True).title()
-            if media_type == MediaTypes.GAME.value:
-                return f"{verb} for {helpers.minutes_to_hhmm(new_value)}"
-            unit = config.get_unit(media_type, short=False).lower()
-            return f"{verb} up to {unit} {new_value}"
 
-        if field_name in ["start_date", "end_date"]:
-            field_display = "Started" if field_name == "start_date" else "Finished"
-            return f"{field_display} on {new_value}"
+def _fmt_status_initial(_field_name, new_value, media_type):
+    verb = config.get_verb(media_type, past_tense=False)
+    labels = {
+        Status.IN_PROGRESS.value: f"Marked as currently {verb}ing",
+        Status.COMPLETED.value: f"Marked as finished {verb}ing",
+        Status.PLANNING.value: f"Added to {verb}ing list",
+        Status.DROPPED.value: "Marked as dropped",
+        Status.PAUSED.value: f"Marked as paused {verb}ing",
+    }
+    return labels.get(new_value, f"Set status to {new_value}")
 
-        if field_name == "notes":
-            return "Added notes"
 
-        return f"Set {field_name.replace('_', ' ').lower()} to {new_value}"
+def _fmt_score_initial(_field_name, new_value, _media_type):
+    return f"Rated {new_value}/10"
 
-    # Regular change (old_value to new_value)
-    if field_name == "status":
-        verb = config.get_verb(media_type, past_tense=False)
-        # Status transitions
-        transitions = {
-            (
-                Status.PLANNING.value,
-                Status.IN_PROGRESS.value,
-            ): f"Currently {verb}ing",
-            (
-                Status.IN_PROGRESS.value,
-                Status.COMPLETED.value,
-            ): f"Finished {verb}ing",
-            (
-                Status.IN_PROGRESS.value,
-                Status.PAUSED.value,
-            ): f"Paused {verb}ing",
-            (
-                Status.PAUSED.value,
-                Status.IN_PROGRESS.value,
-            ): f"Resumed {verb}ing",
-            (
-                Status.IN_PROGRESS.value,
-                Status.DROPPED.value,
-            ): f"Stopped {verb}ing",
-        }
-        return transitions.get(
-            (old_value, new_value),
-            f"Changed status from {old_value} to {new_value}",
-        )
 
-    if field_name == "score":
-        if old_value == 0:
-            return f"Rated {new_value}/10"
-        return f"Changed rating from {old_value} to {new_value}"
+def _fmt_progress_initial(_field_name, new_value, media_type):
+    if not media_type:
+        return f"Set progress to {new_value}"
+    verb = config.get_verb(media_type, past_tense=True).title()
+    if media_type == MediaTypes.GAME.value:
+        return f"{verb} for {helpers.minutes_to_hhmm(new_value)}"
+    unit = config.get_unit(media_type, short=False).lower()
+    return f"{verb} up to {unit} {new_value}"
 
-    if field_name == "progress":
-        diff = new_value - old_value
-        diff_abs = abs(diff)
 
-        if media_type == MediaTypes.GAME.value:
-            if diff > 0:
-                return f"Added {helpers.minutes_to_hhmm(diff_abs)} of playtime"
-            return f"Removed {helpers.minutes_to_hhmm(diff_abs)} of playtime"
+def _fmt_date_initial(field_name, new_value, _media_type):
+    label = "Started" if field_name == "start_date" else "Finished"
+    return f"{label} on {new_value}"
 
-        unit = (
-            f"{config.get_unit(media_type, short=False).lower()}{pluralize(new_value)}"
-        )
 
-        return f"Progress set to {new_value} {unit}"
+def _fmt_notes_initial(_field_name, _new_value, _media_type):
+    return "Added notes"
 
-    if field_name in ["start_date", "end_date"]:
-        field_display = "Start" if field_name == "start_date" else "End"
-        if not new_value:
-            return f"Removed {field_display.lower()} date"
-        if not old_value:
-            return f"{field_display}ed on {new_value}"
-        return f"{field_display} date changed to {new_value}"
 
-    if field_name == "notes":
-        if not old_value:
-            return "Added notes"
-        if not new_value:
-            return "Removed notes"
-        return "Updated notes"
+def _fmt_generic_initial(field_name, new_value, _media_type):
+    return f"Set {field_name.replace('_', ' ').lower()} to {new_value}"
 
+
+def _fmt_status_change(_field_name, old_value, new_value, media_type):
+    verb = config.get_verb(media_type, past_tense=False)
+    transitions = {
+        (Status.PLANNING.value, Status.IN_PROGRESS.value): f"Currently {verb}ing",
+        (Status.IN_PROGRESS.value, Status.COMPLETED.value): f"Finished {verb}ing",
+        (Status.IN_PROGRESS.value, Status.PAUSED.value): f"Paused {verb}ing",
+        (Status.PAUSED.value, Status.IN_PROGRESS.value): f"Resumed {verb}ing",
+        (Status.IN_PROGRESS.value, Status.DROPPED.value): f"Stopped {verb}ing",
+    }
+    return transitions.get(
+        (old_value, new_value),
+        f"Changed status from {old_value} to {new_value}",
+    )
+
+
+def _fmt_score_change(_field_name, old_value, new_value, _media_type):
+    if old_value == 0:
+        return f"Rated {new_value}/10"
+    return f"Changed rating from {old_value} to {new_value}"
+
+
+def _fmt_progress_change(_field_name, old_value, new_value, media_type):
+    diff = new_value - old_value
+    diff_abs = abs(diff)
+
+    if media_type == MediaTypes.GAME.value:
+        if diff > 0:
+            return f"Added {helpers.minutes_to_hhmm(diff_abs)} of playtime"
+        return f"Removed {helpers.minutes_to_hhmm(diff_abs)} of playtime"
+
+    unit = f"{config.get_unit(media_type, short=False).lower()}{pluralize(new_value)}"
+    return f"Progress set to {new_value} {unit}"
+
+
+def _fmt_date_change(field_name, old_value, new_value, _media_type):
+    label = "Start" if field_name == "start_date" else "End"
+    if not new_value:
+        return f"Removed {label.lower()} date"
+    if not old_value:
+        return f"{label}ed on {new_value}"
+    return f"{label} date changed to {new_value}"
+
+
+def _fmt_notes_change(_field_name, old_value, new_value, _media_type):
+    if not old_value:
+        return "Added notes"
+    if not new_value:
+        return "Removed notes"
+    return "Updated notes"
+
+
+def _fmt_generic_change(field_name, old_value, new_value, _media_type):
     field_label = field_name.replace("_", " ").lower()
     return f"Updated {field_label} from {old_value} to {new_value}"
+
+
+_INITIAL_FORMATTERS = {
+    "status": _fmt_status_initial,
+    "score": _fmt_score_initial,
+    "progress": _fmt_progress_initial,
+    "start_date": _fmt_date_initial,
+    "end_date": _fmt_date_initial,
+    "notes": _fmt_notes_initial,
+}
+
+_CHANGE_FORMATTERS = {
+    "status": _fmt_status_change,
+    "score": _fmt_score_change,
+    "progress": _fmt_progress_change,
+    "start_date": _fmt_date_change,
+    "end_date": _fmt_date_change,
+    "notes": _fmt_notes_change,
+}
