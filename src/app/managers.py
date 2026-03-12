@@ -111,28 +111,44 @@ class MediaManager(models.Manager):
 
         if media_type == MediaTypes.TV.value:
             return self._sort_related_media_list(
-                queryset, sort_filter, sort_dir, self._TV_SORT_FIELDS,
+                queryset,
+                sort_filter,
+                sort_dir,
+                self._TV_SORT_FIELDS,
                 ep_filter=models.Q(seasons__item__season_number__gt=0),
             )
         if media_type == MediaTypes.SEASON.value:
             return self._sort_related_media_list(
-                queryset, sort_filter, sort_dir, self._SEASON_SORT_FIELDS,
+                queryset,
+                sort_filter,
+                sort_dir,
+                self._SEASON_SORT_FIELDS,
             )
 
         return self._sort_generic_media_list(queryset, sort_filter, sort_dir)
 
     _TV_SORT_FIELDS = {
-        "start_date": ("calculated_start_date", models.Min, "seasons__episodes__end_date"),
+        "start_date": (
+            "calculated_start_date",
+            models.Min,
+            "seasons__episodes__end_date",
+        ),
         "end_date": ("calculated_end_date", models.Max, "seasons__episodes__end_date"),
         "progress": ("calculated_progress", models.Count, "seasons__episodes"),
     }
     _SEASON_SORT_FIELDS = {
         "start_date": ("calculated_start_date", models.Min, "episodes__end_date"),
         "end_date": ("calculated_end_date", models.Max, "episodes__end_date"),
-        "progress": ("calculated_progress", models.Max, "episodes__item__episode_number"),
+        "progress": (
+            "calculated_progress",
+            models.Max,
+            "episodes__item__episode_number",
+        ),
     }
 
-    def _sort_related_media_list(self, queryset, sort_filter, sort_dir, sort_fields, ep_filter=None):
+    def _sort_related_media_list(
+        self, queryset, sort_filter, sort_dir, sort_fields, ep_filter=None
+    ):
         """Sort TV or Season media list using annotated fields."""
         if sort_filter not in sort_fields:
             return self._sort_generic_media_list(queryset, sort_filter, sort_dir)
@@ -262,7 +278,9 @@ class MediaManager(models.Manager):
 
         for media_type in media_types:
             model = apps.get_model("app", media_type)
-            filter_kwargs = self._build_item_filter(media_type, item_ids, user, status_filter)
+            filter_kwargs = self._build_item_filter(
+                media_type, item_ids, user, status_filter
+            )
             queryset = model.objects.filter(**filter_kwargs).select_related("item")
             queryset = self._apply_prefetch_related(queryset, media_type)
             self.annotate_max_progress(queryset, media_type)
@@ -303,31 +321,56 @@ class MediaManager(models.Manager):
         return params
 
     def filter_media(
-        self, user, media_id, media_type, source,
-        season_number=None, episode_number=None,
+        self,
+        user,
+        media_id,
+        media_type,
+        source,
+        season_number=None,
+        episode_number=None,
     ):
         """Filter media objects based on parameters."""
         model = apps.get_model(app_label="app", model_name=media_type)
         params = self._filter_media_params(
-            media_type, media_id, source, user, season_number, episode_number,
+            media_type,
+            media_id,
+            source,
+            user,
+            season_number,
+            episode_number,
         )
         return model.objects.filter(**params)
 
     def filter_media_prefetch(
-        self, user, media_id, media_type, source,
-        season_number=None, episode_number=None,
+        self,
+        user,
+        media_id,
+        media_type,
+        source,
+        season_number=None,
+        episode_number=None,
     ):
         """Filter user media object with prefetch_related applied."""
         queryset = self.filter_media(
-            user, media_id, media_type, source, season_number, episode_number,
+            user,
+            media_id,
+            media_type,
+            source,
+            season_number,
+            episode_number,
         )
         queryset = self._apply_prefetch_related(queryset, media_type)
         self.annotate_max_progress(queryset, media_type)
         return queryset
 
     def _filter_media_params(
-        self, media_type, media_id, source, user,
-        season_number=None, episode_number=None,
+        self,
+        media_type,
+        media_id,
+        source,
+        user,
+        season_number=None,
+        episode_number=None,
     ):
         """Get the common filter parameters for media queries."""
         from app.models import MediaTypes  # noqa: PLC0415

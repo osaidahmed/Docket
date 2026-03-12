@@ -17,132 +17,104 @@ from events.notifications import (
 )
 
 
-def _create_base_users():
-    User = get_user_model()
-    user1 = User.objects.create_user(
-        username="user1",
-        password="12345",
-        notification_urls="https://example.com/notify1",
-    )
-    user2 = User.objects.create_user(
-        username="user2",
-        password="12345",
-        notification_urls="https://example.com/notify2",
-    )
-    user3 = User.objects.create_user(
-        username="user3",
-        password="12345",
-    )
-    return user1, user2, user3
-
-
-def _create_base_items():
-    anime_item = Item.objects.create(
-        media_id="1",
-        source=Sources.MAL.value,
-        media_type=MediaTypes.ANIME.value,
-        title="Test Anime",
-        image="http://example.com/anime.jpg",
-    )
-    manga_item = Item.objects.create(
-        media_id="2",
-        source=Sources.MAL.value,
-        media_type=MediaTypes.MANGA.value,
-        title="Test Manga",
-        image="http://example.com/manga.jpg",
-    )
-    tv_show_item = Item.objects.create(
-        media_id="1668",
-        source=Sources.TMDB.value,
-        media_type=MediaTypes.TV.value,
-        title="Test TV Show",
-        image="http://example.com/tv.jpg",
-    )
-    season1_item = Item.objects.create(
-        media_id="1668",
-        source=Sources.TMDB.value,
-        media_type=MediaTypes.SEASON.value,
-        title="Test TV Show - Season 1",
-        season_number=1,
-        image="http://example.com/tv.jpg",
-    )
-    season2_item = Item.objects.create(
-        media_id="1668",
-        source=Sources.TMDB.value,
-        media_type=MediaTypes.SEASON.value,
-        title="Test TV Show - Season 2",
-        season_number=2,
-        image="http://example.com/tv.jpg",
-    )
-    season3_item = Item.objects.create(
-        media_id="1668",
-        source=Sources.TMDB.value,
-        media_type=MediaTypes.SEASON.value,
-        title="Test TV Show - Season 3",
-        season_number=3,
-        image="http://example.com/tv.jpg",
-    )
-    return (
-        anime_item,
-        manga_item,
-        tv_show_item,
-        season1_item,
-        season2_item,
-        season3_item,
-    )
-
-
-def _create_recent_events(anime_item, manga_item, s1_item, s2_item, s3_item):
-    ten_mins_ago = timezone.now() - timedelta(minutes=10)
-    anime_event = Event.objects.create(
-        item=anime_item,
-        content_number=5,
-        datetime=ten_mins_ago,
-        notification_sent=False,
-    )
-    manga_event = Event.objects.create(
-        item=manga_item,
-        content_number=10,
-        datetime=ten_mins_ago,
-        notification_sent=False,
-    )
-    s1_event = Event.objects.create(
-        item=s1_item,
-        content_number=5,
-        datetime=ten_mins_ago,
-        notification_sent=False,
-    )
-    s2_event = Event.objects.create(
-        item=s2_item,
-        content_number=3,
-        datetime=ten_mins_ago,
-        notification_sent=False,
-    )
-    s3_event = Event.objects.create(
-        item=s3_item,
-        content_number=1,
-        datetime=ten_mins_ago,
-        notification_sent=False,
-    )
-    return anime_event, manga_event, s1_event, s2_event, s3_event
-
-
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-class TVTrackingTests(TestCase):
-    """Tests for TV show and season tracking logic."""
+class TrackingTests(TestCase):
+    """Tests for TV tracking, user release collection, and item tracking status."""
+
+    @classmethod
+    def _create_items(cls):
+        cls.anime_item = Item.objects.create(
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Test Anime",
+            image="http://example.com/anime.jpg",
+        )
+        cls.manga_item = Item.objects.create(
+            media_id="2",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Test Manga",
+            image="http://example.com/manga.jpg",
+        )
+        cls.tv_show_item = Item.objects.create(
+            media_id="1668",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.TV.value,
+            title="Test TV Show",
+            image="http://example.com/tv.jpg",
+        )
+        for sn in range(1, 4):
+            setattr(
+                cls,
+                f"season{sn}_item",
+                Item.objects.create(
+                    media_id="1668",
+                    source=Sources.TMDB.value,
+                    media_type=MediaTypes.SEASON.value,
+                    title=f"Test TV Show - Season {sn}",
+                    season_number=sn,
+                    image="http://example.com/tv.jpg",
+                ),
+            )
+
+    @classmethod
+    def _create_events(cls):
+        ten_mins_ago = timezone.now() - timedelta(minutes=10)
+        event_defs = [
+            ("anime_event", cls.anime_item, 5),
+            ("manga_event", cls.manga_item, 10),
+            ("season1_event", cls.season1_item, 5),
+            ("season2_event", cls.season2_item, 3),
+            ("season3_event", cls.season3_item, 1),
+        ]
+        for attr, item, num in event_defs:
+            setattr(
+                cls,
+                attr,
+                Event.objects.create(
+                    item=item,
+                    content_number=num,
+                    datetime=ten_mins_ago,
+                    notification_sent=False,
+                ),
+            )
 
     @classmethod
     def setUpTestData(cls):
-        cls.user1, cls.user2, _ = _create_base_users()
-        (
-            cls.anime_item,
-            cls.manga_item,
-            cls.tv_show_item,
-            cls.season1_item,
-            cls.season2_item,
-            cls.season3_item,
-        ) = _create_base_items()
+        User = get_user_model()
+        cls.user1 = User.objects.create_user(
+            username="user1",
+            password="12345",
+            notification_urls="https://example.com/notify1",
+        )
+        cls.user2 = User.objects.create_user(
+            username="user2",
+            password="12345",
+            notification_urls="https://example.com/notify2",
+        )
+        cls.user3 = User.objects.create_user(
+            username="user3",
+            password="12345",
+        )
+        cls._create_items()
 
+        for user in (cls.user1, cls.user2, cls.user3):
+            Anime.objects.create(
+                item=cls.anime_item,
+                user=user,
+                status=Status.IN_PROGRESS.value,
+            )
+        Manga.objects.create(
+            item=cls.manga_item,
+            user=cls.user1,
+            status=Status.IN_PROGRESS.value,
+        )
+        Manga.objects.create(
+            item=cls.manga_item,
+            user=cls.user2,
+            status=Status.PAUSED.value,
+        )
         TV.objects.create(
             item=cls.tv_show_item,
             user=cls.user1,
@@ -160,9 +132,23 @@ class TVTrackingTests(TestCase):
                     related_tv=user2_tv,
                     user=cls.user2,
                     status=Status.DROPPED.value,
-                ),
+                )
             ]
         )
+
+        cls._create_events()
+        cls.user1.notification_excluded_items.add(cls.manga_item)
+
+    def _target_events(self, *events):
+        return {(e.item.id, e.content_number): e for e in events}
+
+    def _notified_users(self, **filter_kwargs):
+        qs = get_user_model().objects.filter(~models.Q(notification_urls=""))
+        if filter_kwargs:
+            qs = qs.filter(**filter_kwargs)
+        return qs.prefetch_related("notification_excluded_items")
+
+    # --- TV tracking tests ---
 
     def test_get_tv_tracking_data(self):
         """Test the get_tv_tracking_data function."""
@@ -314,120 +300,24 @@ class TVTrackingTests(TestCase):
         )
         self.assertFalse(result)
 
-
-@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-class UserReleaseTrackingTests(TestCase):
-    """Tests for user release collection and item tracking status."""
-
-    @classmethod
-    def setUpTestData(cls):
-        cls.user1, cls.user2, cls.user3 = _create_base_users()
-        (
-            cls.anime_item,
-            cls.manga_item,
-            cls.tv_show_item,
-            cls.season1_item,
-            cls.season2_item,
-            cls.season3_item,
-        ) = _create_base_items()
-
-        Anime.objects.create(
-            item=cls.anime_item,
-            user=cls.user1,
-            status=Status.IN_PROGRESS.value,
-        )
-        Anime.objects.create(
-            item=cls.anime_item,
-            user=cls.user2,
-            status=Status.IN_PROGRESS.value,
-        )
-        Anime.objects.create(
-            item=cls.anime_item,
-            user=cls.user3,
-            status=Status.IN_PROGRESS.value,
-        )
-        Manga.objects.create(
-            item=cls.manga_item,
-            user=cls.user1,
-            status=Status.IN_PROGRESS.value,
-        )
-        Manga.objects.create(
-            item=cls.manga_item,
-            user=cls.user2,
-            status=Status.PAUSED.value,
-        )
-        TV.objects.create(
-            item=cls.tv_show_item,
-            user=cls.user1,
-            status=Status.IN_PROGRESS.value,
-        )
-        user2_tv = TV.objects.create(
-            item=cls.tv_show_item,
-            user=cls.user2,
-            status=Status.IN_PROGRESS.value,
-        )
-        Season.objects.bulk_create(
-            [
-                Season(
-                    item=cls.season2_item,
-                    related_tv=user2_tv,
-                    user=cls.user2,
-                    status=Status.DROPPED.value,
-                ),
-            ]
-        )
-
-        (
-            cls.anime_event,
-            cls.manga_event,
-            cls.season1_event,
-            cls.season2_event,
-            cls.season3_event,
-        ) = _create_recent_events(
-            cls.anime_item,
-            cls.manga_item,
-            cls.season1_item,
-            cls.season2_item,
-            cls.season3_item,
-        )
-
-        cls.user1.notification_excluded_items.add(cls.manga_item)
+    # --- User release and tracking tests ---
 
     def test_get_all_user_tracking_data(self):
         """Test the get_all_user_tracking_data function."""
-        users_with_notifications = (
-            get_user_model()
-            .objects.filter(~models.Q(notification_urls=""))
-            .prefetch_related("notification_excluded_items")
+        users = self._notified_users()
+        target_events = self._target_events(
+            self.anime_event,
+            self.manga_event,
+            self.season1_event,
+            self.season2_event,
         )
-
-        target_events = {
-            (
-                self.anime_event.item.id,
-                self.anime_event.content_number,
-            ): self.anime_event,
-            (
-                self.manga_event.item.id,
-                self.manga_event.content_number,
-            ): self.manga_event,
-            (
-                self.season1_event.item.id,
-                self.season1_event.content_number,
-            ): self.season1_event,
-            (
-                self.season2_event.item.id,
-                self.season2_event.content_number,
-            ): self.season2_event,
+        user_exclusions = {
+            u.id: set(u.notification_excluded_items.values_list("id", flat=True))
+            for u in users
         }
 
-        user_exclusions = {}
-        for user in users_with_notifications:
-            user_exclusions[user.id] = set(
-                user.notification_excluded_items.values_list("id", flat=True),
-            )
-
         tracking_data = get_all_user_tracking_data(
-            users_with_notifications,
+            users,
             target_events,
             user_exclusions,
         )
@@ -439,32 +329,13 @@ class UserReleaseTrackingTests(TestCase):
 
     def test_get_user_releases(self):
         """Test the get_user_releases function."""
-        users_with_notifications = (
-            get_user_model()
-            .objects.filter(~models.Q(notification_urls=""))
-            .prefetch_related("notification_excluded_items")
+        target_events = self._target_events(
+            self.anime_event,
+            self.manga_event,
+            self.season1_event,
+            self.season2_event,
         )
-
-        target_events = {
-            (
-                self.anime_event.item.id,
-                self.anime_event.content_number,
-            ): self.anime_event,
-            (
-                self.manga_event.item.id,
-                self.manga_event.content_number,
-            ): self.manga_event,
-            (
-                self.season1_event.item.id,
-                self.season1_event.content_number,
-            ): self.season1_event,
-            (
-                self.season2_event.item.id,
-                self.season2_event.content_number,
-            ): self.season2_event,
-        }
-
-        user_releases = get_user_releases(users_with_notifications, target_events)
+        user_releases = get_user_releases(self._notified_users(), target_events)
 
         self.assertIn(self.user1.id, user_releases)
         self.assertIn(self.user2.id, user_releases)
@@ -482,22 +353,12 @@ class UserReleaseTrackingTests(TestCase):
 
     def test_is_user_tracking_item(self):
         """Test the is_user_tracking_item function."""
-        target_events = {
-            (
-                self.anime_event.item.id,
-                self.anime_event.content_number,
-            ): self.anime_event,
-            (
-                self.manga_event.item.id,
-                self.manga_event.content_number,
-            ): self.manga_event,
-            (
-                self.season1_event.item.id,
-                self.season1_event.content_number,
-            ): self.season1_event,
-        }
+        target_events = self._target_events(
+            self.anime_event,
+            self.manga_event,
+            self.season1_event,
+        )
         user_exclusions = {self.user1.id: set(), self.user2.id: set()}
-
         tracking_data = get_all_user_tracking_data(
             [self.user1, self.user2],
             target_events,
@@ -522,24 +383,8 @@ class UserReleaseTrackingTests(TestCase):
 
     def test_user_exclusion(self):
         """Test that user exclusions are respected."""
-        users_with_notifications = (
-            get_user_model()
-            .objects.filter(~models.Q(notification_urls=""))
-            .prefetch_related("notification_excluded_items")
-        )
-
-        target_events = {
-            (
-                self.anime_event.item.id,
-                self.anime_event.content_number,
-            ): self.anime_event,
-            (
-                self.manga_event.item.id,
-                self.manga_event.content_number,
-            ): self.manga_event,
-        }
-
-        user_releases = get_user_releases(users_with_notifications, target_events)
+        target_events = self._target_events(self.anime_event, self.manga_event)
+        user_releases = get_user_releases(self._notified_users(), target_events)
 
         user1_events = user_releases[self.user1.id]
         self.assertFalse(any(e.id == self.manga_event.id for e in user1_events))
@@ -581,25 +426,10 @@ class UserReleaseTrackingTests(TestCase):
         """Test that disabled media types are excluded from user releases."""
         self.user1.anime_enabled = False
         self.user1.save()
-
-        users = (
-            get_user_model()
-            .objects.filter(id=self.user1.id)
-            .prefetch_related("notification_excluded_items")
-        )
         self.user1.notification_excluded_items.clear()
 
-        target_events = {
-            (
-                self.anime_event.item.id,
-                self.anime_event.content_number,
-            ): self.anime_event,
-            (
-                self.manga_event.item.id,
-                self.manga_event.content_number,
-            ): self.manga_event,
-        }
-
+        target_events = self._target_events(self.anime_event, self.manga_event)
+        users = self._notified_users(id=self.user1.id)
         user_releases = get_user_releases(users, target_events)
 
         if self.user1.id in user_releases:
