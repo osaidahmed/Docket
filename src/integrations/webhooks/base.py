@@ -73,10 +73,7 @@ class BaseWebhookProcessor:
         if user.anime_enabled:
             mapping_data = self._fetch_mapping_data()
             mal_id, episode_offset = self._get_mal_id_from_tvdb(
-                mapping_data,
-                int(tvdb_id),
-                season_number,
-                episode_number,
+                mapping_data, int(tvdb_id), season_number, episode_number
             )
             if mal_id:
                 logger.info(
@@ -99,48 +96,52 @@ class BaseWebhookProcessor:
         tmdb_id = ids["tmdb_id"]
         imdb_id = ids["imdb_id"]
 
-        # Try to detect anime first if user has anime enabled
         if user.anime_enabled:
-            mapping_data = self._fetch_mapping_data()
-            mal_id = None
-            source = None
-
-            if tmdb_id:
-                mal_id = self._get_mal_id_from_tmdb_movie(mapping_data, tmdb_id)
-                source = "TMDB"
-
-            if not mal_id and imdb_id:
-                mal_id = self._get_mal_id_from_imdb(mapping_data, imdb_id)
-                source = "IMDB"
-
+            mal_id = self._detect_anime_movie(ids)
             if mal_id:
-                logger.info(
-                    "Detected anime movie with MAL ID: %s (via %s)",
-                    mal_id,
-                    source,
-                )
                 self._handle_anime(mal_id, 1, payload, user)
                 return
 
-        # Handle as regular movie
         if tmdb_id:
             logger.info("Detected movie via TMDB ID: %s", tmdb_id)
             self._handle_movie(tmdb_id, payload, user)
-        elif imdb_id:
-            logger.debug("No TMDB ID found, looking up via IMDB ID: %s", imdb_id)
-            response = app.providers.tmdb.find(imdb_id, "imdb_id")
+            return
 
-            if response.get("movie_results"):
-                media_id = response["movie_results"][0]["id"]
-                logger.info("Found matching TMDB ID: %s", media_id)
-                self._handle_movie(media_id, payload, user)
-            else:
-                logger.warning(
-                    "No matching TMDB ID found for IMDB ID: %s",
-                    imdb_id,
-                )
+        if imdb_id:
+            self._handle_movie_by_imdb(imdb_id, payload, user)
+            return
+
+        logger.warning("No TMDB or IMDB ID found for movie, skipping processing")
+
+    def _detect_anime_movie(self, ids):
+        """Try to detect anime movie from external IDs."""
+        mapping_data = self._fetch_mapping_data()
+
+        if ids["tmdb_id"]:
+            mal_id = self._get_mal_id_from_tmdb_movie(mapping_data, ids["tmdb_id"])
+            if mal_id:
+                logger.info("Detected anime movie with MAL ID: %s (via TMDB)", mal_id)
+                return mal_id
+
+        if ids["imdb_id"]:
+            mal_id = self._get_mal_id_from_imdb(mapping_data, ids["imdb_id"])
+            if mal_id:
+                logger.info("Detected anime movie with MAL ID: %s (via IMDB)", mal_id)
+                return mal_id
+
+        return None
+
+    def _handle_movie_by_imdb(self, imdb_id, payload, user):
+        """Look up movie via IMDB ID and handle it."""
+        logger.debug("No TMDB ID found, looking up via IMDB ID: %s", imdb_id)
+        response = app.providers.tmdb.find(imdb_id, "imdb_id")
+
+        if response.get("movie_results"):
+            media_id = response["movie_results"][0]["id"]
+            logger.info("Found matching TMDB ID: %s", media_id)
+            self._handle_movie(media_id, payload, user)
         else:
-            logger.warning("No TMDB or IMDB ID found for movie, skipping processing")
+            logger.warning("No matching TMDB ID found for IMDB ID: %s", imdb_id)
 
     def _find_tv_media_id(self, ids):
         """Find TV media ID from external IDs."""
@@ -169,11 +170,7 @@ class BaseWebhookProcessor:
         return data
 
     def _get_mal_id_from_tvdb(
-        self,
-        mapping_data,
-        tvdb_id,
-        season_number,
-        episode_number,
+        self, mapping_data, tvdb_id, season_number, episode_number
     ):
         matching_entries = [
             entry
@@ -216,10 +213,7 @@ class BaseWebhookProcessor:
         return None
 
     def _parse_mal_id(self, mal_id):
-        """Parse MAL ID from potentially comma-separated string.
-
-        mal_id: Either a single ID (int) or comma-separated string of IDs
-        """
+        """Parse MAL ID from potentially comma-separated string."""
         if isinstance(mal_id, str) and "," in mal_id:
             return mal_id.split(",")[0].strip()
         return mal_id
@@ -237,173 +231,15 @@ class BaseWebhookProcessor:
             },
         )
 
-        movie_instances = app.models.Movie.objects.filter(item=movie_item, user=user)
-        current_instance = movie_instances.first()
-        movie_played = self._is_played(payload)
-
-        progress = 1 if movie_played else 0
-        now = timezone.now().replace(second=0, microsecond=0)
-
-        if current_instance and current_instance.status != Status.COMPLETED.value:
-            current_instance.progress = progress
-
-            if movie_played:
-                current_instance.end_date = now
-                current_instance.status = Status.COMPLETED.value
-
-            elif current_instance.status != Status.IN_PROGRESS.value:
-                current_instance.start_date = now
-                current_instance.status = Status.IN_PROGRESS.value
-
-            if current_instance.tracker.changed():
-                current_instance.save()
-                logger.info(
-                    "Updated existing movie instance to status: %s",
-                    current_instance.status,
-                )
-            else:
-                logger.debug(
-                    "No changes detected for existing movie instance: %s",
-                    current_instance.item,
-                )
-        else:
-            app.models.Movie.objects.create(
-                item=movie_item,
-                user=user,
-                progress=progress,
-                status=Status.COMPLETED.value
-                if movie_played
-                else Status.IN_PROGRESS.value,
-                start_date=now if not movie_played else None,
-                end_date=now if movie_played else None,
-            )
-            logger.info(
-                "Created new movie instance with status: %s",
-                Status.COMPLETED.value if movie_played else Status.IN_PROGRESS.value,
-            )
-
-    def _handle_tv_episode(
-        self,
-        media_id,
-        season_number,
-        episode_number,
-        payload,
-        user,
-    ):
-        """Handle TV episode playback event."""
-        tv_metadata = app.providers.tmdb.tv_with_seasons(media_id, [season_number])
-        season_metadata = tv_metadata[f"season/{season_number}"]
-
-        tv_item, _ = app.models.Item.objects.get_or_create(
-            media_id=media_id,
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.TV.value,
-            defaults={
-                "title": tv_metadata["title"],
-                "image": tv_metadata["image"],
-            },
+        is_played = self._is_played(payload)
+        self._update_or_create_instance(
+            app.models.Movie,
+            movie_item,
+            user,
+            progress=1 if is_played else 0,
+            is_completed=is_played,
+            label="movie",
         )
-
-        tv_instance, tv_created = app.models.TV.objects.get_or_create(
-            item=tv_item,
-            user=user,
-            defaults={"status": Status.IN_PROGRESS.value},
-        )
-
-        if tv_created:
-            logger.info("Created new TV instance: %s", tv_metadata["title"])
-        elif tv_instance.status != Status.IN_PROGRESS.value:
-            tv_instance.status = Status.IN_PROGRESS.value
-            tv_instance.save()
-            logger.info(
-                "Updated TV instance status to %s: %s",
-                Status.IN_PROGRESS.value,
-                tv_metadata["title"],
-            )
-
-        season_item, _ = app.models.Item.objects.get_or_create(
-            media_id=media_id,
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.SEASON.value,
-            season_number=season_number,
-            defaults={
-                "title": tv_metadata["title"],
-                "image": season_metadata["image"],
-            },
-        )
-
-        season_instance, season_created = app.models.Season.objects.get_or_create(
-            item=season_item,
-            user=user,
-            related_tv=tv_instance,
-            defaults={"status": Status.IN_PROGRESS.value},
-        )
-
-        if season_created:
-            logger.info(
-                "Created new season instance: %s S%02d",
-                tv_metadata["title"],
-                season_number,
-            )
-        elif season_instance.status != Status.IN_PROGRESS.value:
-            season_instance.status = Status.IN_PROGRESS.value
-            season_instance.save()
-            logger.info(
-                "Updated season instance status to %s: %s S%02d",
-                Status.IN_PROGRESS.value,
-                tv_metadata["title"],
-                season_number,
-            )
-
-        episode_item = season_instance.get_episode_item(episode_number, season_metadata)
-
-        if self._is_played(payload):
-            now = timezone.now().replace(second=0, microsecond=0)
-            latest_episode = (
-                app.models.Episode.objects.filter(
-                    item=episode_item,
-                    related_season=season_instance,
-                )
-                .order_by("-end_date")
-                .first()
-            )
-
-            should_create = True
-            # check for duplicate episode records,
-            # sometimes webhooks are triggered multiple times #689
-            if latest_episode and latest_episode.end_date:
-                time_diff = abs((now - latest_episode.end_date).total_seconds())
-                threshold = 5
-                if time_diff < threshold:
-                    should_create = False
-                    logger.debug(
-                        "Skipping duplicate episode record "
-                        "(time difference: %d seconds): %s S%02dE%02d",
-                        time_diff,
-                        tv_metadata["title"],
-                        season_number,
-                        episode_number,
-                    )
-
-            if should_create:
-                app.models.Episode.objects.create(
-                    item=episode_item,
-                    related_season=season_instance,
-                    end_date=now,
-                )
-                logger.info(
-                    "Marked episode as played: %s S%02dE%02d",
-                    tv_metadata["title"],
-                    season_number,
-                    episode_number,
-                )
-        else:
-            logger.debug(
-                "Episode not marked as played: %s S%02dE%02d",
-                tv_metadata["title"],
-                season_number,
-                episode_number,
-            )
 
     def _handle_anime(self, media_id, episode_number, payload, user):
         """Handle anime playback event."""
@@ -419,50 +255,170 @@ class BaseWebhookProcessor:
             },
         )
 
-        anime_instances = app.models.Anime.objects.filter(item=anime_item, user=user)
-        current_instance = anime_instances.first()
-
         if not self._is_played(payload):
             episode_number = max(0, episode_number - 1)
 
-        now = timezone.now().replace(second=0, microsecond=0)
         is_completed = episode_number == anime_metadata["max_progress"]
+        self._update_or_create_instance(
+            app.models.Anime,
+            anime_item,
+            user,
+            progress=episode_number,
+            is_completed=is_completed,
+            label="anime",
+        )
+
+    def _update_or_create_instance(
+        self, model, item, user, *, progress, is_completed, label
+    ):
+        """Update existing instance or create new one for movie/anime."""
+        current = model.objects.filter(item=item, user=user).first()
+        now = timezone.now().replace(second=0, microsecond=0)
         status = Status.COMPLETED.value if is_completed else Status.IN_PROGRESS.value
 
-        if current_instance and current_instance.status != Status.COMPLETED.value:
-            current_instance.progress = episode_number
-
+        if current and current.status != Status.COMPLETED.value:
+            current.progress = progress
             if is_completed:
-                current_instance.end_date = now
-                current_instance.status = status
+                current.end_date = now
+                current.status = status
+            elif current.status != Status.IN_PROGRESS.value:
+                current.start_date = now
+                current.status = status
 
-            elif current_instance.status != Status.IN_PROGRESS.value:
-                current_instance.start_date = now
-                current_instance.status = status
-
-            if current_instance.tracker.changed():
-                current_instance.save()
+            if current.tracker.changed():
+                current.save()
                 logger.info(
-                    "Updated existing anime instance to status: %s with progress %d",
-                    current_instance.status,
-                    episode_number,
+                    "Updated existing %s instance to status: %s", label, current.status
                 )
             else:
                 logger.debug(
-                    "No changes detected for existing anime instance: %s",
-                    current_instance.item,
+                    "No changes detected for existing %s instance: %s",
+                    label,
+                    current.item,
                 )
         else:
-            app.models.Anime.objects.create(
-                item=anime_item,
+            model.objects.create(
+                item=item,
                 user=user,
-                progress=episode_number,
+                progress=progress,
                 status=status,
                 start_date=now if not is_completed else None,
                 end_date=now if is_completed else None,
             )
+            logger.info("Created new %s instance with status: %s", label, status)
+
+    def _ensure_in_progress(self, instance, created, title, label=""):
+        """Ensure an instance is in IN_PROGRESS status."""
+        if created:
+            logger.info("Created new %s instance: %s", label, title)
+        elif instance.status != Status.IN_PROGRESS.value:
+            instance.status = Status.IN_PROGRESS.value
+            instance.save()
             logger.info(
-                "Created new anime instance with status: %s and progress %d",
-                status,
+                "Updated %s instance status to %s: %s",
+                label,
+                Status.IN_PROGRESS.value,
+                title,
+            )
+
+    def _handle_tv_episode(
+        self, media_id, season_number, episode_number, payload, user
+    ):
+        """Handle TV episode playback event."""
+        tv_metadata = app.providers.tmdb.tv_with_seasons(media_id, [season_number])
+        season_metadata = tv_metadata[f"season/{season_number}"]
+        title = tv_metadata["title"]
+
+        tv_item, _ = app.models.Item.objects.get_or_create(
+            media_id=media_id,
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.TV.value,
+            defaults={"title": title, "image": tv_metadata["image"]},
+        )
+        tv_instance, tv_created = app.models.TV.objects.get_or_create(
+            item=tv_item,
+            user=user,
+            defaults={"status": Status.IN_PROGRESS.value},
+        )
+        self._ensure_in_progress(tv_instance, tv_created, title, "TV")
+
+        season_item, _ = app.models.Item.objects.get_or_create(
+            media_id=media_id,
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            season_number=season_number,
+            defaults={"title": title, "image": season_metadata["image"]},
+        )
+        season_instance, season_created = app.models.Season.objects.get_or_create(
+            item=season_item,
+            user=user,
+            related_tv=tv_instance,
+            defaults={"status": Status.IN_PROGRESS.value},
+        )
+        self._ensure_in_progress(
+            season_instance,
+            season_created,
+            f"{title} S{season_number:02d}",
+            "season",
+        )
+
+        episode_item = season_instance.get_episode_item(episode_number, season_metadata)
+        self._record_episode_play(
+            episode_item,
+            season_instance,
+            payload,
+            title,
+            season_number,
+            episode_number,
+        )
+
+    def _record_episode_play(
+        self,
+        episode_item,
+        season_instance,
+        payload,
+        title,
+        season_number,
+        episode_number,
+    ):
+        """Record episode play event, checking for duplicates."""
+        if not self._is_played(payload):
+            logger.debug(
+                "Episode not marked as played: %s S%02dE%02d",
+                title,
+                season_number,
                 episode_number,
             )
+            return
+
+        now = timezone.now().replace(second=0, microsecond=0)
+        latest = (
+            app.models.Episode.objects.filter(
+                item=episode_item, related_season=season_instance
+            )
+            .order_by("-end_date")
+            .first()
+        )
+
+        if latest and latest.end_date:
+            time_diff = abs((now - latest.end_date).total_seconds())
+            if time_diff < 5:
+                logger.debug(
+                    "Skipping duplicate episode record "
+                    "(time difference: %d seconds): %s S%02dE%02d",
+                    time_diff,
+                    title,
+                    season_number,
+                    episode_number,
+                )
+                return
+
+        app.models.Episode.objects.create(
+            item=episode_item, related_season=season_instance, end_date=now
+        )
+        logger.info(
+            "Marked episode as played: %s S%02dE%02d",
+            title,
+            season_number,
+            episode_number,
+        )
