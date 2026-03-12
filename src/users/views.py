@@ -24,6 +24,37 @@ from users.models import (
 logger = logging.getLogger(__name__)
 
 
+def _handle_username_update(request):
+    form = UserUpdateForm(request.POST, instance=request.user)
+    if not form.is_valid():
+        logger.warning(
+            "Failed username change for user: %s - %s",
+            request.user.username,
+            list(form.errors.keys()),
+        )
+        return form, None
+    form.save()
+    messages.success(request, "Your username has been updated!")
+    logger.info("Successful username change for user: %s", request.user.username)
+    return form, redirect("account")
+
+
+def _handle_password_update(request):
+    form = PasswordChangeForm(user=request.user, data=request.POST)
+    if not form.is_valid():
+        logger.warning(
+            "Failed password change for user: %s - %s",
+            request.user.username,
+            list(form.errors.keys()),
+        )
+        return form, None
+    user = form.save()
+    update_session_auth_hash(request, user)
+    messages.success(request, "Your password has been updated!")
+    logger.info("Successful password change for user: %s", request.user.username)
+    return form, redirect("account")
+
+
 @require_http_methods(["GET", "POST"])
 def account(request):
     """Update the user's account and import/export data."""
@@ -31,81 +62,42 @@ def account(request):
     password_form = PasswordChangeForm(user=request.user)
 
     if request.method == "POST":
-        # Handle username update
         if "username" in request.POST:
-            user_form = UserUpdateForm(request.POST, instance=request.user)
-
-            if user_form.is_valid():
-                user_form.save()
-                messages.success(request, "Your username has been updated!")
-                logger.info(
-                    "Successful username change for user: %s",
-                    request.user.username,
-                )
-                return redirect("account")
-            logger.warning(
-                "Failed username change for user: %s - %s",
-                request.user.username,
-                list(user_form.errors.keys()),
-            )
-
-        # Handle password update
+            user_form, response = _handle_username_update(request)
+            if response:
+                return response
         elif any(
             key in request.POST
             for key in ["old_password", "new_password1", "new_password2"]
         ):
-            password_form = PasswordChangeForm(user=request.user, data=request.POST)
+            password_form, response = _handle_password_update(request)
+            if response:
+                return response
 
-            if password_form.is_valid():
-                user = password_form.save()
-                update_session_auth_hash(
-                    request,
-                    user,
-                )
-                messages.success(request, "Your password has been updated!")
-                logger.info(
-                    "Successful password change for user: %s",
-                    request.user.username,
-                )
-                return redirect("account")
-            logger.warning(
-                "Failed password change for user: %s - %s",
-                request.user.username,
-                list(password_form.errors.keys()),
-            )
-
-    context = {
-        "user_form": user_form,
-        "password_form": password_form,
-    }
-
-    return render(request, "users/account.html", context)
+    return render(
+        request,
+        "users/account.html",
+        {"user_form": user_form, "password_form": password_form},
+    )
 
 
 @require_http_methods(["GET", "POST"])
 def notifications(request):
     """Render the notifications settings page."""
-    if request.method == "POST":
-        form = NotificationSettingsForm(request.POST, instance=request.user)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Notification settings updated successfully!")
-        else:
-            for errors in form.errors.values():
-                for error in errors:
-                    messages.error(request, f"{error}")
+    if request.method == "GET":
+        form = NotificationSettingsForm(instance=request.user)
+        return render(request, "users/notifications.html", {"form": form})
 
+    form = NotificationSettingsForm(request.POST, instance=request.user)
+    if not form.is_valid():
+        for errors in form.errors.values():
+            for error in errors:
+                messages.error(request, error)
         return redirect("notifications")
 
-    form = NotificationSettingsForm(instance=request.user)
-
-    return render(
-        request,
-        "users/notifications.html",
-        {
-            "form": form,
-        },
-    )
+    form.save()
+    messages.success(request, "Notification settings updated successfully!")
+    return redirect("notifications")
 
 
 @require_GET
@@ -140,38 +132,30 @@ def search_items(request):
     )
 
 
-@require_POST
-def exclude_item(request):
-    """Exclude an item from notifications."""
-    item_id = request.POST["item_id"]
-    item = get_object_or_404(Item, id=item_id)
-    request.user.notification_excluded_items.add(item)
-
-    # Return the updated excluded items list
-    excluded_items = request.user.notification_excluded_items.all()
-
+def _toggle_excluded_item(request, add):
+    item = get_object_or_404(Item, id=request.POST["item_id"])
+    m2m = request.user.notification_excluded_items
+    if add:
+        m2m.add(item)
+    else:
+        m2m.remove(item)
     return render(
         request,
         "users/components/excluded_items.html",
-        {"excluded_items": excluded_items},
+        {"excluded_items": m2m.all()},
     )
+
+
+@require_POST
+def exclude_item(request):
+    """Exclude an item from notifications."""
+    return _toggle_excluded_item(request, add=True)
 
 
 @require_POST
 def include_item(request):
     """Remove an item from the exclusion list."""
-    item_id = request.POST["item_id"]
-    item = get_object_or_404(Item, id=item_id)
-    request.user.notification_excluded_items.remove(item)
-
-    # Return the updated excluded items list
-    excluded_items = request.user.notification_excluded_items.all()
-
-    return render(
-        request,
-        "users/components/excluded_items.html",
-        {"excluded_items": excluded_items},
-    )
+    return _toggle_excluded_item(request, add=False)
 
 
 @require_GET
@@ -213,92 +197,75 @@ def test_notification(request):
     return redirect("notifications")
 
 
-@require_http_methods(["GET", "POST"])
-def preferences(request):
-    """Render the preferences settings page."""
-    all_types = [mt for mt in MediaTypes.values if mt != MediaTypes.EPISODE.value]
-    custom_order = request.user.media_type_order
-    if custom_order:
-        seen = set()
-        ordered = []
-        for mt in custom_order:
-            if mt in all_types and mt not in seen:
-                ordered.append(mt)
-                seen.add(mt)
-        ordered.extend(mt for mt in all_types if mt not in seen)
-    else:
-        ordered = all_types
-
-    if request.method == "GET":
-        return render(
-            request,
-            "users/preferences.html",
-            {
-                "media_types": ordered,
-                "quick_watch_date_choices": QuickWatchDateChoices.choices,
-                "home_truncation_choices": HomeTruncationChoices.choices,
-                "date_format_choices": DateFormatChoices.choices,
-                "time_format_choices": TimeFormatChoices.choices,
-                "color_scheme_choices": request.user.COLOR_SCHEME_CHOICES,
-            },
-        )
-
-    # Prevent demo users from updating preferences
-    if request.user.is_demo:
-        messages.error(request, "This section is view-only for demo accounts.")
-        return redirect("preferences")
-
-    # Process form submission
-    request.user.clickable_media_cards = "clickable_media_cards" in request.POST
-    request.user.quick_watch_date = request.POST.get(
+def _update_preferences_from_post(user, post_data, all_types):
+    user.clickable_media_cards = "clickable_media_cards" in post_data
+    user.quick_watch_date = post_data.get(
         "quick_watch_date",
         QuickWatchDateChoices.CURRENT_DATE,
     )
-    request.user.home_truncation = request.POST.get(
+    user.home_truncation = post_data.get(
         "home_truncation",
         HomeTruncationChoices.ALL,
     )
-    request.user.progress_bar = "progress_bar" in request.POST
-    request.user.hide_completed_recommendations = (
-        "hide_completed_recommendations" in request.POST
-    )
-    request.user.hide_zero_rating = "hide_zero_rating" in request.POST
-    color_scheme = request.POST.get("color_scheme", "charcoal")
-    valid_schemes = {c[0] for c in request.user.COLOR_SCHEME_CHOICES}
+    user.progress_bar = "progress_bar" in post_data
+    user.hide_completed_recommendations = "hide_completed_recommendations" in post_data
+    user.hide_zero_rating = "hide_zero_rating" in post_data
+
+    color_scheme = post_data.get("color_scheme", "charcoal")
+    valid_schemes = {c[0] for c in user.COLOR_SCHEME_CHOICES}
     if color_scheme in valid_schemes:
-        request.user.color_scheme = color_scheme
-    request.user.date_format = request.POST.get(
-        "date_format",
-        DateFormatChoices.ISO,
-    )
-    request.user.time_format = request.POST.get(
-        "time_format",
-        TimeFormatChoices.HOUR_24,
-    )
-    media_types_checked = request.POST.getlist("media_types_checkboxes")
+        user.color_scheme = color_scheme
 
-    # Update user preferences for each media type
+    user.date_format = post_data.get("date_format", DateFormatChoices.ISO)
+    user.time_format = post_data.get("time_format", TimeFormatChoices.HOUR_24)
+
+    media_types_checked = post_data.getlist("media_types_checkboxes")
     for media_type in all_types:
-        setattr(
-            request.user,
-            f"{media_type}_enabled",
-            media_type in media_types_checked,
-        )
+        setattr(user, f"{media_type}_enabled", media_type in media_types_checked)
 
-    # Save media type order
-    order_json = request.POST.get("media_type_order", "")
+    order_json = post_data.get("media_type_order", "")
     if order_json:
         import contextlib  # noqa: PLC0415
         import json  # noqa: PLC0415
 
         with contextlib.suppress(json.JSONDecodeError, TypeError):
-            request.user.media_type_order = json.loads(order_json)
+            user.media_type_order = json.loads(order_json)
 
-    # Save changes and redirect
-    request.user.save()
-    messages.success(request, "Settings updated.")
+    user.save()
 
-    return redirect("preferences")
+
+@require_http_methods(["GET", "POST"])
+def preferences(request):
+    """Render the preferences settings page."""
+    all_types = [mt for mt in MediaTypes.values if mt != MediaTypes.EPISODE.value]
+
+    if request.method == "POST":
+        if request.user.is_demo:
+            messages.error(request, "This section is view-only for demo accounts.")
+            return redirect("preferences")
+        _update_preferences_from_post(request.user, request.POST, all_types)
+        messages.success(request, "Settings updated.")
+        return redirect("preferences")
+
+    seen = set()
+    ordered = []
+    for mt in list(request.user.media_type_order or []) + all_types:
+        if mt not in seen and mt in all_types:
+            ordered.append(mt)
+            seen.add(mt)
+
+    return render(
+        request,
+        "users/preferences.html",
+        {
+            "media_types": ordered,
+            "quick_watch_date_choices": QuickWatchDateChoices.choices,
+            "home_truncation_choices": HomeTruncationChoices.choices,
+            "date_format_choices": DateFormatChoices.choices,
+            "time_format_choices": TimeFormatChoices.choices,
+            "color_scheme_choices": request.user.COLOR_SCHEME_CHOICES,
+        },
+    )
 
 
 @require_GET

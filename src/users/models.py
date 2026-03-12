@@ -585,43 +585,23 @@ class User(AbstractUser):
             ),
         ]
 
-    def update_preference(self, field_name, new_value):
-        """
-        Update user preference if the new value is valid and different from current.
-
-        Args:
-            field_name: The name of the field to update
-            new_value: The new value to set
-
-        Returns:
-            The value that was set (or the original value if invalid)
-        """
-        # If no new value provided, return current value
-        if new_value is None:
-            return getattr(self, field_name)
-
-        # Special case for last_search_type
-        if field_name == "last_search_type" and new_value not in VALID_SEARCH_TYPES:
-            return getattr(self, field_name)
-
+    def _is_valid_preference(self, field_name, new_value):
+        if field_name == "last_search_type":
+            return new_value in VALID_SEARCH_TYPES
         field = self._meta.get_field(field_name)
-        # Check if the field has choices
-        if hasattr(field, "choices") and field.choices:
-            # Get valid values from field choices
-            valid_values = [choice[0] for choice in field.choices]
+        if not (hasattr(field, "choices") and field.choices):
+            return True
+        return new_value in {choice[0] for choice in field.choices}
 
-            # If the new value is not valid, return current value
-            if new_value not in valid_values:
-                return getattr(self, field_name)
+    def update_preference(self, field_name, new_value):
+        """Update user preference if the new value is valid and different."""
+        if new_value is None or not self._is_valid_preference(field_name, new_value):
+            return getattr(self, field_name)
 
-        # Get current value
         current_value = getattr(self, field_name)
-
-        # Update if different
         if new_value != current_value:
             setattr(self, field_name, new_value)
             self.save(update_fields=[field_name])
-
         return new_value
 
     def update_home_type_filter(self, raw_param):
@@ -664,23 +644,14 @@ class User(AbstractUser):
     def get_enabled_media_types(self):
         """Return a list of enabled media type values based on user preferences."""
         skip = {MediaTypes.EPISODE.value, MediaTypes.SEASON.value}
-        custom_order = self.media_type_order or []
         ordered = []
         seen = set()
-
-        for mt in custom_order:
+        for mt in list(self.media_type_order or []) + list(MediaTypes.values):
             if mt in skip or mt in seen:
                 continue
+            seen.add(mt)
             if getattr(self, f"{mt}_enabled", False):
                 ordered.append(mt)
-                seen.add(mt)
-
-        for mt in MediaTypes.values:
-            if mt in skip or mt in seen:
-                continue
-            if getattr(self, f"{mt}_enabled", False):
-                ordered.append(mt)
-
         return ordered
 
     def get_active_media_types(self):

@@ -1,3 +1,5 @@
+import re
+
 from django import forms
 from django.conf import settings
 
@@ -25,42 +27,32 @@ def get_form_class(media_type):
     return globals().get(class_name, None)
 
 
+_TIME_RE = re.compile(
+    r"^(\d+)$"
+    r"|^(\d+):(\d+)$"
+    r"|^(\d+)\s*h\s*(?:(\d+)\s*min)?$"
+    r"|^(\d+)\s*min$"
+)
+
+
 class CustomDurationField(forms.CharField):
     """Custom form field for duration input that accepts multiple time formats."""
 
     def _parse_hours_minutes(self, value):
-        """Parse hours and minutes from various time formats.
-
-        Supported formats:
-        - Plain number (hours only): "5"
-        - HH:MM: "5:30"
-        - Nh Nmin: "5h 30min"
-        - NhNmin: "5h30min"
-        - Nmin: "30min"
-        - Nh: "5h"
-        """
-        if value.isdigit():  # hours only
-            return int(value), 0
-
-        if ":" in value:  # hh:mm format
-            hours, minutes = value.split(":")
-            return int(hours), int(minutes)
-
-        if " " in value:  # [n]h [n]min format
-            hours, minutes = value.split(" ")
-            return int(hours.strip("h")), int(minutes.strip("min"))
-
-        if "h" in value and "min" in value:  # [n]h[n]min format
-            hours, minutes = value.split("h")
-            return int(hours), int(minutes.strip("min"))
-
-        if "min" in value:  # [n]min format
-            return 0, int(value.strip("min"))
-
-        if "h" in value:  # [n]h format
-            return int(value.strip("h")), 0
-        msg = "Invalid time format"
-        raise ValueError(msg)
+        m = _TIME_RE.fullmatch(value.strip())
+        if not m:
+            msg = (
+                "Invalid time played format. "
+                "Please use hh:mm, 5h 30min, or 5h30min format."
+            )
+            raise forms.ValidationError(msg)
+        if m.group(1) is not None:
+            return int(m.group(1)), 0
+        if m.group(2) is not None:
+            return int(m.group(2)), int(m.group(3))
+        if m.group(6) is not None:
+            return 0, int(m.group(6))
+        return int(m.group(4)), int(m.group(5) or 0)
 
     def _validate_minutes(self, minutes):
         """Validate that minutes are within acceptable range."""
@@ -74,17 +66,9 @@ class CustomDurationField(forms.CharField):
         cleaned_value = super().clean(value)
         if not cleaned_value:
             return 0
-
-        try:
-            hours, minutes = self._parse_hours_minutes(cleaned_value)
-            self._validate_minutes(minutes)
-            return hours * 60 + minutes
-        except ValueError as e:
-            msg = (
-                "Invalid time played format. "
-                "Please use hh:mm, 5h 30min, or 5h30min format."
-            )
-            raise forms.ValidationError(msg) from e
+        hours, minutes = self._parse_hours_minutes(cleaned_value)
+        self._validate_minutes(minutes)
+        return hours * 60 + minutes
 
 
 class ManualItemForm(forms.ModelForm):
@@ -136,39 +120,37 @@ class ManualItemForm(forms.ModelForm):
         self.fields["image"].required = False
         self.fields["title"].required = False
 
+    def _validate_parent(self, cleaned_data, media_type):
+        if media_type == MediaTypes.SEASON.value:
+            parent = cleaned_data.get("parent_tv")
+            if not parent:
+                self.add_error(
+                    "parent_tv",
+                    "Parent TV show is required for seasons.",
+                )
+                return
+            cleaned_data["title"] = parent.item.title
+            cleaned_data["episode_number"] = None
+        else:
+            parent = cleaned_data.get("parent_season")
+            if not parent:
+                self.add_error(
+                    "parent_season",
+                    "Parent season is required for episodes.",
+                )
+                return
+            cleaned_data["title"] = parent.item.title
+            cleaned_data["season_number"] = parent.item.season_number
+
     def clean(self):
         """Validate the form."""
         cleaned_data = super().clean()
-        image = cleaned_data.get("image")
+        cleaned_data["image"] = cleaned_data.get("image") or settings.IMG_NONE
         media_type = cleaned_data.get("media_type")
 
-        if not image:
-            cleaned_data["image"] = settings.IMG_NONE
-
-        # Title not required for season/episode
-        if media_type in [MediaTypes.SEASON.value, MediaTypes.EPISODE.value]:
-            if media_type == MediaTypes.SEASON.value:
-                parent = cleaned_data.get("parent_tv")
-                if not parent:
-                    self.add_error(
-                        "parent_tv",
-                        "Parent TV show is required for seasons.",
-                    )
-                    return cleaned_data
-                cleaned_data["title"] = parent.item.title
-                cleaned_data["episode_number"] = None
-            else:  # episode
-                parent = cleaned_data.get("parent_season")
-                if not parent:
-                    self.add_error(
-                        "parent_season",
-                        "Parent season is required for episodes.",
-                    )
-                    return cleaned_data
-                cleaned_data["title"] = parent.item.title
-                cleaned_data["season_number"] = parent.item.season_number
+        if media_type in (MediaTypes.SEASON.value, MediaTypes.EPISODE.value):
+            self._validate_parent(cleaned_data, media_type)
         else:
-            # For standalone media, title is required
             if not cleaned_data.get("title"):
                 self.add_error("title", "Title is required for this media type.")
             cleaned_data["season_number"] = None
