@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from datetime import UTC
 
 import apprise
@@ -203,44 +204,34 @@ def get_all_user_tracking_data(users, target_events, user_exclusions):
     """Get all user tracking data for the specified users and events."""
     user_ids = [user.id for user in users]
 
-    # Group items by media type
-    items_by_type = {}
+    items_by_type = defaultdict(list)
     season_items = []
     for event in target_events.values():
         media_type = event.item.media_type
-
         if media_type == MediaTypes.SEASON.value:
             season_items.append(event.item)
-            continue
+        else:
+            items_by_type[media_type].append(event.item.id)
 
-        if media_type not in items_by_type:
-            items_by_type[media_type] = []
-
-        items_by_type[media_type].append(event.item.id)
-
-    # Pre-fetch all tracking data for each media type
-    tracking_data = {}
-
-    for media_type, item_ids_for_type in items_by_type.items():
-        media_model = apps.get_model(
-            app_label="app",
-            model_name=media_type.capitalize(),
-        )
-
-        # Get all user-item combinations for this media type
-        media_objects = media_model.objects.filter(
-            user_id__in=user_ids,
-            item_id__in=item_ids_for_type,
-        ).select_related("item")
-
-        # Store in lookup format: (user_id, item_id) -> media_object
-        for media_obj in media_objects:
-            key = (media_obj.user_id, media_obj.item_id)
-            tracking_data[key] = media_obj
-
-    # Handle TV seasons separately
+    tracking_data = _fetch_media_tracking(items_by_type, user_ids)
     tv_tracking_data = get_tv_tracking_data(users, season_items, user_exclusions)
     tracking_data.update(tv_tracking_data)
+
+    return tracking_data
+
+
+def _fetch_media_tracking(items_by_type, user_ids):
+    tracking_data = {}
+    for media_type, item_ids in items_by_type.items():
+        media_model = apps.get_model(
+            app_label="app", model_name=media_type.capitalize(),
+        )
+        media_objects = media_model.objects.filter(
+            user_id__in=user_ids, item_id__in=item_ids,
+        ).select_related("item")
+
+        for media_obj in media_objects:
+            tracking_data[(media_obj.user_id, media_obj.item_id)] = media_obj
 
     return tracking_data
 
@@ -281,22 +272,16 @@ def build_tv_lookups(user_ids, media_ids, user_exclusions):
         item__media_id__in=media_ids,
     ).select_related("item")
 
-    tv_lookup = {}  # (user_id, media_id) -> TV object
-    season_lookup = {}  # (user_id, media_id) -> list of Season objects
+    tv_lookup = {
+        (tv.user_id, tv.item.media_id): tv
+        for tv in tv_shows
+        if tv.item.id not in user_exclusions.get(tv.user.id, set())
+    }
 
-    # Build TV lookup
-    for tv in tv_shows:
-        if tv.item.id not in user_exclusions.get(tv.user.id, set()):
-            key = (tv.user_id, tv.item.media_id)
-            tv_lookup[key] = tv
-
-    # Build season lookup
+    season_lookup = defaultdict(list)
     for season in seasons:
         if season.item.id not in user_exclusions.get(season.user.id, set()):
-            key = (season.user_id, season.item.media_id)
-            if key not in season_lookup:
-                season_lookup[key] = []
-            season_lookup[key].append(season)
+            season_lookup[(season.user_id, season.item.media_id)].append(season)
 
     return tv_lookup, season_lookup
 
@@ -404,54 +389,33 @@ def deliver_notifications(user_releases, users, title):
 
 
 def format_notification(releases):
-    """Format notification text for releases.
-
-    Args:
-        releases: List of Event objects to include in the notification
-
-    Returns:
-        Formatted notification text as a string
-    """
-    # Group releases by media type
-    releases_by_type = {}
+    """Format notification text for releases."""
+    releases_by_type = defaultdict(list)
     for event in releases:
-        media_type = event.item.media_type
-        if media_type not in releases_by_type:
-            releases_by_type[media_type] = []
-        releases_by_type[media_type].append(event)
+        releases_by_type[event.item.media_type].append(event)
 
-    # Format the notification body
-    notification_body = []
-
-    notification_body.append("--------------------------------------------")
-
-    # Add releases grouped by media type
+    lines = ["--------------------------------------------"]
     for media_type, media_events in releases_by_type.items():
-        icon = app_tags.unicode_icon(media_type)
+        lines.append(_format_type_header(media_type))
+        lines.extend(_format_event(e) for e in media_events)
+        lines.append("")
 
-        # Add a header for each media type with icon
-        if media_type == MediaTypes.SEASON.value:
-            notification_body.append(f"{icon}  TV Shows")
-        else:
-            label = app_tags.media_type_readable_plural(media_type)
-            notification_body.append(f"{icon}  {label}")
+    lines.append("Enjoy your media!")
+    return "\n".join(lines)
 
-        for event in media_events:
-            if event.is_sentinel_time:
-                # Don't show time for sentinel times
-                notification_body.append(f"  • {event}")
-            else:
-                # Convert to local timezone and format
-                local_dt = timezone.localtime(event.datetime)
-                time_str = local_dt.strftime("%H:%M")
-                notification_body.append(f"  • {event} ({time_str})")
 
-        # Add a blank line between media types
-        notification_body.append("")
+def _format_type_header(media_type):
+    icon = app_tags.unicode_icon(media_type)
+    if media_type == MediaTypes.SEASON.value:
+        return f"{icon}  TV Shows"
+    return f"{icon}  {app_tags.media_type_readable_plural(media_type)}"
 
-    notification_body.append("Enjoy your media!")
 
-    return "\n".join(notification_body)
+def _format_event(event):
+    if event.is_sentinel_time:
+        return f"  • {event}"
+    local_dt = timezone.localtime(event.datetime)
+    return f"  • {event} ({local_dt.strftime('%H:%M')})"
 
 
 def send_user_notification(user, urls, title, body):

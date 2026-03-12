@@ -13,7 +13,7 @@ class EventTaskTests(TestCase):
             password="12345",
         )
 
-    @patch("events.calendar.fetch_releases")
+    @patch("events.calendar_processors.fetch_releases")
     def test_reload_calendar_with_user(self, mock_fetch):
         from events.tasks import reload_calendar
 
@@ -25,7 +25,7 @@ class EventTaskTests(TestCase):
         )
         self.assertEqual(result, "done")
 
-    @patch("events.calendar.fetch_releases")
+    @patch("events.calendar_processors.fetch_releases")
     def test_reload_calendar_without_user(self, mock_fetch):
         from events.tasks import reload_calendar
 
