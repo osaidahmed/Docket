@@ -93,6 +93,25 @@ def _filter_watched_anime(request, data):
     ]
 
 
+def _annotate_tmdb_airing(data, media_type, category):
+    """Mark TMDB results with is_ongoing based on airing category."""
+    if media_type not in TMDB_TYPES or not data.get("results"):
+        return
+    is_airing = config.is_airing_category(category)
+    for result in data["results"]:
+        result.setdefault("is_ongoing", is_airing)
+
+
+def _apply_hide_watched_anime(request, media_type, data):
+    """Filter out manga matching user's watched anime if requested."""
+    if media_type != MediaTypes.MANGA.value:
+        return False
+    if request.GET.get("hide_watched_anime") != "1":
+        return False
+    _filter_watched_anime(request, data)
+    return True
+
+
 @require_GET
 def explore_type(request, media_type):
     """Browse media of a specific type by category, with optional filters."""
@@ -110,7 +129,6 @@ def explore_type(request, media_type):
 
     filter_definitions = config.get_explore_filters(media_type)
     active_filters = _extract_active_filters(request, filter_definitions)
-    has_active_filters = bool(active_filters)
 
     resolved_filters = (
         _resolve_filter_options(filter_definitions) if filter_definitions else None
@@ -120,17 +138,8 @@ def explore_type(request, media_type):
         request, media_type, category, active_filters, page
     )
 
-    if media_type in TMDB_TYPES and data.get("results"):
-        is_airing = config.is_airing_category(category)
-        for result in data["results"]:
-            result.setdefault("is_ongoing", is_airing)
-
-    hide_watched_anime = (
-        media_type == MediaTypes.MANGA.value
-        and request.GET.get("hide_watched_anime") == "1"
-    )
-    if hide_watched_anime:
-        _filter_watched_anime(request, data)
+    _annotate_tmdb_airing(data, media_type, category)
+    hide_watched_anime = _apply_hide_watched_anime(request, media_type, data)
 
     if data.get("results"):
         data["results"] = helpers.enrich_items_with_user_data(
@@ -155,7 +164,7 @@ def explore_type(request, media_type):
         ),
         "filter_definitions": resolved_filters,
         "active_filters": active_filters,
-        "has_active_filters": has_active_filters,
+        "has_active_filters": bool(active_filters),
         "is_tmdb_type": media_type in TMDB_TYPES,
     }
 

@@ -26,30 +26,16 @@ def _create_media_from_search(request, status, *, caught_up=False):
     media_type = request.POST["media_type"]
 
     existing = (
-        BasicMedia.objects.filter_media(
-            request.user,
-            media_id,
-            media_type,
-            source,
-        )
+        BasicMedia.objects.filter_media(request.user, media_id, media_type, source)
         .select_related("item")
         .first()
     )
 
+    item_data = {"media_id": media_id, "source": source, "media_type": media_type}
+
     if existing:
-        return render(
-            request,
-            "app/components/search_action.html",
-            {
-                "item": {
-                    "media_id": media_id,
-                    "source": source,
-                    "media_type": media_type,
-                    "title": existing.item.title,
-                },
-                "media": existing,
-            },
-        )
+        item_data["title"] = existing.item.title
+        return _render_search_action(request, item_data, existing)
 
     try:
         item = Item.objects.get(
@@ -91,19 +77,8 @@ def _create_media_from_search(request, status, *, caught_up=False):
         caught_up=caught_up,
     )
 
-    return render(
-        request,
-        "app/components/search_action.html",
-        {
-            "item": {
-                "media_id": media_id,
-                "source": source,
-                "media_type": media_type,
-                "title": item.title,
-            },
-            "media": instance,
-        },
-    )
+    item_data["title"] = item.title
+    return _render_search_action(request, item_data, instance)
 
 
 @require_POST
@@ -133,55 +108,29 @@ def quick_rewatch(request):
     season_number = request.POST.get("season_number") or None
     source_context = request.POST.get("source_context", "search")
 
-    active_statuses = [
-        Status.IN_PROGRESS.value,
-        Status.PLANNING.value,
-        Status.PAUSED.value,
-    ]
+    item_data = {"media_id": media_id, "source": source, "media_type": media_type}
 
-    active_qs = (
+    active = [Status.IN_PROGRESS.value, Status.PLANNING.value, Status.PAUSED.value]
+    existing_active = (
         BasicMedia.objects.filter_media(
-            request.user,
-            media_id,
-            media_type,
-            source,
-            season_number=season_number,
+            request.user, media_id, media_type, source, season_number=season_number
         )
-        .filter(status__in=active_statuses)
+        .filter(status__in=active)
         .select_related("item")
+        .first()
     )
-
-    existing_active = active_qs.first()
     if existing_active:
-        return render(
-            request,
-            "app/components/search_action.html",
-            {
-                "item": {
-                    "media_id": media_id,
-                    "source": source,
-                    "media_type": media_type,
-                    "title": existing_active.item.title,
-                },
-                "media": existing_active,
-            },
-        )
+        item_data["title"] = existing_active.item.title
+        return _render_search_action(request, item_data, existing_active)
 
-    item_kwargs = {
-        "media_id": media_id,
-        "source": source,
-        "media_type": media_type,
-    }
+    kwargs = {"media_id": media_id, "source": source, "media_type": media_type}
     if season_number:
-        item_kwargs["season_number"] = season_number
-    item = Item.objects.get(**item_kwargs)
+        kwargs["season_number"] = season_number
+    item = Item.objects.get(**kwargs)
 
     model = apps.get_model(app_label="app", model_name=media_type)
     instance = model.objects.create(
-        item=item,
-        user=request.user,
-        status=Status.PLANNING.value,
-        is_rewatch=True,
+        item=item, user=request.user, status=Status.PLANNING.value, is_rewatch=True
     )
 
     if source_context == "archive":
@@ -195,33 +144,25 @@ def quick_rewatch(request):
 
     completed_instance = (
         BasicMedia.objects.filter_media(
-            request.user,
-            media_id,
-            media_type,
-            source,
-            season_number=season_number,
+            request.user, media_id, media_type, source, season_number=season_number
         )
-        .filter(
-            status__in=[Status.COMPLETED.value, Status.DROPPED.value],
-        )
+        .filter(status__in=[Status.COMPLETED.value, Status.DROPPED.value])
         .select_related("item")
         .first()
     )
 
-    return render(
-        request,
-        "app/components/search_action.html",
-        {
-            "item": {
-                "media_id": media_id,
-                "source": source,
-                "media_type": media_type,
-                "title": item.title,
-            },
-            "media": completed_instance or instance,
-            "has_active": True,
-        },
+    item_data["title"] = item.title
+    return _render_search_action(
+        request, item_data, completed_instance or instance, has_active=True
     )
+
+
+def _render_search_action(request, item_data, media, *, has_active=False):
+    """Render search_action.html with standard context."""
+    context = {"item": item_data, "media": media}
+    if has_active:
+        context["has_active"] = True
+    return render(request, "app/components/search_action.html", context)
 
 
 def _render_medialist_card(request, media):
@@ -248,19 +189,11 @@ def quick_complete(request):
     instance_id = request.POST["instance_id"]
     source_context = request.POST.get("source_context")
 
-    media = BasicMedia.objects.get_media(
-        request.user,
-        media_type,
-        instance_id,
-    )
+    media = BasicMedia.objects.get_media(request.user, media_type, instance_id)
     media.status = Status.COMPLETED.value
     media.save()
 
-    media = BasicMedia.objects.get_media_prefetch(
-        request.user,
-        media_type,
-        instance_id,
-    )
+    media = BasicMedia.objects.get_media_prefetch(request.user, media_type, instance_id)
 
     if source_context == "medialist":
         response = _render_medialist_card(request, media)
@@ -286,11 +219,7 @@ def quick_drop(request):
     media_type = request.POST["media_type"]
     instance_id = request.POST["instance_id"]
 
-    media = BasicMedia.objects.get_media(
-        request.user,
-        media_type,
-        instance_id,
-    )
+    media = BasicMedia.objects.get_media(request.user, media_type, instance_id)
     media.status = Status.DROPPED.value
     media.save()
 
@@ -306,11 +235,7 @@ def quick_untrack(request):
     media_type = request.POST["media_type"]
     instance_id = request.POST["instance_id"]
 
-    media = BasicMedia.objects.get_media(
-        request.user,
-        media_type,
-        instance_id,
-    )
+    media = BasicMedia.objects.get_media(request.user, media_type, instance_id)
     media.delete()
     logger.info("%s untracked successfully.", media)
 
@@ -334,11 +259,7 @@ def quick_status_transition(request):
     target_status = request.POST["target_status"]
     source_context = request.POST.get("source_context")
 
-    media = BasicMedia.objects.get_media(
-        request.user,
-        media_type,
-        instance_id,
-    )
+    media = BasicMedia.objects.get_media(request.user, media_type, instance_id)
 
     expected_target = ALLOWED_TRANSITIONS.get(media.status)
     if expected_target is None or expected_target != target_status:
@@ -349,11 +270,7 @@ def quick_status_transition(request):
         media.start_date = timezone.now().replace(second=0, microsecond=0)
     media.save()
 
-    media = BasicMedia.objects.get_media_prefetch(
-        request.user,
-        media_type,
-        instance_id,
-    )
+    media = BasicMedia.objects.get_media_prefetch(request.user, media_type, instance_id)
     backlog.annotate_next_event([media])
 
     if source_context == "medialist":
@@ -377,139 +294,31 @@ def quick_catch_up(request):
     instance_id = request.POST["instance_id"]
     source_context = request.POST.get("source_context")
 
-    media = BasicMedia.objects.get_media_prefetch(
-        request.user,
-        media_type,
-        instance_id,
-    )
+    media = BasicMedia.objects.get_media_prefetch(request.user, media_type, instance_id)
     BasicMedia.objects.annotate_max_progress([media], media_type)
     backlog.annotate_next_event([media])
 
     if media.next_event and media.next_event.content_number is not None:
         media.progress = media.next_event.content_number - 1
-        media.save()
-        media = BasicMedia.objects.get_media_prefetch(
-            request.user,
-            media_type,
-            instance_id,
-        )
-        backlog.annotate_next_event([media])
     elif media.max_progress is not None:
         media.progress = media.max_progress
-        media.save()
-        media = BasicMedia.objects.get_media_prefetch(
-            request.user,
-            media_type,
-            instance_id,
-        )
-        backlog.annotate_next_event([media])
     else:
         metadata = services.get_media_metadata(
-            media.item.media_type,
-            media.item.media_id,
-            media.item.source,
+            media.item.media_type, media.item.media_id, media.item.source
         )
         if metadata["max_progress"]:
             media.progress = metadata["max_progress"]
         media.caught_up = True
-        media.save()
-        media = BasicMedia.objects.get_media_prefetch(
-            request.user,
-            media_type,
-            instance_id,
-        )
-        backlog.annotate_next_event([media])
+    media.save()
 
-    if source_context == "medialist":
-        response = _render_medialist_card(request, media)
-        response["HX-Refresh"] = "true"
-        return response
-
-    return render(
-        request,
-        "app/components/backlog_card.html",
-        {"media": media, "status_choices": Status.choices},
-    )
-
-
-def _backlog_save_valid(
-    request,
-    media,
-    media_type,
-    instance_id,
-    source_context,
-    *,
-    old_status,
-    rewatch_changed,
-    rewatch_cancelled,
-    pin_changed,
-):
-    """Handle backlog_save when the form is valid."""
-    if rewatch_cancelled or media.status == Status.DROPPED.value:
-        response = render(request, "app/components/backlog_dropped.html")
-        if rewatch_cancelled or source_context == "medialist":
-            response["HX-Refresh"] = "true"
-        return response
-
-    if source_context == "archive":
-        if media.status == old_status:
-            media = BasicMedia.objects.get_media_prefetch(
-                request.user,
-                media_type,
-                instance_id,
-            )
-        response = render(
-            request,
-            "app/components/backlog_card_archived.html",
-            {"media": media, "status_choices": Status.choices},
-        )
-        if media.status != old_status or rewatch_changed or pin_changed:
-            response["HX-Refresh"] = "true"
-        return response
-
-    if source_context == "medialist":
-        media = BasicMedia.objects.get_media_prefetch(
-            request.user,
-            media_type,
-            instance_id,
-        )
-        response = _render_medialist_card(request, media)
-        if media.status != old_status or rewatch_changed or pin_changed:
-            response["HX-Refresh"] = "true"
-        return response
-
-    if media.status == Status.COMPLETED.value:
-        media = BasicMedia.objects.get_media_prefetch(
-            request.user,
-            media_type,
-            instance_id,
-        )
-        archive_count = backlog.count_archive(request.user)
-        return render(
-            request,
-            "app/components/backlog_completed.html",
-            {
-                "media": media,
-                "archive_count": archive_count,
-                "status_choices": Status.choices,
-            },
-        )
-
-    if media.status != old_status or rewatch_changed or pin_changed:
-        response = render(
-            request,
-            "app/components/backlog_card.html",
-            {"media": media, "status_choices": Status.choices},
-        )
-        response["HX-Refresh"] = "true"
-        return response
-
-    media = BasicMedia.objects.get_media_prefetch(
-        request.user,
-        media_type,
-        instance_id,
-    )
+    media = BasicMedia.objects.get_media_prefetch(request.user, media_type, instance_id)
     backlog.annotate_next_event([media])
+
+    if source_context == "medialist":
+        response = _render_medialist_card(request, media)
+        response["HX-Refresh"] = "true"
+        return response
+
     return render(
         request,
         "app/components/backlog_card.html",
@@ -524,62 +333,86 @@ def backlog_save(request):
     instance_id = request.POST["instance_id"]
     source_context = request.POST.get("source_context")
 
-    media = BasicMedia.objects.get_media(
-        request.user,
-        media_type,
-        instance_id,
-    )
+    media = BasicMedia.objects.get_media(request.user, media_type, instance_id)
 
     old_status = media.status
     old_is_rewatch = media.is_rewatch
     old_is_pinned = media.is_pinned
-    form_class = get_form_class(media_type)
-    form = form_class(request.POST, instance=media)
+    form = get_form_class(media_type)(request.POST, instance=media)
 
-    if form.is_valid():
-        form.save()
+    if not form.is_valid():
+        return _render_backlog_form_errors(request, media, source_context, form.errors)
 
-        is_pinned_submitted = "is_pinned" in request.POST
-        if is_pinned_submitted and not old_is_pinned:
-            max_order = _get_max_pin_order(request.user)
-            media.pin_order = 0 if max_order is None else max_order + 1
-            media.save(update_fields=["pin_order"])
-        elif not is_pinned_submitted and old_is_pinned:
-            media.pin_order = None
-            media.save(update_fields=["pin_order"])
+    form.save()
+    is_pinned_submitted = "is_pinned" in request.POST
+    _update_pin_order(request.user, media, old_is_pinned, is_pinned_submitted)
+    logger.info("%s updated from backlog.", form.instance)
 
-        logger.info("%s updated from backlog.", form.instance)
+    rewatch_cancelled = _check_rewatch_cancelled(
+        request.user, media, media_type, old_is_rewatch
+    )
+    if rewatch_cancelled:
+        media.delete()
 
-        rewatch_cancelled = (
-            old_is_rewatch
-            and not media.is_rewatch
-            and media.status == Status.PLANNING.value
-            and BasicMedia.objects.filter_media(
-                request.user,
-                media.item.media_id,
-                media_type,
-                media.item.source,
-            )
-            .filter(
-                status__in=[Status.COMPLETED.value, Status.DROPPED.value],
-            )
-            .exists()
+    state_changed = (
+        media.status != old_status
+        or media.is_rewatch != old_is_rewatch
+        or is_pinned_submitted != old_is_pinned
+    )
+
+    if rewatch_cancelled or media.status == Status.DROPPED.value:
+        response = render(request, "app/components/backlog_dropped.html")
+        if rewatch_cancelled or source_context == "medialist":
+            response["HX-Refresh"] = "true"
+        return response
+
+    media = BasicMedia.objects.get_media_prefetch(request.user, media_type, instance_id)
+    ctx = {"media": media, "status_choices": Status.choices}
+
+    if source_context == "archive":
+        response = render(request, "app/components/backlog_card_archived.html", ctx)
+    elif source_context == "medialist":
+        response = _render_medialist_card(request, media)
+    elif media.status == Status.COMPLETED.value:
+        ctx["archive_count"] = backlog.count_archive(request.user)
+        return render(request, "app/components/backlog_completed.html", ctx)
+    else:
+        if not state_changed:
+            backlog.annotate_next_event([media])
+        response = render(request, "app/components/backlog_card.html", ctx)
+
+    if state_changed:
+        response["HX-Refresh"] = "true"
+    return response
+
+
+def _update_pin_order(user, media, old_is_pinned, is_pinned_submitted):
+    """Update pin_order after a backlog save."""
+    if is_pinned_submitted and not old_is_pinned:
+        max_order = _get_max_pin_order(user)
+        media.pin_order = 0 if max_order is None else max_order + 1
+        media.save(update_fields=["pin_order"])
+    elif not is_pinned_submitted and old_is_pinned:
+        media.pin_order = None
+        media.save(update_fields=["pin_order"])
+
+
+def _check_rewatch_cancelled(user, media, media_type, old_is_rewatch):
+    """Check if a rewatch was cancelled (unmarked while in Planning)."""
+    return (
+        old_is_rewatch
+        and not media.is_rewatch
+        and media.status == Status.PLANNING.value
+        and BasicMedia.objects.filter_media(
+            user, media.item.media_id, media_type, media.item.source
         )
-        if rewatch_cancelled:
-            media.delete()
+        .filter(status__in=[Status.COMPLETED.value, Status.DROPPED.value])
+        .exists()
+    )
 
-        return _backlog_save_valid(
-            request,
-            media,
-            media_type,
-            instance_id,
-            source_context,
-            old_status=old_status,
-            rewatch_changed=media.is_rewatch != old_is_rewatch,
-            rewatch_cancelled=rewatch_cancelled,
-            pin_changed=media.is_pinned != old_is_pinned,
-        )
 
+def _render_backlog_form_errors(request, media, source_context, errors):
+    """Render card with form errors after invalid backlog save."""
     if source_context == "medialist":
         return render(
             request,
@@ -587,7 +420,7 @@ def backlog_save(request):
             {
                 "media": media,
                 "edit_status_choices": Status.choices,
-                "form_errors": form.errors,
+                "form_errors": errors,
                 "show_edit": True,
             },
         )
@@ -603,7 +436,7 @@ def backlog_save(request):
         {
             "media": media,
             "status_choices": Status.choices,
-            "form_errors": form.errors,
+            "form_errors": errors,
             "show_edit": True,
         },
     )
@@ -665,10 +498,7 @@ def bulk_action(request):
     elif action == "score":
         error = _bulk_score(items, model, value)
     else:
-        model.objects.filter(
-            id__in=instance_ids,
-            user=request.user,
-        ).delete()
+        model.objects.filter(id__in=instance_ids, user=request.user).delete()
         error = None
 
     if error:
@@ -682,15 +512,15 @@ def bulk_action(request):
 
 def _get_max_pin_order(user):
     """Get the highest pin_order across all media types for a user."""
-    max_order = None
+    values = []
     for media_type in user.get_active_media_types():
         model = apps.get_model(app_label="app", model_name=media_type)
         val = model.objects.filter(user=user, pin_order__isnull=False).aggregate(
-            Max("pin_order")
+            Max("pin_order"),
         )["pin_order__max"]
-        if val is not None and (max_order is None or val > max_order):
-            max_order = val
-    return max_order
+        if val is not None:
+            values.append(val)
+    return max(values) if values else None
 
 
 @require_POST
@@ -699,11 +529,7 @@ def toggle_pin(request):
     media_type = request.POST["media_type"]
     instance_id = request.POST["instance_id"]
 
-    media = BasicMedia.objects.get_media(
-        request.user,
-        media_type,
-        instance_id,
-    )
+    media = BasicMedia.objects.get_media(request.user, media_type, instance_id)
 
     if media.is_pinned:
         media.pin_order = None

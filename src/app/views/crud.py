@@ -16,21 +16,12 @@ from app.services import backlog
 logger = logging.getLogger(__name__)
 
 
-def _restrict_ongoing_status_choices(
-    form,
-    media_type,
-    media_id,
-    source,
-    season_number,
-    metadata=None,
-):
+def _restrict_ongoing_status_choices(form, media_type, metadata):
     """Remove 'Completed' from status choices for ongoing anime/TV."""
     if media_type not in (MediaTypes.ANIME.value, MediaTypes.TV.value):
         return
     if metadata is None:
-        metadata = services.get_media_metadata(
-            media_type, media_id, source, [season_number]
-        )
+        return
     detail_status = metadata.get("details", {}).get("status", "")
     is_ongoing = (
         metadata.get("is_ongoing")
@@ -43,26 +34,24 @@ def _restrict_ongoing_status_choices(
         ]
 
 
-def _restrict_announced_form(form, metadata):
-    """Strip interactive fields and limit status for announced/unreleased media."""
-    if not config.is_announced_media(metadata):
+def _apply_form_restrictions(form, media, metadata):
+    """Apply form field restrictions based on media state."""
+    is_announced = metadata and config.is_announced_media(metadata)
+    if getattr(media, "not_yet_airing", False):
+        allowed_statuses = {Status.PLANNING.value, Status.DROPPED.value}
+    elif not media and is_announced:
+        allowed_statuses = {Status.PLANNING.value}
+    else:
         return
     for field_name in ("score", "progress", "caught_up", "is_rewatch"):
         form.fields.pop(field_name, None)
     form.fields["status"].choices = [
-        c for c in form.fields["status"].choices if c[0] == Status.PLANNING.value
+        c for c in form.fields["status"].choices if c[0] in allowed_statuses
     ]
 
 
-@require_GET
-def track_modal(
-    request,
-    source,
-    media_type,
-    media_id,
-    season_number=None,
-):
-    """Return the tracking form for a media item."""
+def _resolve_track_instance(request, source, media_type, media_id, season_number):
+    """Resolve the media instance for the track modal."""
     instance_id = request.GET.get("instance_id")
     if instance_id:
         media = BasicMedia.objects.get_media_prefetch(
@@ -71,19 +60,48 @@ def track_modal(
             instance_id,
         )
         backlog.annotate_next_event([media])
-    elif request.GET.get("is_create"):
-        media = None
-    else:
-        user_medias = BasicMedia.objects.filter_media(
-            request.user,
-            media_id,
-            media_type,
-            source,
-            season_number=season_number,
-        )
-        media = user_medias.first()
-        if media:
-            instance_id = media.id
+        return media, instance_id
+
+    if request.GET.get("is_create"):
+        return None, None
+
+    media = BasicMedia.objects.filter_media(
+        request.user,
+        media_id,
+        media_type,
+        source,
+        season_number=season_number,
+    ).first()
+    return media, media.id if media else None
+
+
+def _resolve_track_title(media, metadata, media_type, season_number):
+    """Determine the display title for the track modal."""
+    if media:
+        return media.item
+    title = metadata["title"]
+    if media_type == MediaTypes.SEASON.value:
+        title += f" S{season_number}"
+    return title
+
+
+@require_GET
+def track_modal(request, source, media_type, media_id, season_number=None):
+    """Return the tracking form for a media item."""
+    media, instance_id = _resolve_track_instance(
+        request,
+        source,
+        media_type,
+        media_id,
+        season_number,
+    )
+
+    metadata = services.get_media_metadata(
+        media_type,
+        media_id,
+        source,
+        [season_number],
+    )
 
     initial_data = {
         "media_id": media_id,
@@ -93,44 +111,13 @@ def track_modal(
         "instance_id": instance_id,
     }
 
-    metadata = None
-    if media:
-        title = media.item
-        if media_type == MediaTypes.GAME.value:
-            initial_data["progress"] = helpers.minutes_to_hhmm(media.progress)
-    else:
-        metadata = services.get_media_metadata(
-            media_type,
-            media_id,
-            source,
-            [season_number],
-        )
-        title = metadata["title"]
-        if media_type == MediaTypes.SEASON.value:
-            title += f" S{season_number}"
+    title = _resolve_track_title(media, metadata, media_type, season_number)
+    if media and media_type == MediaTypes.GAME.value:
+        initial_data["progress"] = helpers.minutes_to_hhmm(media.progress)
 
     form = get_form_class(media_type)(instance=media, initial=initial_data)
-
-    if getattr(media, "not_yet_airing", False):
-        for field_name in ("score", "progress", "caught_up", "is_rewatch"):
-            form.fields.pop(field_name, None)
-        form.fields["status"].choices = [
-            c
-            for c in form.fields["status"].choices
-            if c[0] in (Status.PLANNING.value, Status.DROPPED.value)
-        ]
-
-    if not media and metadata:
-        _restrict_announced_form(form, metadata)
-
-    _restrict_ongoing_status_choices(
-        form,
-        media_type,
-        media_id,
-        source,
-        season_number,
-        metadata=metadata,
-    )
+    _apply_form_restrictions(form, media, metadata)
+    _restrict_ongoing_status_choices(form, media_type, metadata)
 
     return render(
         request,
@@ -285,6 +272,14 @@ def _get_create_entry_media_types(user):
     return media_types
 
 
+def _assign_parent_relationship(media_form, item, form):
+    """Set the parent TV/season relationship on the media form instance."""
+    if item.media_type == MediaTypes.SEASON.value:
+        media_form.instance.related_tv = form.cleaned_data["parent_tv"]
+    elif item.media_type == MediaTypes.EPISODE.value:
+        media_form.instance.related_season = form.cleaned_data["parent_season"]
+
+
 @require_http_methods(["GET", "POST"])
 def create_entry(request):
     """Return the form for manually adding media items."""
@@ -325,12 +320,7 @@ def create_entry(request):
 
     media_form.instance.user = request.user
     media_form.instance.item = item
-
-    if item.media_type == MediaTypes.SEASON.value:
-        media_form.instance.related_tv = form.cleaned_data["parent_tv"]
-    elif item.media_type == MediaTypes.EPISODE.value:
-        media_form.instance.related_season = form.cleaned_data["parent_season"]
-
+    _assign_parent_relationship(media_form, item, form)
     media_form.save()
 
     msg = f"{item} added successfully."

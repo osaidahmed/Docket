@@ -43,14 +43,7 @@ def home(request):
 
     truncation = int(request.user.home_truncation)
     if truncation > 0 and group_by == "type":
-        virtual_types = {"rewatch", "not_yet_airing"}
-        for group in backlog_data["groups"]:
-            if group["media_type"] in virtual_types:
-                continue
-            for sg in group["status_groups"]:
-                if len(sg["items"]) > truncation:
-                    sg["truncated_at"] = truncation
-                    sg["media_type"] = group["media_type"]
+        _apply_truncation(backlog_data["groups"], truncation)
 
     archive_open = request.GET.get("view") == "archive"
     archive = backlog_data["archive"]
@@ -58,14 +51,9 @@ def home(request):
         archive = archive[:20]
 
     selected_set = set(selected_types)
-    type_chips = _get_type_filter_choices(
-        request.user,
-        selected_set,
-        sort_by,
-        archive_open,
-        layout,
-        group_by,
-    )
+    extra = f"layout={layout}&group={group_by}"
+    query_base = f"view=archive&{extra}" if archive_open else f"sort={sort_by}&{extra}"
+    type_chips = _get_type_filter_choices(request.user, selected_set, query_base)
 
     context = {
         "groups": backlog_data["groups"],
@@ -87,26 +75,30 @@ def home(request):
     return render(request, "app/home.html", context)
 
 
-def _get_type_filter_choices(
-    user,
-    selected,
-    sort_by,
-    archive_open,
-    layout,
-    group_by,
-):
+_VIRTUAL_TYPES = {"rewatch", "not_yet_airing"}
+
+
+def _apply_truncation(groups, truncation):
+    """Apply truncation limits to backlog status groups."""
+    for group in groups:
+        if group["media_type"] in _VIRTUAL_TYPES:
+            continue
+        for sg in group["status_groups"]:
+            if len(sg["items"]) > truncation:
+                sg["truncated_at"] = truncation
+                sg["media_type"] = group["media_type"]
+
+
+def _get_type_filter_choices(user, selected, query_base):
+    """Build type filter chip URLs for the home page."""
     home_url = reverse("home")
-    extra = f"&layout={layout}&group={group_by}"
     choices = []
     for mt in user.get_enabled_media_types():
         if mt == MediaTypes.SEASON.value:
             continue
         toggled = selected - {mt} if mt in selected else selected | {mt}
         type_param = ",".join(toggled) if toggled else "all"
-        if archive_open:
-            url = f"{home_url}?view=archive&type={type_param}{extra}"
-        else:
-            url = f"{home_url}?sort={sort_by}&type={type_param}{extra}"
+        url = f"{home_url}?{query_base}&type={type_param}"
         choices.append(
             {
                 "value": mt,
@@ -164,9 +156,19 @@ def _annotate_media_list(page_items, pinned_list, media_type):
             backlog.annotate_next_event(pinned_list)
 
 
-@require_GET
-def media_list(request, media_type):
-    """Return the media list page."""
+_LAYOUT_CLASSES = {
+    "grid": ".media-grid",
+    "table": "tbody",
+}
+
+_HTMX_TEMPLATES = {
+    "grid": "app/components/media_grid_items.html",
+    "table": "app/components/media_table_items.html",
+}
+
+
+def _parse_medialist_params(request, media_type):
+    """Parse and persist media list query parameters."""
     layout = request.user.update_preference(
         f"{media_type}_layout",
         request.GET.get("layout"),
@@ -181,42 +183,49 @@ def media_list(request, media_type):
         if request.GET.get("temp") and status_param
         else request.user.update_preference(f"{media_type}_status", status_param)
     )
-    search_query = request.GET.get("search", "")
-    sort_dir = request.GET.get("sort_dir")
-    page = request.GET.get("page", 1)
-
     if not status_filter:
         status_filter = MediaStatusChoices.ALL
+
+    return {
+        "layout": layout,
+        "sort_filter": sort_filter,
+        "status_filter": status_filter,
+        "search": request.GET.get("search", ""),
+        "sort_dir": request.GET.get("sort_dir"),
+        "page": request.GET.get("page", 1),
+    }
+
+
+@require_GET
+def media_list(request, media_type):
+    """Return the media list page."""
+    params = _parse_medialist_params(request, media_type)
+    layout = params["layout"]
+    sort_filter = params["sort_filter"]
+    status_filter = params["status_filter"]
+    page = params["page"]
 
     media_queryset = BasicMedia.objects.get_media_list(
         user=request.user,
         media_type=media_type,
         status_filter=status_filter,
         sort_filter=sort_filter,
-        search=search_query,
-        sort_dir=sort_dir,
+        search=params["search"],
+        sort_dir=params["sort_dir"],
     )
 
     media_queryset, pinned_list = _split_pinned_from_queryset(
-        media_queryset, status_filter
+        media_queryset,
+        status_filter,
     )
 
-    items_per_page = 32
-    paginator = Paginator(media_queryset, items_per_page)
+    paginator = Paginator(media_queryset, 32)
     media_page = paginator.get_page(page)
-
     _annotate_media_list(media_page.object_list, pinned_list, media_type)
 
-    if layout == "grid":
-        layout_class = ".media-grid"
-    elif layout == "table":
-        layout_class = "tbody"
-    else:
-        layout_class = "#media-cards-list"
-
     effective_sort_dir = (
-        sort_dir
-        if sort_dir in ("asc", "desc")
+        params["sort_dir"]
+        if params["sort_dir"] in ("asc", "desc")
         else BasicMedia.objects._DEFAULT_SORT_DIRS.get(sort_filter, "desc")
     )
 
@@ -225,17 +234,19 @@ def media_list(request, media_type):
         "media_type_plural": app_tags.media_type_readable_plural(media_type).lower(),
         "media_list": media_page,
         "current_layout": layout,
-        "layout_class": layout_class,
+        "layout_class": _LAYOUT_CLASSES.get(layout, "#media-cards-list"),
         "current_sort": sort_filter,
         "current_sort_dir": effective_sort_dir,
         "current_status": status_filter,
         "sort_choices": MediaSortChoices.choices,
         "status_choices": MediaStatusChoices.choices,
         "export_txt_template": (request.user.export_txt_config or {}).get(
-            "template", "{title} - {score} ({status})"
+            "template",
+            "{title} - {score} ({status})",
         ),
         "export_txt_separator": (request.user.export_txt_config or {}).get(
-            "separator", "\\n"
+            "separator",
+            "\\n",
         ),
         "edit_status_choices": Status.choices,
         "supports_recommendations": config.supports_recommendations(media_type),
@@ -243,28 +254,38 @@ def media_list(request, media_type):
         "active_tab": request.GET.get("tab", "collection"),
     }
 
-    if request.headers.get("HX-Request"):
-        if request.headers.get("HX-Target") == "empty_list":
-            response = HttpResponse()
-            response["HX-Redirect"] = reverse("medialist", args=[media_type])
-            return response
-        is_pagination = int(page) > 1
-        if not is_pagination and (
-            pinned_list or status_filter == Status.PLANNING.value
-        ):
-            response = HttpResponse()
-            response["HX-Redirect"] = request.get_full_path()
-            return response
-        if layout == "grid":
-            template_name = "app/components/media_grid_items.html"
-        elif layout == "table":
-            template_name = "app/components/media_table_items.html"
-        else:
-            template_name = "app/components/media_cards_items.html"
-    else:
-        template_name = "app/media_list.html"
+    template_name = _get_medialist_template(
+        request,
+        layout,
+        page,
+        pinned_list,
+        status_filter,
+        media_type,
+    )
+    if isinstance(template_name, HttpResponse):
+        return template_name
 
     return render(request, template_name, context)
+
+
+def _get_medialist_template(
+    request, layout, page, pinned_list, status_filter, media_type
+):
+    """Determine the template for media_list, or return an HttpResponse redirect."""
+    if not request.headers.get("HX-Request"):
+        return "app/media_list.html"
+
+    if request.headers.get("HX-Target") == "empty_list":
+        response = HttpResponse()
+        response["HX-Redirect"] = reverse("medialist", args=[media_type])
+        return response
+
+    if int(page) <= 1 and (pinned_list or status_filter == Status.PLANNING.value):
+        response = HttpResponse()
+        response["HX-Redirect"] = request.get_full_path()
+        return response
+
+    return _HTMX_TEMPLATES.get(layout, "app/components/media_cards_items.html")
 
 
 @require_GET

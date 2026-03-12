@@ -15,6 +15,20 @@ from app.services import backlog, recent
 logger = logging.getLogger(__name__)
 
 
+def _enrich_related(request, metadata):
+    """Enrich related items with user tracking data."""
+    related = metadata.get("related")
+    if not related:
+        return
+    for section_name, items in related.items():
+        if items:
+            related[section_name] = helpers.enrich_items_with_user_data(
+                request,
+                items,
+                section_name,
+            )
+
+
 @require_GET
 def media_details(request, source, media_type, media_id, title):  # noqa: ARG001 title for URL
     """Return the details page for a media item."""
@@ -43,14 +57,7 @@ def media_details(request, source, media_type, media_id, title):  # noqa: ARG001
     if current_instance:
         backlog.annotate_next_event([current_instance])
 
-    if media_metadata.get("related"):
-        for section_name, related_items in media_metadata["related"].items():
-            if related_items:
-                media_metadata["related"][section_name] = (
-                    helpers.enrich_items_with_user_data(
-                        request, related_items, section_name
-                    )
-                )
+    _enrich_related(request, media_metadata)
 
     context = {
         "media": media_metadata,
@@ -99,16 +106,7 @@ def season_details(request, source, media_id, title, season_number):  # noqa: AR
             episodes_in_db,
         )
 
-    if season_metadata.get("related"):
-        for section_name, related_items in season_metadata["related"].items():
-            if related_items:
-                season_metadata["related"][section_name] = (
-                    helpers.enrich_items_with_user_data(
-                        request,
-                        related_items,
-                        section_name,
-                    )
-                )
+    _enrich_related(request, season_metadata)
 
     context = {
         "media": season_metadata,
@@ -144,6 +142,46 @@ def update_media_score(request, media_type, instance_id):
             "score": score,
         },
     )
+
+
+def _sync_season_episodes(source, media_id, season_number, metadata, title):
+    """Sync episode data for a season from the provider."""
+    metadata["episodes"] = tmdb.process_episodes(metadata, [])
+
+    existing_episodes = {
+        ep.episode_number: ep
+        for ep in Item.objects.filter(
+            source=source,
+            media_type=MediaTypes.EPISODE.value,
+            media_id=media_id,
+            season_number=season_number,
+        )
+    }
+
+    episodes_to_update = [
+        _update_episode_item(existing_episodes[ep["episode_number"]], metadata, ep)
+        for ep in metadata["episodes"]
+        if ep["episode_number"] in existing_episodes
+    ]
+
+    logger.info(
+        "Found %s existing episodes to update for %s", len(episodes_to_update), title
+    )
+
+    if episodes_to_update:
+        updated_count = Item.objects.bulk_update(
+            episodes_to_update,
+            ["title", "image"],
+            batch_size=100,
+        )
+        logger.info("Successfully updated %s episodes for %s", updated_count, title)
+
+
+def _update_episode_item(episode_item, metadata, episode_data):
+    """Update an episode item with new metadata."""
+    episode_item.title = metadata["title"]
+    episode_item.image = episode_data["image"]
+    return episode_item
 
 
 @require_POST
@@ -196,50 +234,7 @@ def sync_metadata(request, source, media_type, media_id, season_number=None):
             title += f" - Season {season_number}"
 
         if media_type == MediaTypes.SEASON.value:
-            metadata["episodes"] = tmdb.process_episodes(
-                metadata,
-                [],
-            )
-
-            existing_episodes = {
-                ep.episode_number: ep
-                for ep in Item.objects.filter(
-                    source=source,
-                    media_type=MediaTypes.EPISODE.value,
-                    media_id=media_id,
-                    season_number=season_number,
-                )
-            }
-
-            episodes_to_update = []
-            episode_count = 0
-
-            for episode_data in metadata["episodes"]:
-                episode_number = episode_data["episode_number"]
-                if episode_number in existing_episodes:
-                    episode_item = existing_episodes[episode_number]
-                    episode_item.title = metadata["title"]
-                    episode_item.image = episode_data["image"]
-                    episodes_to_update.append(episode_item)
-                    episode_count += 1
-
-            logger.info(
-                "Found %s existing episodes to update for %s",
-                episode_count,
-                title,
-            )
-
-            if episodes_to_update:
-                updated_count = Item.objects.bulk_update(
-                    episodes_to_update,
-                    ["title", "image"],
-                    batch_size=100,
-                )
-                logger.info(
-                    "Successfully updated %s episodes for %s",
-                    updated_count,
-                    title,
-                )
+            _sync_season_episodes(source, media_id, season_number, metadata, title)
 
         item.fetch_releases(delay=False)
 
