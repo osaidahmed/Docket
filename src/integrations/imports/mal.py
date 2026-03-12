@@ -159,21 +159,11 @@ class MyAnimeListImporter:
         model = apps.get_model(app_label="app", model_name=media_type)
         updated_at = parse_datetime(list_status.get("updated_at"))
 
-        # Handle completed repeats
-        if media_type == MediaTypes.ANIME.value:
-            progress = list_status["num_episodes_watched"]
-            repeats = list_status["num_times_rewatched"]
-            if list_status["is_rewatching"]:
-                if repeats == 0:
-                    repeats = 1
-                status = Status.IN_PROGRESS.value
-        else:
-            progress = list_status["num_chapters_read"]
-            repeats = list_status["num_times_reread"]
-            if list_status["is_rereading"]:
-                if repeats == 0:
-                    repeats = 1
-                status = Status.IN_PROGRESS.value
+        progress, repeats, status = self._get_progress_and_repeats(
+            list_status,
+            media_type,
+            status,
+        )
 
         if repeats >= 1:
             for _ in range(repeats):
@@ -210,6 +200,28 @@ class MyAnimeListImporter:
         )
         instance._history_date = updated_at
         self.bulk_media[media_type].append(instance)
+
+    @staticmethod
+    def _get_progress_and_repeats(list_status, media_type, status):
+        """Extract progress, repeats, and adjusted status from MAL entry."""
+        is_anime = media_type == MediaTypes.ANIME.value
+        progress = (
+            list_status["num_episodes_watched"]
+            if is_anime
+            else list_status["num_chapters_read"]
+        )
+        repeats = (
+            list_status["num_times_rewatched"]
+            if is_anime
+            else list_status["num_times_reread"]
+        )
+        is_repeating = (
+            list_status["is_rewatching"] if is_anime else list_status["is_rereading"]
+        )
+        if is_repeating:
+            repeats = max(repeats, 1)
+            status = Status.IN_PROGRESS.value
+        return progress, repeats, status
 
     def _parse_mal_date(self, date_str):
         """Parse MAL date string (YYYY-MM-YY) into datetime object."""

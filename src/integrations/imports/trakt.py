@@ -297,12 +297,9 @@ class TraktImporter:
 
     def _get_tmdb_id(self, entry_data):
         """Extract TMDB ID from entry data."""
-        if (
-            "ids" in entry_data
-            and "tmdb" in entry_data["ids"]
-            and entry_data["ids"]["tmdb"]
-        ):
-            return str(entry_data["ids"]["tmdb"])
+        tmdb_id = entry_data.get("ids", {}).get("tmdb")
+        if tmdb_id:
+            return str(tmdb_id)
 
         self.warnings.append(
             f"{entry_data['title']}: No {Sources.TMDB.label} ID found.",
@@ -420,7 +417,6 @@ class TraktImporter:
         if not tmdb_id:
             return
 
-        # Check if we should process this episode based on mode
         if not helpers.should_process_media(
             self.existing_media,
             self.to_delete,
@@ -431,16 +427,17 @@ class TraktImporter:
         ):
             return
 
-        # Extract episode data
         season_number = entry["episode"]["season"]
         episode_number = entry["episode"]["number"]
 
-        # Get TV metadata
-        tv_metadata = self._get_metadata(MediaTypes.TV.value, tmdb_id, show["title"])
+        tv_metadata = self._get_metadata(
+            MediaTypes.TV.value,
+            tmdb_id,
+            show["title"],
+        )
         if not tv_metadata:
             return
 
-        # Get Season metadata
         season_metadata = self._get_metadata(
             MediaTypes.SEASON.value,
             tmdb_id,
@@ -450,85 +447,33 @@ class TraktImporter:
         if not season_metadata:
             return
 
-        # Validate episode number exists in TMDB
-        episode_exists = any(
-            ep["episode_number"] == episode_number for ep in season_metadata["episodes"]
-        )
-
-        if not episode_exists:
-            item_identifier = f"{show['title']} S{season_number}E{episode_number}"
-            self.warnings.append(
-                f"{item_identifier}: not found in {Sources.TMDB.label} "
-                f"with ID {tmdb_id}.",
-            )
-            return
-
-        episode_image = self._get_episode_image(episode_number, season_metadata)
-        watched_at = entry["watched_at"]
-
-        # Create or get TV show
-        tv_item = self._get_or_create_item(MediaTypes.TV.value, tmdb_id, tv_metadata)
-        tv_key = f"{tmdb_id}"
-
-        if tv_key not in self.media_instances[MediaTypes.TV.value]:
-            tv_obj = app.models.TV(
-                item=tv_item,
-                user=self.user,
-                status=Status.IN_PROGRESS.value,
-            )
-            tv_obj._history_date = parse_datetime(watched_at)
-            self.bulk_media[MediaTypes.TV.value].append(tv_obj)
-            self.media_instances[MediaTypes.TV.value][tv_key] = [tv_obj]
-        else:
-            tv_obj = self.media_instances[MediaTypes.TV.value][tv_key][0]
-
-        # Create or get Season
-        season_item = self._get_or_create_item(
-            MediaTypes.SEASON.value,
+        if not self._validate_episode(
+            show["title"],
             tmdb_id,
-            season_metadata,
-            season_number,
-        )
-
-        season_key = f"{tmdb_id}:{season_number}"
-        if season_key not in self.media_instances[MediaTypes.SEASON.value]:
-            season_obj = app.models.Season(
-                item=season_item,
-                user=self.user,
-                related_tv=tv_obj,
-                status=Status.IN_PROGRESS.value,
-            )
-            season_obj._history_date = parse_datetime(watched_at)
-            self.bulk_media[MediaTypes.SEASON.value].append(season_obj)
-            self.media_instances[MediaTypes.SEASON.value][season_key] = [season_obj]
-        else:
-            season_obj = self.media_instances[MediaTypes.SEASON.value][season_key][0]
-
-        # Create Episode item and object
-        episode_metadata = {
-            "title": tv_metadata["title"],
-            "image": episode_image,
-        }
-        episode_item = self._get_or_create_item(
-            MediaTypes.EPISODE.value,
-            tmdb_id,
-            episode_metadata,
             season_number,
             episode_number,
+            season_metadata,
+        ):
+            return
+
+        watched_at = entry["watched_at"]
+        tv_obj = self._ensure_tv_obj(tmdb_id, tv_metadata, watched_at)
+        season_obj = self._ensure_season_obj(
+            tmdb_id,
+            season_number,
+            season_metadata,
+            tv_obj,
+            watched_at,
         )
-
-        ep_key = f"{tmdb_id}:{season_number}:{episode_number}"
-
-        episode_obj = app.models.Episode(
-            item=episode_item,
-            related_season=season_obj,
-            end_date=watched_at,
+        self._create_episode(
+            tmdb_id,
+            season_number,
+            episode_number,
+            tv_metadata,
+            season_metadata,
+            season_obj,
+            watched_at,
         )
-        episode_obj._history_date = parse_datetime(watched_at)
-        self.media_instances[MediaTypes.EPISODE.value][ep_key].append(episode_obj)
-        self.bulk_media[MediaTypes.EPISODE.value].append(episode_obj)
-
-        # Update status if this is the last episode
         self._update_completion_status(
             season_obj,
             tv_obj,
@@ -537,6 +482,105 @@ class TraktImporter:
             season_metadata,
             tv_metadata,
         )
+
+    def _validate_episode(
+        self,
+        title,
+        tmdb_id,
+        season_number,
+        episode_number,
+        season_metadata,
+    ):
+        """Validate that an episode exists in TMDB metadata."""
+        if any(
+            ep["episode_number"] == episode_number for ep in season_metadata["episodes"]
+        ):
+            return True
+        self.warnings.append(
+            f"{title} S{season_number}E{episode_number}: "
+            f"not found in {Sources.TMDB.label} with ID {tmdb_id}.",
+        )
+        return False
+
+    def _ensure_tv_obj(self, tmdb_id, tv_metadata, watched_at):
+        """Get existing or create new TV object for episode tracking."""
+        tv_key = str(tmdb_id)
+        if tv_key in self.media_instances[MediaTypes.TV.value]:
+            return self.media_instances[MediaTypes.TV.value][tv_key][0]
+
+        tv_item = self._get_or_create_item(
+            MediaTypes.TV.value,
+            tmdb_id,
+            tv_metadata,
+        )
+        tv_obj = app.models.TV(
+            item=tv_item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+        tv_obj._history_date = parse_datetime(watched_at)
+        self.bulk_media[MediaTypes.TV.value].append(tv_obj)
+        self.media_instances[MediaTypes.TV.value][tv_key] = [tv_obj]
+        return tv_obj
+
+    def _ensure_season_obj(
+        self,
+        tmdb_id,
+        season_number,
+        season_metadata,
+        tv_obj,
+        watched_at,
+    ):
+        """Get existing or create new Season object for episode tracking."""
+        season_key = f"{tmdb_id}:{season_number}"
+        if season_key in self.media_instances[MediaTypes.SEASON.value]:
+            return self.media_instances[MediaTypes.SEASON.value][season_key][0]
+
+        season_item = self._get_or_create_item(
+            MediaTypes.SEASON.value,
+            tmdb_id,
+            season_metadata,
+            season_number,
+        )
+        season_obj = app.models.Season(
+            item=season_item,
+            user=self.user,
+            related_tv=tv_obj,
+            status=Status.IN_PROGRESS.value,
+        )
+        season_obj._history_date = parse_datetime(watched_at)
+        self.bulk_media[MediaTypes.SEASON.value].append(season_obj)
+        self.media_instances[MediaTypes.SEASON.value][season_key] = [season_obj]
+        return season_obj
+
+    def _create_episode(
+        self,
+        tmdb_id,
+        season_number,
+        episode_number,
+        tv_metadata,
+        season_metadata,
+        season_obj,
+        watched_at,
+    ):
+        """Create an Episode item and object."""
+        episode_image = self._get_episode_image(episode_number, season_metadata)
+        episode_item = self._get_or_create_item(
+            MediaTypes.EPISODE.value,
+            tmdb_id,
+            {"title": tv_metadata["title"], "image": episode_image},
+            season_number,
+            episode_number,
+        )
+        ep_key = f"{tmdb_id}:{season_number}:{episode_number}"
+        episode_obj = app.models.Episode(
+            item=episode_item,
+            related_season=season_obj,
+            end_date=watched_at,
+        )
+        episode_obj._history_date = parse_datetime(watched_at)
+        self.media_instances[MediaTypes.EPISODE.value][ep_key].append(episode_obj)
+        self.bulk_media[MediaTypes.EPISODE.value].append(episode_obj)
 
     def _update_completion_status(
         self,
@@ -548,62 +592,53 @@ class TraktImporter:
         tv_metadata,
     ):
         """Update completion status for season and TV show if applicable."""
-        if episode_number == season_metadata["max_progress"]:
-            season_obj.status = Status.COMPLETED.value
-
-            last_season = tv_metadata.get("last_episode_season")
-            if last_season and last_season == season_number:
-                tv_obj.status = Status.COMPLETED.value
+        if episode_number != season_metadata["max_progress"]:
+            return
+        season_obj.status = Status.COMPLETED.value
+        last_season = tv_metadata.get("last_episode_season")
+        if last_season and last_season == season_number:
+            tv_obj.status = Status.COMPLETED.value
 
     def process_watchlist(self):
         """Process watchlist from Trakt."""
         logger.info("Importing watchlist for user %s", self.username)
-        watchlist_endpoint = f"{self.user_base_url}/watchlist"
-        watchlist_data = self._make_api_request(watchlist_endpoint)
-
-        for entry in watchlist_data:
-            try:
-                self._process_generic_entry(
-                    entry,
-                    "watchlist",
-                    {"status": Status.PLANNING.value},
-                )
-            except Exception as e:
-                msg = f"Error processing watchlist entry: {entry}"
-                raise MediaImportUnexpectedError(msg) from e
+        data = self._make_api_request(f"{self.user_base_url}/watchlist")
+        self._process_entries(
+            data,
+            "watchlist",
+            lambda _e: {"status": Status.PLANNING.value},
+        )
 
     def process_ratings(self):
         """Process ratings from Trakt."""
         logger.info("Importing ratings for user %s", self.username)
-        ratings_endpoint = f"{self.user_base_url}/ratings"
-        ratings_data = self._make_api_request(ratings_endpoint)
-
-        for entry in ratings_data:
-            try:
-                self._process_generic_entry(
-                    entry,
-                    "rating",
-                    {"score": entry["rating"]},
-                )
-            except Exception as e:
-                msg = f"Error processing rating entry: {entry}"
-                raise MediaImportUnexpectedError(msg) from e
+        data = self._make_api_request(f"{self.user_base_url}/ratings")
+        self._process_entries(
+            data,
+            "rating",
+            lambda e: {"score": e["rating"]},
+        )
 
     def process_comments(self):
         """Process comments from Trakt."""
         logger.info("Importing comments for user %s", self.username)
-        comments_endpoint = f"{self.user_base_url}/comments"
-        full_comments = self._get_paginated_data(comments_endpoint, "comments")
+        data = self._get_paginated_data(
+            f"{self.user_base_url}/comments",
+            "comments",
+        )
+        self._process_entries(
+            data,
+            "comment",
+            lambda e: {"notes": e["comment"]["comment"]},
+        )
 
-        for entry in full_comments:
+    def _process_entries(self, entries, entry_type, get_attrs):
+        """Process a list of entries with shared error handling."""
+        for entry in entries:
             try:
-                self._process_generic_entry(
-                    entry,
-                    "comment",
-                    {"notes": entry["comment"]["comment"]},
-                )
+                self._process_generic_entry(entry, entry_type, get_attrs(entry))
             except Exception as e:
-                msg = f"Error processing comment entry: {entry}"
+                msg = f"Error processing {entry_type} entry: {entry}"
                 raise MediaImportUnexpectedError(msg) from e
 
     def _process_generic_entry(self, entry, entry_type, attribute_updates):
@@ -692,11 +727,7 @@ class TraktImporter:
         if not metadata:
             return
 
-        updated_at = parse_datetime(
-            entry.get("listed_at")
-            or entry.get("rated_at")
-            or entry["comment"].get("updated_at"),
-        )
+        updated_at = self._get_entry_timestamp(entry)
 
         if media_type == MediaTypes.SEASON.value:
             tv_obj = self._get_tv_obj(tmdb_id, media_data, updated_at)
@@ -704,23 +735,25 @@ class TraktImporter:
                 return
             defaults["related_tv"] = tv_obj
 
-        key = f"{tmdb_id}"
-        if media_type == MediaTypes.SEASON.value:
-            key = f"{key}:{season_number}"
-
+        key = f"{tmdb_id}:{season_number}" if season_number else str(tmdb_id)
         item = self._get_or_create_item(media_type, tmdb_id, metadata, season_number)
 
         if key in self.media_instances[media_type]:
             self._update_instance(media_type, key, defaults)
         else:
-            media_obj = model_class(
-                item=item,
-                user=self.user,
-                **defaults,
-            )
+            media_obj = model_class(item=item, user=self.user, **defaults)
             media_obj._history_date = updated_at
             self.bulk_media[media_type].append(media_obj)
             self.media_instances[media_type][key] = [media_obj]
+
+    @staticmethod
+    def _get_entry_timestamp(entry):
+        """Extract the timestamp from a Trakt entry."""
+        return parse_datetime(
+            entry.get("listed_at")
+            or entry.get("rated_at")
+            or entry["comment"].get("updated_at"),
+        )
 
     def _get_tv_obj(self, tmdb_id, media_data, updated_at):
         """Get or create a TV object for the given season."""

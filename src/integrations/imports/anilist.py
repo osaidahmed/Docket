@@ -16,6 +16,79 @@ from integrations.imports.helpers import MediaImportError, MediaImportUnexpected
 
 logger = logging.getLogger(__name__)
 
+_ANILIST_IMPORT_QUERY = """
+query ($userName: String){
+    anime: MediaListCollection(userName: $userName, type: ANIME) {
+        lists {
+            isCustomList
+            entries {
+                media{
+                    title {
+                        userPreferred
+                        english
+                    }
+                    coverImage {
+                        large
+                    }
+                    idMal
+                    chapters
+                    episodes
+                }
+                status
+                score(format: POINT_10_DECIMAL)
+                progress
+                startedAt {
+                    year
+                    month
+                    day
+                }
+                completedAt {
+                    year
+                    month
+                    day
+                }
+                updatedAt
+                repeat
+                notes
+            }
+        }
+    }
+    manga: MediaListCollection(userName: $userName, type: MANGA) {
+        lists {
+            isCustomList
+            entries {
+                media{
+                    title {
+                        userPreferred
+                        english
+                    }
+                    coverImage {
+                        large
+                    }
+                    idMal
+                }
+                status
+                score(format: POINT_10_DECIMAL)
+                progress
+                startedAt {
+                    year
+                    month
+                    day
+                }
+                completedAt {
+                    year
+                    month
+                    day
+                }
+                updatedAt
+                repeat
+                notes
+            }
+        }
+    }
+}
+"""
+
 
 def get_token(request):
     """View for getting the AniList OAuth2 token."""
@@ -126,108 +199,7 @@ class AniListImporter:
 
     def import_data(self):
         """Import all user data from AniList."""
-        query = """
-        query ($userName: String){
-            anime: MediaListCollection(userName: $userName, type: ANIME) {
-                lists {
-                    isCustomList
-                    entries {
-                        media{
-                            title {
-                                userPreferred
-                                english
-                            }
-                            coverImage {
-                                large
-                            }
-                            idMal
-                            chapters
-                            episodes
-                        }
-                        status
-                        score(format: POINT_10_DECIMAL)
-                        progress
-                        startedAt {
-                            year
-                            month
-                            day
-                        }
-                        completedAt {
-                            year
-                            month
-                            day
-                        }
-                        updatedAt
-                        repeat
-                        notes
-                    }
-                }
-            }
-            manga: MediaListCollection(userName: $userName, type: MANGA) {
-                lists {
-                    isCustomList
-                    entries {
-                        media{
-                            title {
-                                userPreferred
-                                english
-                            }
-                            coverImage {
-                                large
-                            }
-                            idMal
-                        }
-                        status
-                        score(format: POINT_10_DECIMAL)
-                        progress
-                        startedAt {
-                            year
-                            month
-                            day
-                        }
-                        completedAt {
-                            year
-                            month
-                            day
-                        }
-                        updatedAt
-                        repeat
-                        notes
-                    }
-                }
-            }
-        }
-        """
-        variables = {"userName": self.username}
-        url = "https://graphql.anilist.co"
-
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
-
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-
-        logger.info("Fetching anime and manga from AniList account")
-
-        try:
-            response = app.providers.services.api_request(
-                "ANILIST",
-                "POST",
-                url,
-                params={"query": query, "variables": variables},
-                headers=headers,
-            )
-        except requests.exceptions.HTTPError as error:
-            error_message = error.response.json()["errors"][0].get("message")
-            if error_message == "User not found":
-                msg = f"User {self.username} not found."
-                raise MediaImportError(msg) from error
-            if error_message == "Private User":
-                msg = f"User {self.username} is private."
-                raise MediaImportError(msg) from error
-            raise
+        response = self._fetch_user_lists()
 
         self._process_media_data(response["data"]["anime"], MediaTypes.ANIME.value)
         self._process_media_data(response["data"]["manga"], MediaTypes.MANGA.value)
@@ -243,18 +215,60 @@ class AniListImporter:
         deduplicated_messages = "\n".join(dict.fromkeys(self.warnings))
         return imported_counts, deduplicated_messages
 
+    def _fetch_user_lists(self):
+        """Fetch anime and manga lists from AniList API."""
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+
+        logger.info("Fetching anime and manga from AniList account")
+
+        try:
+            return app.providers.services.api_request(
+                "ANILIST",
+                "POST",
+                "https://graphql.anilist.co",
+                params={
+                    "query": _ANILIST_IMPORT_QUERY,
+                    "variables": {"userName": self.username},
+                },
+                headers=headers,
+            )
+        except requests.exceptions.HTTPError as error:
+            self._handle_http_error(error)
+
+    def _handle_http_error(self, error):
+        """Map AniList HTTP errors to user-friendly messages."""
+        error_message = error.response.json()["errors"][0].get("message")
+        if error_message == "User not found":
+            msg = f"User {self.username} not found."
+            raise MediaImportError(msg) from error
+        if error_message == "Private User":
+            msg = f"User {self.username} is private."
+            raise MediaImportError(msg) from error
+        raise error
+
     def _process_media_data(self, media_data, media_type):
         """Process media data for a specific type (anime/manga)."""
         logger.info("Processing %s from AniList", media_type)
 
-        for status_list in media_data["lists"]:
-            if not status_list["isCustomList"]:
-                for content in status_list["entries"]:
-                    try:
-                        self._process_entry(content, media_type)
-                    except Exception as e:
-                        msg = f"Error processing history entry: {content}"
-                        raise MediaImportUnexpectedError(msg) from e
+        entries = [
+            content
+            for status_list in media_data["lists"]
+            if not status_list["isCustomList"]
+            for content in status_list["entries"]
+        ]
+
+        for content in entries:
+            try:
+                self._process_entry(content, media_type)
+            except Exception as e:
+                msg = f"Error processing history entry: {content}"
+                raise MediaImportUnexpectedError(msg) from e
 
     def _process_entry(self, content, media_type):
         """Process a single entry from AniList."""
@@ -263,7 +277,6 @@ class AniListImporter:
             self.warnings.append(f"{title}: No matching MAL ID.")
             return
 
-        # Check if we should process this entry based on mode
         if not helpers.should_process_media(
             self.existing_media,
             self.to_delete,
@@ -274,11 +287,12 @@ class AniListImporter:
         ):
             return
 
-        if content["status"] in ("CURRENT", "REPEATING"):
-            status = Status.IN_PROGRESS.value
-        else:
-            status = content["status"].capitalize()
+        item = self._get_or_create_item(content, media_type)
+        status = self._get_status(content["status"])
+        self._create_media_instances(content, media_type, item, status)
 
+    def _get_or_create_item(self, content, media_type):
+        """Create or get an Item from AniList entry data."""
         en_title = content["media"]["title"].get("english") or ""
         if en_title == content["media"]["title"]["userPreferred"]:
             en_title = ""
@@ -293,36 +307,38 @@ class AniListImporter:
                 "image": content["media"]["coverImage"]["large"],
             },
         )
+        return item
+
+    @staticmethod
+    def _get_status(status):
+        """Convert AniList status to internal status."""
+        if status in ("CURRENT", "REPEATING"):
+            return Status.IN_PROGRESS.value
+        return status.capitalize()
+
+    def _create_media_instances(self, content, media_type, item, status):
+        """Create media instances for repeats and current status."""
         model = apps.get_model(app_label="app", model_name=media_type)
-        updated_at = (
-            timezone.now()
-            if content["updatedAt"] == 0
-            else timezone.datetime.fromtimestamp(content["updatedAt"], tz=UTC)
+        updated_at = self._get_updated_at(content["updatedAt"])
+        repeats_count = self._get_repeats_count(content)
+        max_progress = (
+            content["media"].get("episodes") or content["media"].get("chapters") or 0
         )
 
-        repeats_count = content["repeat"]
-        if content["status"] == "REPEATING" and repeats_count == 0:
-            repeats_count = 1
-
-        if repeats_count >= 1:
-            for _ in range(repeats_count):
-                max_progress = content["media"].get("episodes") or content["media"].get(
-                    "chapters",
-                )
-
-                instance = model(
-                    item=item,
-                    user=self.user,
-                    score=content["score"],
-                    progress=max_progress or 0,
-                    status=Status.COMPLETED.value,
-                    start_date=self._get_date(content["startedAt"]),
-                    end_date=None,
-                    notes=content["notes"] or "",
-                    is_rewatch=True,
-                )
-                instance._history_date = updated_at
-                self.bulk_media[media_type].append(instance)
+        for _ in range(repeats_count):
+            instance = model(
+                item=item,
+                user=self.user,
+                score=content["score"],
+                progress=max_progress,
+                status=Status.COMPLETED.value,
+                start_date=self._get_date(content["startedAt"]),
+                end_date=None,
+                notes=content["notes"] or "",
+                is_rewatch=True,
+            )
+            instance._history_date = updated_at
+            self.bulk_media[media_type].append(instance)
 
         instance = model(
             item=item,
@@ -335,8 +351,22 @@ class AniListImporter:
             notes=content["notes"] or "",
         )
         instance._history_date = updated_at
-
         self.bulk_media[media_type].append(instance)
+
+    @staticmethod
+    def _get_updated_at(updated_at_value):
+        """Parse the updatedAt timestamp."""
+        if updated_at_value == 0:
+            return timezone.now()
+        return timezone.datetime.fromtimestamp(updated_at_value, tz=UTC)
+
+    @staticmethod
+    def _get_repeats_count(content):
+        """Get the number of repeats, adjusting for REPEATING status."""
+        repeats = content["repeat"]
+        if content["status"] == "REPEATING" and repeats == 0:
+            return 1
+        return repeats
 
     def _get_date(self, date_dict):
         """Return date object from date dict."""

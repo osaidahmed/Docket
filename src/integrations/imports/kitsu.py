@@ -277,49 +277,18 @@ class KitsuImporter:
 
     def _create_or_get_item(self, media_type, kitsu_metadata, mapping_lookup):
         """Create or get an Item instance."""
-        sites = [
-            f"myanimelist/{media_type}",
-            "mangaupdates",
-        ]
-
         mappings = {
             mapping["attributes"]["externalSite"]: mapping["attributes"]["externalId"]
             for mapping_ref in kitsu_metadata["relationships"]["mappings"]["data"]
             for mapping in [mapping_lookup[mapping_ref["id"]]]
         }
 
-        media_id = None
-        for site in sites:
-            if site not in mappings:
-                continue
+        media_id, source = self._resolve_external_id(mappings, media_type)
 
-            external_id = mappings[site]
-            if site == f"myanimelist/{media_type}":
-                media_id = external_id
-                source = Sources.MAL.value
-                break
-
-            if site == "mangaupdates":
-                # if its int, its an old MU ID
-                if external_id.isdigit():
-                    # get the base36 encoded ID
-                    try:
-                        external_id = self.kitsu_mu_mapping[external_id]
-                    except KeyError:  # ID not found in mapping
-                        continue
-
-                # decode the base36 encoded ID
-                media_id = str(int(external_id, 36))
-                source = Sources.MANGAUPDATES.value
-                break
-
-        # Farmagia (49333) shows MAL external_id == "anime"
         if not media_id or not media_id.isdigit():
-            media_title = kitsu_metadata["attributes"]["canonicalTitle"]
-            msg = f"{media_title}: No valid external ID found."
+            title = kitsu_metadata["attributes"]["canonicalTitle"]
+            msg = f"{title}: No valid external ID found."
             raise MediaImportError(msg)
-
-        image_url = self._get_image_url(kitsu_metadata)
 
         item, _ = app.models.Item.objects.get_or_create(
             media_id=media_id,
@@ -327,10 +296,27 @@ class KitsuImporter:
             media_type=media_type,
             defaults={
                 "title": kitsu_metadata["attributes"]["canonicalTitle"],
-                "image": image_url,
+                "image": self._get_image_url(kitsu_metadata),
             },
         )
         return item
+
+    def _resolve_external_id(self, mappings, media_type):
+        """Resolve external ID from mapping, preferring MAL over MangaUpdates."""
+        mal_key = f"myanimelist/{media_type}"
+        if mal_key in mappings:
+            return mappings[mal_key], Sources.MAL.value
+
+        if "mangaupdates" in mappings:
+            external_id = mappings["mangaupdates"]
+            if external_id.isdigit():
+                try:
+                    external_id = self.kitsu_mu_mapping[external_id]
+                except KeyError:
+                    return None, None
+            return str(int(external_id, 36)), Sources.MANGAUPDATES.value
+
+        return None, None
 
     def _get_image_url(self, media):
         """Get the image URL for a media item."""

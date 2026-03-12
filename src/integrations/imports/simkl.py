@@ -164,87 +164,99 @@ class SimklImporter:
         if "anime" in data:
             self._process_anime_list(data["anime"])
 
+    def _extract_entry_id(self, entry_data, id_key, label):
+        """Extract media ID from entry, returning None with warning if missing."""
+        try:
+            return entry_data["ids"][id_key]
+        except KeyError:
+            self.warnings.append(f"{entry_data['title']}: No {label} ID found")
+            return None
+
+    def _check_dedup_and_mode(self, media_id, existing_ids, title, media_type, source):
+        """Check for duplicates and mode filtering. Returns False to skip."""
+        if media_id in existing_ids:
+            self.warnings.append(
+                f"{title} ({media_id}) already present in the import list",
+            )
+            return False
+        return helpers.should_process_media(
+            self.existing_media,
+            self.to_delete,
+            media_type,
+            source,
+            str(media_id),
+            self.mode,
+        )
+
+    def _fetch_metadata_safe(self, fetch_fn, title, source, media_id):
+        """Fetch metadata with not-found handling. Returns None on 404."""
+        try:
+            return fetch_fn()
+        except services.ProviderAPIError as error:
+            if error.status_code == requests.codes.not_found:
+                self.warnings.append(
+                    f"{title}: not found in {source.label} with ID {media_id}.",
+                )
+                return None
+            raise
+
+    @staticmethod
+    def _get_memo(entry):
+        """Extract memo text from entry."""
+        return entry["memo"]["text"] if entry["memo"] != {} else ""
+
     def _process_tv_list(self, tv_list):
         """Process TV list from Simkl."""
         logger.info("Processing tv shows")
-        existing_tv_ids = set()
+        existing_ids = set()
 
         for tv in tv_list:
             try:
                 title = tv["show"]["title"]
-                logger.debug("Processing %s", title)
-
-                try:
-                    tmdb_id = tv["show"]["ids"]["tmdb"]
-                except KeyError:
-                    self.warnings.append(f"{title}: No TMDB ID found")
+                tmdb_id = self._extract_entry_id(tv["show"], "tmdb", "TMDB")
+                if not tmdb_id:
                     continue
-
-                if tmdb_id in existing_tv_ids:
-                    self.warnings.append(
-                        f"{title} ({tmdb_id}) already present in the import list",
-                    )
-                    continue
-
-                # Check if we should process this entry based on mode
-                if not helpers.should_process_media(
-                    self.existing_media,
-                    self.to_delete,
+                if not self._check_dedup_and_mode(
+                    tmdb_id,
+                    existing_ids,
+                    title,
                     MediaTypes.TV.value,
                     Sources.TMDB.value,
-                    str(tmdb_id),
-                    self.mode,
                 ):
                     continue
 
-                tv_status = self._get_status(tv["status"])
-
-                try:
-                    season_numbers = [season["number"] for season in tv["seasons"]]
-                except KeyError:
-                    season_numbers = []
-
-                try:
-                    metadata = app.providers.tmdb.tv_with_seasons(
-                        tmdb_id,
-                        season_numbers,
-                    )
-                except services.ProviderAPIError as error:
-                    if error.status_code == requests.codes.not_found:
-                        self.warnings.append(
-                            f"{title}: not found in {Sources.TMDB.label} "
-                            f"with ID {tmdb_id}.",
-                        )
-                        continue
-                    raise
+                season_numbers = [s["number"] for s in tv.get("seasons", [])]
+                metadata = self._fetch_metadata_safe(
+                    lambda tid=tmdb_id, sn=season_numbers: (
+                        app.providers.tmdb.tv_with_seasons(tid, sn)
+                    ),
+                    title,
+                    Sources.TMDB,
+                    tmdb_id,
+                )
+                if not metadata:
+                    continue
 
                 tv_item, _ = app.models.Item.objects.get_or_create(
                     media_id=tmdb_id,
                     source=Sources.TMDB.value,
                     media_type=MediaTypes.TV.value,
-                    defaults={
-                        "title": metadata["title"],
-                        "image": metadata["image"],
-                    },
+                    defaults={"title": metadata["title"], "image": metadata["image"]},
                 )
 
                 tv_instance = app.models.TV(
                     item=tv_item,
                     user=self.user,
-                    status=tv_status,
+                    status=self._get_status(tv["status"]),
                     score=tv["user_rating"],
-                    notes=tv["memo"]["text"] if tv["memo"] != {} else "",
+                    notes=self._get_memo(tv),
                 )
                 tv_instance._history_date = self._get_history_date(tv)
                 self.bulk_media[MediaTypes.TV.value].append(tv_instance)
-                existing_tv_ids.add(tmdb_id)
+                existing_ids.add(tmdb_id)
 
                 if season_numbers:
-                    self._process_seasons_and_episodes(
-                        tv,
-                        tv_instance,
-                        metadata,
-                    )
+                    self._process_seasons_and_episodes(tv, tv_instance, metadata)
 
             except Exception as error:
                 msg = f"Error processing entry: {tv}"
@@ -326,57 +338,38 @@ class SimklImporter:
     def _process_movie_list(self, movie_list):
         """Process movie list from Simkl."""
         logger.info("Processing movies")
-        existing_movie_ids = set()
+        existing_ids = set()
 
         for movie in movie_list:
             try:
                 title = movie["movie"]["title"]
-                logger.debug("Processing %s", title)
-
-                try:
-                    tmdb_id = movie["movie"]["ids"]["tmdb"]
-                except KeyError:
-                    self.warnings.append(f"{title}: No TMDB ID found")
+                tmdb_id = self._extract_entry_id(movie["movie"], "tmdb", "TMDB")
+                if not tmdb_id:
                     continue
-
-                if tmdb_id in existing_movie_ids:
-                    self.warnings.append(
-                        f"{title} ({tmdb_id}) already present in the import list",
-                    )
-                    continue
-
-                # Check if we should process this entry based on mode
-                if not helpers.should_process_media(
-                    self.existing_media,
-                    self.to_delete,
+                if not self._check_dedup_and_mode(
+                    tmdb_id,
+                    existing_ids,
+                    title,
                     MediaTypes.MOVIE.value,
                     Sources.TMDB.value,
-                    str(tmdb_id),
-                    self.mode,
                 ):
                     continue
 
+                metadata = self._fetch_metadata_safe(
+                    lambda tid=tmdb_id: app.providers.tmdb.movie(tid),
+                    title,
+                    Sources.TMDB,
+                    tmdb_id,
+                )
+                if not metadata:
+                    continue
+
                 movie_status = self._get_status(movie["status"])
-
-                try:
-                    metadata = app.providers.tmdb.movie(tmdb_id)
-                except services.ProviderAPIError as error:
-                    if error.status_code == requests.codes.not_found:
-                        self.warnings.append(
-                            f"{title}: not found in {Sources.TMDB.label} "
-                            f"with ID {tmdb_id}.",
-                        )
-                        continue
-                    raise
-
                 movie_item, _ = app.models.Item.objects.get_or_create(
                     media_id=tmdb_id,
                     source=Sources.TMDB.value,
                     media_type=MediaTypes.MOVIE.value,
-                    defaults={
-                        "title": metadata["title"],
-                        "image": metadata["image"],
-                    },
+                    defaults={"title": metadata["title"], "image": metadata["image"]},
                 )
 
                 movie_instance = app.models.Movie(
@@ -387,11 +380,11 @@ class SimklImporter:
                     progress=1 if movie_status == Status.COMPLETED.value else 0,
                     start_date=self._get_date(movie.get("last_watched_at")),
                     end_date=self._get_date(movie.get("last_watched_at")),
-                    notes=movie["memo"]["text"] if movie["memo"] != {} else "",
+                    notes=self._get_memo(movie),
                 )
                 movie_instance._history_date = self._get_history_date(movie)
                 self.bulk_media[MediaTypes.MOVIE.value].append(movie_instance)
-                existing_movie_ids.add(tmdb_id)
+                existing_ids.add(tmdb_id)
 
             except Exception as error:
                 msg = f"Error processing entry: {movie}"
@@ -402,57 +395,38 @@ class SimklImporter:
     def _process_anime_list(self, anime_list):
         """Process anime list from Simkl."""
         logger.info("Processing anime")
-        existing_anime_ids = set()
+        existing_ids = set()
 
         for anime in anime_list:
             try:
                 title = anime["show"]["title"]
-                logger.debug("Processing %s", title)
-
-                try:
-                    mal_id = anime["show"]["ids"]["mal"]
-                except KeyError:
-                    self.warnings.append(f"{title}: No MyAnimeList ID found")
+                mal_id = self._extract_entry_id(anime["show"], "mal", "MyAnimeList")
+                if not mal_id:
                     continue
-
-                if mal_id in existing_anime_ids:
-                    self.warnings.append(
-                        f"{title} ({mal_id}) already present in the import list",
-                    )
-                    continue
-
-                # Check if we should process this entry based on mode
-                if not helpers.should_process_media(
-                    self.existing_media,
-                    self.to_delete,
+                if not self._check_dedup_and_mode(
+                    mal_id,
+                    existing_ids,
+                    title,
                     MediaTypes.ANIME.value,
                     Sources.MAL.value,
-                    str(mal_id),
-                    self.mode,
                 ):
                     continue
 
+                metadata = self._fetch_metadata_safe(
+                    lambda mid=mal_id: app.providers.mal.anime(mid),
+                    title,
+                    Sources.MAL,
+                    mal_id,
+                )
+                if not metadata:
+                    continue
+
                 anime_status = self._get_status(anime["status"])
-
-                try:
-                    metadata = app.providers.mal.anime(mal_id)
-                except services.ProviderAPIError as error:
-                    if error.status_code == requests.codes.not_found:
-                        self.warnings.append(
-                            f"{title}: not found in {Sources.MAL.label} "
-                            f"with ID {mal_id}.",
-                        )
-                        continue
-                    raise
-
                 anime_item, _ = app.models.Item.objects.get_or_create(
                     media_id=mal_id,
                     source=Sources.MAL.value,
                     media_type=MediaTypes.ANIME.value,
-                    defaults={
-                        "title": metadata["title"],
-                        "image": metadata["image"],
-                    },
+                    defaults={"title": metadata["title"], "image": metadata["image"]},
                 )
 
                 anime_instance = app.models.Anime(
@@ -466,12 +440,11 @@ class SimklImporter:
                         anime_status,
                         anime.get("last_watched_at"),
                     ),
-                    notes=anime["memo"]["text"] if anime["memo"] != {} else "",
+                    notes=self._get_memo(anime),
                 )
                 anime_instance._history_date = self._get_history_date(anime)
-
                 self.bulk_media[MediaTypes.ANIME.value].append(anime_instance)
-                existing_anime_ids.add(mal_id)
+                existing_ids.add(mal_id)
 
             except Exception as error:
                 msg = f"Error processing entry: {anime}"
@@ -499,20 +472,14 @@ class SimklImporter:
 
     def _get_start_date(self, anime):
         """Get the start date based on earliest watched episode."""
-        if "seasons" in anime:
-            episodes = anime["seasons"][0]["episodes"]
-            current_min_date = None
-
-            for episode in episodes:
-                date = self._get_date(episode.get("watched_at"))
-                if date is not None and (
-                    current_min_date is None or date < current_min_date
-                ):
-                    current_min_date = date
-
-            return current_min_date
-
-        return None
+        if "seasons" not in anime:
+            return None
+        dates = [
+            self._get_date(ep.get("watched_at"))
+            for ep in anime["seasons"][0]["episodes"]
+        ]
+        valid_dates = [d for d in dates if d is not None]
+        return min(valid_dates) if valid_dates else None
 
     def _get_end_date(self, anime_status, last_watched_at):
         """Get the end date based on the anime status."""

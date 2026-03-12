@@ -122,34 +122,43 @@ class SteamImporter:
                 return games  # noqa: TRY300
 
             except requests.HTTPError as e:
-                if e.response.status_code == requests.codes.too_many_requests:
-                    if attempt < max_retries - 1:
-                        delay = base_delay * (2**attempt)
-                        logger.warning(
-                            "Steam API rate limited (429). "
-                            "Retrying in %d seconds (attempt %d/%d)",
-                            delay,
-                            attempt + 1,
-                            max_retries,
-                        )
-                        time.sleep(delay)
-                        continue
-                    msg = "Steam API rate limit exceeded. Please try again later."
-                    raise MediaImportError(msg) from e
-                if e.response.status_code == requests.codes.forbidden:
-                    msg = "Steam profile is private or invalid."
-                    raise MediaImportError(msg) from e
-                if e.response.status_code == requests.codes.bad_request:
-                    msg = "Bad request to Steam API. Please check the Steam ID."
-                    raise MediaImportError(msg) from e
-                if e.response.status_code == requests.codes.unauthorized:
-                    msg = "Invalid Steam API key."
-                    raise MediaImportError(msg) from e
-                msg = f"Steam API error: {e.response.status_code}"
-                raise MediaImportError(msg) from e
+                if (
+                    e.response.status_code == requests.codes.too_many_requests
+                    and attempt < max_retries - 1
+                ):
+                    delay = base_delay * (2**attempt)
+                    logger.warning(
+                        "Steam API rate limited (429). "
+                        "Retrying in %d seconds (attempt %d/%d)",
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    time.sleep(delay)
+                    continue
+                raise self._handle_http_error(e) from e
 
         msg = "Steam API request failed after all retries."
         raise MediaImportUnexpectedError(msg)
+
+    @staticmethod
+    def _handle_http_error(error):
+        """Map Steam HTTP errors to user-friendly messages."""
+        error_messages = {
+            requests.codes.too_many_requests: (
+                "Steam API rate limit exceeded. Please try again later."
+            ),
+            requests.codes.forbidden: "Steam profile is private or invalid.",
+            requests.codes.bad_request: (
+                "Bad request to Steam API. Please check the Steam ID."
+            ),
+            requests.codes.unauthorized: "Invalid Steam API key.",
+        }
+        msg = error_messages.get(
+            error.response.status_code,
+            f"Steam API error: {error.response.status_code}",
+        )
+        return MediaImportError(msg)
 
     def _process_game(self, game_data):
         """Process a single game from Steam API response."""
