@@ -20,9 +20,7 @@ class TMDBHelperTests(SimpleTestCase):
         self.assertEqual(params["primary_release_year"], "2024")
 
     def test_build_discover_params_tv_year(self):
-        params = tmdb._build_discover_params(
-            MediaTypes.TV.value, {"year": "2024"}, 1
-        )
+        params = tmdb._build_discover_params(MediaTypes.TV.value, {"year": "2024"}, 1)
         self.assertIn("first_air_date_year", params)
         self.assertEqual(params["first_air_date_year"], "2024")
 
@@ -38,15 +36,11 @@ class TMDBHelperTests(SimpleTestCase):
 
     @patch.object(settings, "TMDB_NSFW", new=True)
     def test_build_discover_params_nsfw(self):
-        params = tmdb._build_discover_params(
-            MediaTypes.MOVIE.value, {}, 1
-        )
+        params = tmdb._build_discover_params(MediaTypes.MOVIE.value, {}, 1)
         self.assertEqual(params["include_adult"], "true")
 
     def test_build_discover_filter_hash_nofilter(self):
-        result = tmdb._build_discover_filter_hash(
-            MediaTypes.MOVIE.value, {}
-        )
+        result = tmdb._build_discover_filter_hash(MediaTypes.MOVIE.value, {})
         self.assertEqual(result, "nofilter")
 
     def test_build_discover_filter_hash_with_filters(self):
@@ -70,9 +64,7 @@ class TMDBHelperTests(SimpleTestCase):
     def test_handle_error_unauthorized_with_message(self):
         error_response = MagicMock()
         error_response.status_code = requests.codes.unauthorized
-        error_response.json.return_value = {
-            "status_message": "Invalid API key."
-        }
+        error_response.json.return_value = {"status_message": "Invalid API key."}
         error = MagicMock()
         error.response = error_response
         with self.assertRaises(ProviderAPIError) as ctx:
@@ -103,9 +95,7 @@ class TMDBHelperTests(SimpleTestCase):
     def test_fetch_movie_collection_no_collection(self):
         self.assertEqual(tmdb._fetch_movie_collection({}), {})
         self.assertEqual(
-            tmdb._fetch_movie_collection(
-                {"belongs_to_collection": {"id": None}}
-            ),
+            tmdb._fetch_movie_collection({"belongs_to_collection": {"id": None}}),
             {},
         )
 
@@ -114,9 +104,7 @@ class TMDBHelperTests(SimpleTestCase):
         error = requests.exceptions.HTTPError()
         error.response = MagicMock(status_code=500, text="err")
         mock_api.side_effect = error
-        result = tmdb._fetch_movie_collection(
-            {"belongs_to_collection": {"id": 123}}
-        )
+        result = tmdb._fetch_movie_collection({"belongs_to_collection": {"id": 123}})
         self.assertEqual(result, {})
 
 

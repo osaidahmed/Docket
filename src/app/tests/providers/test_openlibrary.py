@@ -40,9 +40,7 @@ class OpenLibraryHelperTests(SimpleTestCase):
     def test_extract_openlibrary_id(self):
         self.assertIsNone(openlibrary.extract_openlibrary_id(""))
         self.assertIsNone(openlibrary.extract_openlibrary_id(None))
-        self.assertEqual(
-            openlibrary.extract_openlibrary_id("/books/OL123M"), "OL123M"
-        )
+        self.assertEqual(openlibrary.extract_openlibrary_id("/books/OL123M"), "OL123M")
 
     def test_get_description(self):
         cases = [
@@ -162,9 +160,7 @@ class OpenLibraryAsyncTests(TestCase):
             mock_cls,
             {"entries": [{"key": "/books/OL200M", "title": "Edition"}]},
         )
-        result = asyncio.run(
-            openlibrary.get_editions({"key": "/books/OL100M"}, {})
-        )
+        result = asyncio.run(openlibrary.get_editions({"key": "/books/OL100M"}, {}))
         self.assertEqual(len(result), 1)
 
     @patch("app.providers.openlibrary.aiohttp.ClientSession")
@@ -180,17 +176,13 @@ class OpenLibraryAsyncTests(TestCase):
 
     @patch("app.providers.openlibrary.aiohttp.ClientSession")
     def test_get_ratings_success(self, mock_cls):
-        _mock_aiohttp(
-            mock_cls, {"summary": {"average": 4.2, "count": 100}}
-        )
+        _mock_aiohttp(mock_cls, {"summary": {"average": 4.2, "count": 100}})
         result = asyncio.run(openlibrary.get_ratings({"key": "/works/OL1W"}))
         self.assertEqual(result, (8.4, 100))
 
     @patch("app.providers.openlibrary.aiohttp.ClientSession")
     def test_get_ratings_no_average(self, mock_cls):
-        _mock_aiohttp(
-            mock_cls, {"summary": {"average": None, "count": 0}}
-        )
+        _mock_aiohttp(mock_cls, {"summary": {"average": None, "count": 0}})
         result = asyncio.run(openlibrary.get_ratings({"key": "/works/OL1W"}))
         self.assertEqual(result, (None, 0))
 
