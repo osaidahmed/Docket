@@ -38,24 +38,26 @@ def _extract_active_filters(request, filter_definitions):
     }
 
 
+def _fetch_seasonal_anime(request, category, page):
+    """Fetch seasonal anime browse data with year/season from request."""
+    default_year, default_season = config.get_current_anime_season()
+    year = int(request.GET.get("year", default_year))
+    season_name = request.GET.get("season", default_season)
+    data = services.browse(
+        MediaTypes.ANIME.value, category, page, year=year, season=season_name
+    )
+    return data, year, season_name
+
+
 def _fetch_browse_data(request, media_type, category, active_filters, page):
     """Fetch browse data, routing to the appropriate provider."""
-    if media_type in TMDB_TYPES:
-        if not active_filters.get("sort_by"):
-            active_filters["sort_by"] = "popularity.desc"
-        return services.browse_filtered(media_type, active_filters, page), None, None
-
     if active_filters:
+        if media_type in TMDB_TYPES and not active_filters.get("sort_by"):
+            active_filters["sort_by"] = "popularity"
         return services.browse_filtered(media_type, active_filters, page), None, None
 
     if category == "seasonal" and media_type == MediaTypes.ANIME.value:
-        default_year, default_season = config.get_current_anime_season()
-        year = int(request.GET.get("year", default_year))
-        season_name = request.GET.get("season", default_season)
-        data = services.browse(
-            media_type, category, page, year=year, season=season_name
-        )
-        return data, year, season_name
+        return _fetch_seasonal_anime(request, category, page)
 
     return services.browse(media_type, category, page), None, None
 
@@ -112,6 +114,58 @@ def _apply_hide_watched_anime(request, media_type, data):
     return True
 
 
+def _build_explore_context(
+    *,
+    data,
+    media_type,
+    categories,
+    category,
+    layout,
+    order,
+    extra_params,
+    hide_watched_anime,
+    resolved_filters,
+    active_filters,
+    expanded_filters,
+    year,
+    season_name,
+):
+    """Build the template context dict for explore_type."""
+    context = {
+        "data": data,
+        "media_type": media_type,
+        "categories": categories,
+        "current_category": category,
+        "layout": layout,
+        "extra_params": extra_params,
+        "hide_watched_anime": hide_watched_anime,
+        "is_manga": media_type == MediaTypes.MANGA.value,
+        "is_upcoming": config.is_upcoming_category(
+            media_type, category, year, season_name
+        ),
+        "filter_definitions": resolved_filters,
+        "active_filters": active_filters,
+        "has_active_filters": bool(active_filters),
+        "expanded_filters": expanded_filters,
+        "is_tmdb_type": media_type in TMDB_TYPES,
+        "order": order,
+    }
+
+    if category == "seasonal" and media_type == MediaTypes.ANIME.value:
+        context.update(
+            {
+                "show_season_picker": True,
+                "year": year,
+                "prev_year": year - 1,
+                "next_year": year + 1,
+                "season": season_name,
+                "seasons": config.ANIME_SEASONS,
+            }
+        )
+
+    return context
+
+
 @require_GET
 def explore_type(request, media_type):
     """Browse media of a specific type by category, with optional filters."""
@@ -122,6 +176,7 @@ def explore_type(request, media_type):
     category = request.GET.get("category", categories[0]["slug"])
     page = int(request.GET.get("page", 1))
     layout = request.GET.get("layout", "list")
+    order = request.GET.get("order", "desc")
 
     valid_slugs = {c["slug"] for c in categories}
     if category not in valid_slugs:
@@ -130,9 +185,13 @@ def explore_type(request, media_type):
     filter_definitions = config.get_explore_filters(media_type)
     active_filters = _extract_active_filters(request, filter_definitions)
 
+    if active_filters.get("sort_by"):
+        active_filters["order"] = order
+
     resolved_filters = (
         _resolve_filter_options(filter_definitions) if filter_definitions else None
     )
+    expanded_filters = _get_expanded_filters(resolved_filters, active_filters)
 
     data, year, season_name = _fetch_browse_data(
         request, media_type, category, active_filters, page
@@ -150,39 +209,76 @@ def explore_type(request, media_type):
         active_filters, year, season_name, hide_watched_anime
     )
 
-    context = {
-        "data": data,
-        "media_type": media_type,
-        "categories": categories,
-        "current_category": category,
-        "layout": layout,
-        "extra_params": extra_params,
-        "hide_watched_anime": hide_watched_anime,
-        "is_manga": media_type == MediaTypes.MANGA.value,
-        "is_upcoming": config.is_upcoming_category(
-            media_type, category, year, season_name
-        ),
-        "filter_definitions": resolved_filters,
-        "active_filters": active_filters,
-        "has_active_filters": bool(active_filters),
-        "is_tmdb_type": media_type in TMDB_TYPES,
-    }
-
-    if category == "seasonal" and media_type == MediaTypes.ANIME.value:
-        context.update(
-            {
-                "show_season_picker": True,
-                "year": year,
-                "prev_year": year - 1,
-                "next_year": year + 1,
-                "season": season_name,
-                "seasons": config.ANIME_SEASONS,
-            }
-        )
+    context = _build_explore_context(
+        data=data,
+        media_type=media_type,
+        categories=categories,
+        category=category,
+        layout=layout,
+        order=order,
+        extra_params=extra_params,
+        hide_watched_anime=hide_watched_anime,
+        resolved_filters=resolved_filters,
+        active_filters=active_filters,
+        expanded_filters=expanded_filters,
+        year=year,
+        season_name=season_name,
+    )
 
     if request.headers.get("HX-Request"):
         return render(request, "app/explore_results.html", context)
     return render(request, "app/explore_type.html", context)
+
+
+VISIBLE_CHIP_COUNT = 12
+
+
+def _get_expanded_filters(resolved_filters, active_filters):
+    """Return set of filter keys that should start with chips expanded."""
+    if not resolved_filters or not active_filters:
+        return set()
+    expanded = set()
+    for f in resolved_filters:
+        if f.get("type") != "multi_select":
+            continue
+        selected = set(active_filters.get(f["key"], "").split(","))
+        selected.discard("")
+        if not selected:
+            continue
+        overflow_values = {
+            o["value"]
+            for i, o in enumerate(f.get("options", []))
+            if i >= VISIBLE_CHIP_COUNT
+        }
+        if selected & overflow_values:
+            expanded.add(f["key"])
+    return expanded
+
+
+def _dedup_options(raw_options):
+    """Deduplicate provider options by ID, preserving order."""
+    seen_ids = set()
+    options = []
+    for opt in raw_options:
+        opt_id = str(opt["id"])
+        if opt_id not in seen_ids:
+            seen_ids.add(opt_id)
+            options.append({"value": opt_id, "label": opt["name"]})
+    return options
+
+
+def _sort_by_priority(options, priority_ids):
+    """Sort options so priority IDs appear first in the given order."""
+    if not priority_ids:
+        return options
+    priority_set = {str(pid) for pid in priority_ids}
+    priority_order = {str(pid): i for i, pid in enumerate(priority_ids)}
+    prioritized = sorted(
+        [o for o in options if o["value"] in priority_set],
+        key=lambda o: priority_order[o["value"]],
+    )
+    rest = [o for o in options if o["value"] not in priority_set]
+    return prioritized + rest
 
 
 def _resolve_filter_options(filter_definitions):
@@ -192,8 +288,7 @@ def _resolve_filter_options(filter_definitions):
         f_copy = {**f}
         if f.get("options_source") == "provider" and "provider_key" in f:
             raw_options = services.get_filter_options(f["provider_key"])
-            f_copy["options"] = [
-                {"value": str(opt["id"]), "label": opt["name"]} for opt in raw_options
-            ]
+            options = _dedup_options(raw_options)
+            f_copy["options"] = _sort_by_priority(options, f.get("priority_ids"))
         resolved.append(f_copy)
     return resolved

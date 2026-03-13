@@ -2,7 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 from django.test import TestCase
 
-from app.providers.tmdb import process_season
+from app.models import MediaTypes
+from app.providers.tmdb import _build_discover_params, process_season
 
 AIRED_CUTOFF = 7
 NO_AIR_DATE_CUTOFF = 5
@@ -114,3 +115,22 @@ class ProcessSeasonMaxProgressTests(TestCase):
         result = process_season(self._make_response(episodes))
         self.assertEqual(len(result["episodes"]), 10)
         self.assertEqual(result["max_progress"], NO_AIR_DATE_CUTOFF)
+
+
+class BuildDiscoverParamsTests(TestCase):
+    """Test _build_discover_params combines sort_by and order."""
+
+    def test_combines_sort_and_order_desc(self):
+        filters = {"sort_by": "popularity", "order": "desc"}
+        params = _build_discover_params(MediaTypes.MOVIE.value, filters, 1)
+        self.assertEqual(params["sort_by"], "popularity.desc")
+
+    def test_combines_sort_and_order_asc(self):
+        filters = {"sort_by": "popularity", "order": "asc"}
+        params = _build_discover_params(MediaTypes.MOVIE.value, filters, 1)
+        self.assertEqual(params["sort_by"], "popularity.asc")
+
+    def test_defaults_to_popularity_desc_without_sort_by(self):
+        filters = {}
+        params = _build_discover_params(MediaTypes.MOVIE.value, filters, 1)
+        self.assertEqual(params["sort_by"], "popularity.desc")

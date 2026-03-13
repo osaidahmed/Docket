@@ -56,12 +56,17 @@ def form_error_messages(form, request):
             )
 
 
-def format_search_response(page, per_page, total_results, results, *, total_exact=True):
+def format_search_response(
+    page, per_page, total_results, results, *, total_exact=True, max_pages=None
+):
     """Format the search response for pagination."""
+    total_pages = total_results // per_page + 1
+    if max_pages is not None:
+        total_pages = min(total_pages, max_pages)
     return {
         "page": page,
         "total_results": total_results,
-        "total_pages": total_results // per_page + 1,
+        "total_pages": total_pages,
         "total_exact": total_exact,
         "results": results,
     }

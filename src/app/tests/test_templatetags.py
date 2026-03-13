@@ -502,3 +502,15 @@ class ConfigTests(TestCase):
                 ]
             ),
         )
+
+    def test_csv_contains_true_for_present_value(self):
+        self.assertTrue(app_tags.csv_contains("28,12,35", "28"))
+
+    def test_csv_contains_false_for_missing_value(self):
+        self.assertFalse(app_tags.csv_contains("28,12,35", "99"))
+
+    def test_csv_contains_empty_string(self):
+        self.assertFalse(app_tags.csv_contains("", "28"))
+
+    def test_csv_contains_none(self):
+        self.assertFalse(app_tags.csv_contains(None, "28"))

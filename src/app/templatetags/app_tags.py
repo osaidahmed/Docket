@@ -494,3 +494,11 @@ def get_item(dictionary, key):
     if isinstance(dictionary, dict):
         return dictionary.get(key, "")
     return ""
+
+
+@register.filter
+def csv_contains(csv_string, value):
+    """Check if a value is in a comma-separated string."""
+    if not csv_string:
+        return False
+    return str(value) in str(csv_string).split(",")

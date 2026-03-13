@@ -208,6 +208,7 @@ def browse(media_type, category, page):
             per_page,
             total_results,
             results,
+            max_pages=500,
         )
 
         cache.set(cache_key, data)
@@ -245,7 +246,7 @@ def discover(media_type, filters, page):
         ]
 
         data = helpers.format_search_response(
-            page, 20, response["total_results"], results
+            page, 20, response["total_results"], results, max_pages=500
         )
         cache.set(cache_key, data)
 
@@ -256,7 +257,9 @@ def _build_discover_params(media_type, filters, page):
     params = {**base_params, "page": page}
     if settings.TMDB_NSFW:
         params["include_adult"] = "true"
-    params["sort_by"] = filters.get("sort_by", "popularity.desc")
+    sort_by = filters.get("sort_by", "popularity")
+    order = filters.get("order", "desc")
+    params["sort_by"] = f"{sort_by}.{order}"
     if filters.get("genres"):
         params["with_genres"] = filters["genres"]
     if filters.get("year"):

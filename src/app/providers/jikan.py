@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 base_url = "https://api.jikan.moe/v4"
 
 FILTER_PARAM_MAP = {
+    "sort_by": "order_by",
+    "order": "sort",
     "genres": "genres",
     "min_score": "min_score",
     "anime_type": "type",

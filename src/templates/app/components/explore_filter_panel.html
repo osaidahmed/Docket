@@ -1,7 +1,9 @@
 {% load app_tags %}
 
 {% if filter_definitions %}
-  <div x-data="{ filtersOpen: {{ has_active_filters|yesno:'true,false' }}, multiSelectOpen: {}, multiSelectValues: {
+  <div x-data="{ filtersOpen: {{ has_active_filters|yesno:'true,false' }}, orderValue: '{{ order }}', chipExpanded: {
+    {% for key in expanded_filters %}'{{ key }}': true,{% endfor %}
+    }, chipSearch: {}, multiSelectValues: {
     {% for filter in filter_definitions %}
 
       {% if filter.type == 'multi_select' %}
@@ -9,7 +11,7 @@
       {% endif %}
 
     {% endfor %}
-    }, toggleMultiSelect(key) { this.multiSelectOpen[key] = !this.multiSelectOpen[key]; }, closeMultiSelect(key) { this.multiSelectOpen[key] = false; }, toggleOption(key, value) { const arr = this.multiSelectValues[key] || []; const idx = arr.indexOf(value); if (idx === -1) { arr.push(value); } else { arr.splice(idx, 1); } this.multiSelectValues[key] = [...arr]; }, hasOption(key, value) { return (this.multiSelectValues[key] || []).includes(value); }, getMultiSelectLabel(key) { const arr = this.multiSelectValues[key] || []; return arr.length ? arr.length + ' selected' : 'Any'; }, getMultiSelectValue(key) { return (this.multiSelectValues[key] || []).join(','); }, applyFilters() { this.$refs.applyBtn.click(); } }" class="mb-6">
+    }, toggleChip(key, value) { const arr = this.multiSelectValues[key] || []; const idx = arr.indexOf(value); if (idx === -1) { arr.push(value); } else { arr.splice(idx, 1); } this.multiSelectValues[key] = [...arr]; this.$nextTick(() => document.getElementById('filter-form').requestSubmit()); }, hasChip(key, value) { return (this.multiSelectValues[key] || []).includes(value); }, getMultiSelectValue(key) { return (this.multiSelectValues[key] || []).join(','); }, chipVisible(key, label, index, value) { if (this.hasChip(key, value)) return true; const search = (this.chipSearch[key] || '').toLowerCase(); if (search && !label.toLowerCase().includes(search)) return false; if (!this.chipExpanded[key] && !search && index >= 12) return false; return true; } }" class="mb-6">
     <button @click="filtersOpen = !filtersOpen"
             type="button"
             class="flex items-center gap-2 px-4 py-2 bg-input rounded-full hover:bg-highlight transition-colors cursor-pointer text-sm">
@@ -40,59 +42,79 @@
         <input type="hidden" name="category" value="{{ current_category }}">
         <input type="hidden" name="layout" value="{{ layout }}">
         <input type="hidden" name="page" value="1">
+        <input type="hidden" name="order" :value="orderValue">
         {% if hide_watched_anime %}<input type="hidden" name="hide_watched_anime" value="1">{% endif %}
 
         {% for filter in filter_definitions %}
           {% if filter.type == "single_select" %}
             <div>
               <label class="block text-sm font-medium text-gray-300 mb-1.5">{{ filter.label }}</label>
-              <select name="{{ filter.key }}"
-                      @change="$el.form.requestSubmit()"
-                      class="w-full px-3 py-2 bg-input rounded-md text-white text-sm border border-gray-600 focus:border-accent-hover focus:ring focus:ring-accent-hover focus:ring-opacity-50">
-                {% for opt in filter.options %}
-                  <option value="{{ opt.value }}"
-                          {% if active_filters|get_item:filter.key == opt.value %}selected{% endif %}>
-                    {{ opt.label }}
-                  </option>
-                {% endfor %}
-              </select>
+              <div class="flex gap-2">
+                <select name="{{ filter.key }}"
+                        @change="$el.form.requestSubmit()"
+                        class="flex-1 min-w-0 px-3 py-2 bg-input rounded-md text-white text-sm border border-gray-600 focus:border-accent-hover focus:ring focus:ring-accent-hover focus:ring-opacity-50">
+                  {% for opt in filter.options %}
+                    <option value="{{ opt.value }}"
+                            {% if active_filters|get_item:filter.key == opt.value %}selected{% endif %}>
+                      {{ opt.label }}
+                    </option>
+                  {% endfor %}
+                </select>
+                {% if filter.key == "sort_by" %}
+                  <button type="button"
+                          @click="orderValue = orderValue === 'desc' ? 'asc' : 'desc'; $nextTick(() => $el.closest('form').requestSubmit())"
+                          class="px-2.5 py-2 bg-input rounded-md border border-gray-600 hover:bg-highlight cursor-pointer transition-colors"
+                          :title="orderValue === 'desc' ? 'Descending' : 'Ascending'">
+                    <template x-if="orderValue === 'desc'">
+                      {% include "app/icons/arrow-down.svg" with classes="w-4 h-4 text-gray-300" %}
+                    </template>
+                    <template x-if="orderValue === 'asc'">
+                      {% include "app/icons/arrow-up.svg" with classes="w-4 h-4 text-gray-300" %}
+                    </template>
+                  </button>
+                {% endif %}
+              </div>
             </div>
 
           {% elif filter.type == "multi_select" %}
-            <div>
+            <div class="sm:col-span-2 lg:col-span-3 xl:col-span-4">
               <label class="block text-sm font-medium text-gray-300 mb-1.5">{{ filter.label }}</label>
               <input type="hidden"
                      name="{{ filter.key }}"
                      :value="getMultiSelectValue('{{ filter.key }}')">
-              <div class="relative">
-                <button @click="toggleMultiSelect('{{ filter.key }}')"
-                        type="button"
-                        class="w-full flex items-center justify-between px-3 py-2 bg-input rounded-md text-white text-sm border border-gray-600 hover:bg-highlight cursor-pointer">
-                  <span x-text="getMultiSelectLabel('{{ filter.key }}')"></span>
-                  {% include "app/icons/chevron-down.svg" with classes="w-4 h-4" %}
-                </button>
-                <div x-show="multiSelectOpen['{{ filter.key }}']"
-                     @click.outside="closeMultiSelect('{{ filter.key }}')"
-                     x-cloak
-                     class="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto bg-card rounded-md shadow-lg border border-gray-700">
-                  {% for opt in filter.options %}
-                    <label @click.stop="toggleOption('{{ filter.key }}', '{{ opt.value }}')"
-                           class="flex items-center gap-2 px-3 py-1.5 hover:bg-highlight cursor-pointer text-sm">
-                      <input type="checkbox"
-                             :checked="hasOption('{{ filter.key }}', '{{ opt.value }}')"
-                             class="rounded border-gray-600"
-                             @click.prevent>
-                      <span>{{ opt.label }}</span>
-                    </label>
-                  {% endfor %}
-                  <div class="sticky bottom-0 p-2 bg-card border-t border-gray-700">
-                    <button type="button"
-                            @click="closeMultiSelect('{{ filter.key }}'); $nextTick(() => $el.closest('form').requestSubmit())"
-                            class="w-full px-3 py-1.5 bg-accent text-white text-sm rounded-md hover:bg-accent-hover cursor-pointer">
-                      Apply
-                    </button>
-                  </div>
-                </div>
+              <div x-show="chipExpanded['{{ filter.key }}']" x-cloak class="mb-2">
+                <input type="text"
+                       x-model="chipSearch['{{ filter.key }}']"
+                       placeholder="Search {{ filter.label|lower }}..."
+                       class="w-full sm:w-64 px-3 py-1.5 bg-input rounded-md text-white text-sm border border-gray-600 focus:border-accent-hover focus:ring focus:ring-accent-hover focus:ring-opacity-50">
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                {% for opt in filter.options %}
+                  <button type="button"
+                          id="chip-{{ filter.key }}-{{ opt.value }}"
+                          x-show="chipVisible('{{ filter.key }}', '{{ opt.label }}', {{ forloop.counter0 }}, '{{ opt.value }}')"
+                          {% if forloop.counter0 >= 12 and filter.key not in expanded_filters and not active_filters|get_item:filter.key|csv_contains:opt.value %}style="display:none"{% endif %}
+                          @click="toggleChip('{{ filter.key }}', '{{ opt.value }}')"
+                          :class="hasChip('{{ filter.key }}', '{{ opt.value }}') ? 'bg-accent text-white' : 'bg-input text-gray-300 hover:bg-highlight'"
+                          class="px-3 py-1.5 text-sm rounded-full cursor-pointer {% if active_filters|get_item:filter.key|csv_contains:opt.value %}bg-accent text-white{% else %}bg-input text-gray-300{% endif %}">
+                    {{ opt.label }}
+                  </button>
+                {% endfor %}
+                {% if filter.options|length > 12 %}
+                  <button type="button"
+                          x-show="!chipExpanded['{{ filter.key }}']"
+                          @click="chipExpanded['{{ filter.key }}'] = true"
+                          class="px-3 py-1.5 text-sm rounded-full bg-input text-accent hover:bg-highlight cursor-pointer transition-colors duration-200">
+                    Show all ({{ filter.options|length }})
+                  </button>
+                  <button type="button"
+                          x-show="chipExpanded['{{ filter.key }}']"
+                          @click="chipExpanded['{{ filter.key }}'] = false; chipSearch['{{ filter.key }}'] = ''"
+                          x-cloak
+                          class="px-3 py-1.5 text-sm rounded-full bg-input text-accent hover:bg-highlight cursor-pointer transition-colors duration-200">
+                    Show less
+                  </button>
+                {% endif %}
               </div>
             </div>
 
@@ -107,6 +129,24 @@
                      max="2030"
                      @change="$el.form.requestSubmit()"
                      class="w-full px-3 py-2 bg-input rounded-md text-white text-sm border border-gray-600 focus:border-accent-hover focus:ring focus:ring-accent-hover focus:ring-opacity-50">
+            </div>
+
+          {% elif filter.type == "preset_buttons" %}
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-1.5">{{ filter.label }}</label>
+              <input type="hidden"
+                     name="{{ filter.key }}"
+                     x-ref="preset_{{ filter.key }}"
+                     value="{{ active_filters|get_item:filter.key }}">
+              <div class="flex flex-wrap gap-1.5">
+                {% for preset in filter.presets %}
+                  <button type="button"
+                          @click="$refs.preset_{{ filter.key }}.value = '{{ preset.value }}'; $el.closest('form').requestSubmit()"
+                          class="px-3 py-1.5 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if active_filters|get_item:filter.key == preset.value %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+                    {{ preset.label }}
+                  </button>
+                {% endfor %}
+              </div>
             </div>
 
           {% elif filter.type == "number" %}

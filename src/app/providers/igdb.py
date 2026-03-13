@@ -322,16 +322,18 @@ def browse_filtered(filters, page):
         offset = (page - 1) * settings.PER_PAGE
         where_clause = _build_filter_where_clause(filters)
 
-        sort_map = {
-            "popularity": "total_rating_count desc",
-            "rating": "total_rating desc",
-            "date": "first_release_date desc",
-            "hype": "hypes desc",
+        order = filters.get("order", "desc")
+        sort_field_map = {
+            "popularity": "total_rating_count",
+            "rating": "total_rating",
+            "date": "first_release_date",
+            "hype": "hypes",
         }
-        sort = sort_map.get(
+        sort_field = sort_field_map.get(
             filters.get("sort_by", "popularity"),
-            "total_rating_count desc",
+            "total_rating_count",
         )
+        sort = f"{sort_field} {order}"
 
         multiquery = (
             'query games "BrowseResults" {'

@@ -7,6 +7,7 @@ from django.test import TestCase
 from app.helpers import (
     enrich_items_with_user_data,
     form_error_messages,
+    format_search_response,
     minutes_to_hhmm,
     redirect_back,
 )
@@ -81,6 +82,22 @@ class HelpersTest(TestCase):
             request,
             "Release Date: Enter a valid date.",
         )
+
+
+class FormatSearchResponseTest(TestCase):
+    """Test format_search_response helper."""
+
+    def test_caps_total_pages_when_max_pages_set(self):
+        result = format_search_response(1, 20, 1112080, [], max_pages=500)
+        self.assertEqual(result["total_pages"], 500)
+
+    def test_no_cap_when_under_limit(self):
+        result = format_search_response(1, 20, 100, [], max_pages=500)
+        self.assertEqual(result["total_pages"], 6)
+
+    def test_no_cap_when_max_pages_not_specified(self):
+        result = format_search_response(1, 20, 1112080, [])
+        self.assertEqual(result["total_pages"], 1112080 // 20 + 1)
 
 
 class EnrichItemsWithUserDataTest(TestCase):

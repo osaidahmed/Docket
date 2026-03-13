@@ -290,9 +290,9 @@ class ExplorePaginationDisplayTests(TestCase):
     def setUp(self):
         self.client.login(**self.credentials)
 
-    @patch("app.providers.services.browse_filtered")
-    def test_exact_total_shows_page_count(self, mock_browse_filtered):
-        mock_browse_filtered.return_value = {
+    @patch("app.providers.services.browse")
+    def test_exact_total_shows_page_count(self, mock_browse):
+        mock_browse.return_value = {
             "page": 1,
             "total_results": 50,
             "total_pages": 3,
@@ -417,3 +417,101 @@ class ExploreFilterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["hide_watched_anime"])
         self.assertIn("hide_watched_anime=1", response.context["extra_params"])
+
+
+class ExploreGenreChipGridTests(TestCase):
+    """Test that genre filters render as a chip grid instead of dropdown."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "chip_test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    @patch("app.providers.services.get_filter_options")
+    @patch("app.providers.services.browse_filtered")
+    def test_filter_panel_renders_genre_chips(self, mock_filtered, mock_options):
+        """Genre options should render as chip buttons, not a select/checkbox list."""
+        mock_options.return_value = [
+            {"id": 28, "name": "Action"},
+            {"id": 12, "name": "Adventure"},
+            {"id": 35, "name": "Comedy"},
+        ]
+        mock_filtered.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            + "?category=trending&genres=28",
+        )
+
+        content = response.content.decode()
+        self.assertIn("chip-genres-28", content)
+        self.assertIn("chip-genres-12", content)
+        self.assertIn("chip-genres-35", content)
+        self.assertNotIn("getMultiSelectLabel", content)
+
+    @patch("app.providers.services.get_filter_options")
+    @patch("app.providers.services.browse_filtered")
+    def test_selected_genre_has_accent_class(self, mock_filtered, mock_options):
+        """Selected genre chips must have bg-accent server-side for HTMX reload."""
+        mock_options.return_value = [
+            {"id": 28, "name": "Action"},
+            {"id": 12, "name": "Adventure"},
+        ]
+        mock_filtered.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            + "?category=trending&genres=28",
+        )
+
+        content = response.content.decode()
+        # Selected chip (28) should have accent class server-side
+        # Use \sclass= to avoid matching Alpine's :class= binding
+        self.assertRegex(
+            content,
+            r'id="chip-genres-28"[^>]*\sclass="[^"]*bg-accent[^"]*"',
+        )
+        # Non-selected chip (12) should NOT have accent class server-side
+        self.assertNotRegex(
+            content,
+            r'id="chip-genres-12"[^>]*\sclass="[^"]*bg-accent[^"]*"',
+        )
+
+    @patch("app.providers.services.get_filter_options")
+    @patch("app.providers.services.browse_filtered")
+    def test_no_duplicate_genre_options(self, mock_filtered, mock_options):
+        """Provider options must be deduplicated by ID."""
+        mock_options.return_value = [
+            {"id": 1, "name": "Action"},
+            {"id": 2, "name": "Adventure"},
+            {"id": 1, "name": "Action"},
+            {"id": 2, "name": "Adventure"},
+        ]
+        mock_filtered.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            + "?category=trending&genres=1",
+        )
+
+        content = response.content.decode()
+        self.assertEqual(content.count('id="chip-genres-1"'), 1)
+        self.assertEqual(content.count('id="chip-genres-2"'), 1)

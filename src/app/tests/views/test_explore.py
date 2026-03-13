@@ -78,10 +78,10 @@ class ExploreTypeViewTests(TestCase):
     def setUp(self):
         self.client.login(**self.credentials)
 
-    @patch("app.providers.services.browse_filtered")
-    def test_explore_type_default_category(self, mock_browse_filtered):
+    @patch("app.providers.services.browse")
+    def test_explore_type_default_category(self, mock_browse):
         """Test that explore_type uses the first category as default."""
-        mock_browse_filtered.return_value = {
+        mock_browse.return_value = {
             "page": 1,
             "total_results": 1,
             "total_pages": 1,
@@ -104,9 +104,7 @@ class ExploreTypeViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "app/explore_type.html")
         self.assertEqual(response.context["current_category"], "trending")
-        mock_browse_filtered.assert_called_once_with(
-            MediaTypes.TV.value, {"sort_by": "popularity.desc"}, 1
-        )
+        mock_browse.assert_called_once_with(MediaTypes.TV.value, "trending", 1)
 
     @patch("app.providers.services.browse_filtered")
     def test_explore_type_custom_category(self, mock_browse_filtered):
@@ -217,10 +215,10 @@ class ExploreTypeViewTests(TestCase):
         )
         self.assertEqual(response2.context["current_category"], "top_rated")
 
-    @patch("app.providers.services.browse_filtered")
-    def test_explore_type_pagination(self, mock_browse_filtered):
-        """Test that page parameter is passed to browse_filtered."""
-        mock_browse_filtered.return_value = {
+    @patch("app.providers.services.browse")
+    def test_explore_type_pagination(self, mock_browse):
+        """Test that page parameter is passed to browse."""
+        mock_browse.return_value = {
             "page": 2,
             "total_results": 50,
             "total_pages": 3,
@@ -242,9 +240,7 @@ class ExploreTypeViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mock_browse_filtered.assert_called_once_with(
-            MediaTypes.MOVIE.value, {"sort_by": "popularity.desc"}, 2
-        )
+        mock_browse.assert_called_once_with(MediaTypes.MOVIE.value, "popular", 2)
 
     @patch("app.providers.services.browse_filtered")
     def test_explore_type_layout_grid(self, mock_browse_filtered):
@@ -305,10 +301,10 @@ class ExploreTypeViewTests(TestCase):
         self.assertEqual(len(results), 1)
         self.assertIsNotNone(results[0]["media"])
 
-    @patch("app.providers.services.browse_filtered")
-    def test_explore_type_extra_params_includes_default_sort(self, mock_filtered):
-        """Test that TMDB types include default sort_by in extra_params."""
-        mock_filtered.return_value = {
+    @patch("app.providers.services.browse")
+    def test_explore_type_extra_params_empty_for_tmdb_no_filters(self, mock_browse):
+        """Test that TMDB types have empty extra_params when no filters active."""
+        mock_browse.return_value = {
             "page": 1,
             "total_results": 0,
             "total_pages": 1,
@@ -319,7 +315,7 @@ class ExploreTypeViewTests(TestCase):
             reverse("explore_type", kwargs={"media_type": MediaTypes.TV.value}),
         )
 
-        self.assertIn("sort_by=popularity.desc", response.context["extra_params"])
+        self.assertEqual(response.context["extra_params"], "")
 
     @patch("app.providers.services.browse")
     def test_explore_type_extra_params_empty_for_non_tmdb(self, mock_browse):
@@ -343,6 +339,127 @@ class ExploreTypeViewTests(TestCase):
             reverse("explore_type", kwargs={"media_type": MediaTypes.TV.value}),
         )
         self.assertEqual(response.status_code, 405)
+
+    @patch("app.providers.services.browse")
+    def test_tmdb_type_shows_category_pills(self, mock_browse):
+        """Test that TMDB types show category pills in the HTML."""
+        mock_browse.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value}),
+        )
+
+        content = response.content.decode()
+        self.assertIn("Trending", content)
+        self.assertIn("Popular", content)
+        self.assertIn("Top Rated", content)
+        self.assertIn("Now Playing", content)
+
+    @patch("app.providers.services.browse")
+    def test_tmdb_type_uses_browse_when_no_filters(self, mock_browse):
+        """Test that TMDB types use browse (not browse_filtered) without filters."""
+        mock_browse.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            + "?category=trending",
+        )
+
+        mock_browse.assert_called_once_with(MediaTypes.MOVIE.value, "trending", 1)
+
+    @patch("app.providers.services.browse_filtered")
+    def test_tmdb_type_uses_discover_when_filters_active(self, mock_filtered):
+        """Test that TMDB types use browse_filtered when filters are present."""
+        mock_filtered.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            + "?category=trending&genres=28",
+        )
+
+        mock_filtered.assert_called_once()
+
+    @patch("app.providers.services.browse")
+    def test_tmdb_category_deactivates_with_active_filters(self, mock_browse):
+        """Test that has_active_filters is False when no explicit filters set."""
+        mock_browse.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value}),
+        )
+
+        self.assertFalse(response.context["has_active_filters"])
+
+    @patch("app.providers.services.browse")
+    def test_explore_type_order_defaults_to_desc(self, mock_browse):
+        """Test that order defaults to desc in context."""
+        mock_browse.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value}),
+        )
+
+        self.assertEqual(response.context["order"], "desc")
+
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_order_asc_passed_to_provider(self, mock_filtered):
+        """Test that order=asc is passed through to browse_filtered."""
+        mock_filtered.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            + "?sort_by=popularity&order=asc",
+        )
+
+        call_args = mock_filtered.call_args
+        self.assertEqual(call_args[0][1]["order"], "asc")
+
+    @patch("app.providers.services.browse_filtered")
+    def test_explore_type_order_in_extra_params(self, mock_filtered):
+        """Test that order is included in extra_params for pagination."""
+        mock_filtered.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
+
+        response = self.client.get(
+            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            + "?sort_by=popularity&order=asc",
+        )
+
+        self.assertIn("order=asc", response.context["extra_params"])
 
     @patch("app.providers.services.browse_filtered")
     def test_explore_type_sidebar_only_highlights_explore(self, mock_browse_filtered):

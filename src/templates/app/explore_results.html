@@ -1,33 +1,29 @@
 {% load app_tags %}
 
-{% if is_tmdb_type %}
-  {% include "app/components/explore_filter_panel.html" %}
-{% else %}
-  <div class="flex flex-wrap gap-2 mb-8">
-    {% for cat in categories %}
-      <a href="{% url 'explore_type' media_type=media_type %}?category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
-         hx-get="{% url 'explore_type' media_type=media_type %}?category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
-         hx-target="#explore-results"
-         hx-push-url="true"
-         class="px-4 py-2 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if current_category == cat.slug and not has_active_filters %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
-        {{ cat.label }}
-      </a>
-    {% endfor %}
+<div class="flex flex-wrap gap-2 mb-8">
+  {% for cat in categories %}
+    <a href="{% url 'explore_type' media_type=media_type %}?category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+       hx-get="{% url 'explore_type' media_type=media_type %}?category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+       hx-target="#explore-results"
+       hx-push-url="true"
+       class="px-4 py-2 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if current_category == cat.slug and not has_active_filters %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+      {{ cat.label }}
+    </a>
+  {% endfor %}
 
-    {% if is_manga %}
-      <span class="w-px self-stretch bg-gray-700"></span>
-      <a href="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
-         hx-get="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
-         hx-target="#explore-results"
-         hx-push-url="true"
-         class="px-4 py-2 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if hide_watched_anime %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
-        Hide watched anime
-      </a>
-    {% endif %}
-  </div>
+  {% if is_manga %}
+    <span class="w-px self-stretch bg-gray-700"></span>
+    <a href="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+       hx-get="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+       hx-target="#explore-results"
+       hx-push-url="true"
+       class="px-4 py-2 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if hide_watched_anime %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+      Hide watched anime
+    </a>
+  {% endif %}
+</div>
 
-  {% include "app/components/explore_filter_panel.html" %}
-{% endif %}
+{% include "app/components/explore_filter_panel.html" %}
 
 {% if show_season_picker %}
   <div class="flex flex-wrap items-center gap-4 mb-8">
@@ -98,11 +94,11 @@
            hx-get="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&page={{ page_num }}&layout={{ layout }}{{ extra_params }}"
            hx-target="#explore-results"
            hx-push-url="true"
-           class="w-10 h-10 rounded-md {% if data.page == page_num %}bg-accent{% else %}bg-card hover:bg-input{% endif %} text-white flex items-center justify-center">
+           class="min-w-10 h-10 px-2 rounded-md {% if data.page == page_num %}bg-accent{% else %}bg-card hover:bg-input{% endif %} text-white flex items-center justify-center">
           {{ page_num }}
         </a>
       {% else %}
-        <span class="flex items-center justify-center w-10 h-10 text-gray-400">
+        <span class="flex items-center justify-center min-w-10 h-10 text-gray-400">
           {% include "app/icons/ellipsis.svg" with classes="w-5 h-5" %}
         </span>
       {% endif %}
