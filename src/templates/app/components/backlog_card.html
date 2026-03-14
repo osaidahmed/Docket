@@ -58,30 +58,6 @@
             </div>
           {% endif %}
 
-          {% if media.collapsed_seasons %}
-            <div x-data="{ showSeasons: false }" class="mt-1">
-              <button @click="showSeasons = !showSeasons"
-                      class="text-xs text-gray-400 hover:text-accent-soft transition-colors cursor-pointer flex items-center gap-1">
-                +{{ media.collapsed_seasons|length }} more season{{ media.collapsed_seasons|length|pluralize }}
-                <span x-text="showSeasons ? '\u25BE' : '\u25B8'"></span>
-              </button>
-              <div x-show="showSeasons" x-cloak class="ml-2 mt-1.5 space-y-1.5">
-                {% for season in media.collapsed_seasons %}
-                  <div class="flex items-center justify-between gap-2 p-2 bg-input rounded text-sm">
-                    <span class="text-gray-300">{{ season }}</span>
-                    <button hx-post="{% url 'quick_status_transition' %}"
-                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                            hx-vals='{"media_type": "{{ season.item.media_type }}", "instance_id": "{{ season.id }}", "target_status": "In progress"}'
-                            hx-swap="none"
-                            class="flex items-center gap-1 px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors text-xs font-medium cursor-pointer shrink-0">
-                      {% include "app/icons/states/in-progress.svg" with classes="w-3 h-3" %}
-                      Start
-                    </button>
-                  </div>
-                {% endfor %}
-              </div>
-            </div>
-          {% endif %}
         </div>
 
         <div class="flex items-center gap-1.5 shrink-0">

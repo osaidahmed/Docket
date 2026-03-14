@@ -220,6 +220,29 @@ class Item(CalendarTriggerMixin, models.Model):
             events.tasks.reload_calendar(items_to_process=items_to_process)
 
 
+class RelationType(models.TextChoices):
+    SEQUEL = "sequel"
+    PREQUEL = "prequel"
+
+
+class ItemRelationship(models.Model):
+    from_item = models.ForeignKey(
+        Item, on_delete=models.CASCADE, related_name="relationships_from"
+    )
+    to_item = models.ForeignKey(
+        Item, on_delete=models.CASCADE, related_name="relationships_to"
+    )
+    relation_type = models.CharField(max_length=20, choices=RelationType.choices)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["from_item", "to_item", "relation_type"],
+                name="unique_item_relationship",
+            ),
+        ]
+
+
 from app.managers import MediaManager
 
 

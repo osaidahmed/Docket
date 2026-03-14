@@ -21,7 +21,11 @@
     <tbody>
       {% for media in items %}
         {% if not truncated_at or forloop.counter <= truncated_at %}
-          {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
+          {% if media.is_group and media.group_items %}
+            {% include "app/components/backlog_table_group_rows.html" with media=media is_archive=is_archive hide_type=hide_type %}
+          {% else %}
+            {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
+          {% endif %}
         {% endif %}
       {% endfor %}
     </tbody>
@@ -31,7 +35,11 @@
              id="see-all-{{ see_all_type }}-{{ see_all_status|slugify }}">
         {% for media in items %}
           {% if forloop.counter > truncated_at %}
-            {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
+            {% if media.is_group and media.group_items %}
+              {% include "app/components/backlog_table_group_rows.html" with media=media is_archive=is_archive hide_type=hide_type %}
+            {% else %}
+              {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
+            {% endif %}
           {% endif %}
         {% endfor %}
       </tbody>

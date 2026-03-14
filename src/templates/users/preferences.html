@@ -170,6 +170,42 @@
         </div>
       </div>
 
+      {# Group Related Media #}
+      <div class="mb-5">
+        <div class="flex items-center justify-between p-3 bg-input rounded-md">
+          <div class="flex-1">
+            <div class="flex items-center text-gray-200 mb-1">
+              {% include "app/icons/layers.svg" with classes="w-5 h-5 mr-2" %}
+              <span class="text-sm font-medium">Group related media</span>
+            </div>
+            <p class="text-xs text-gray-400 ml-7">
+              Group related TV seasons and anime sequels under a single entry on list pages.
+            </p>
+          </div>
+          <div class="flex items-center gap-3 ml-4">
+            <button hx-post="{% url 'refresh_relationships' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-swap="none"
+                    class="px-3 py-1.5 text-xs font-medium text-gray-300 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors cursor-pointer border border-gray-600"
+                    x-data="{ done: false }"
+                    @click="done = true; setTimeout(() => done = false, 3000)"
+                    :class="done && 'opacity-50 pointer-events-none'"
+                    type="button">
+              <span x-show="!done">Refresh relationships</span>
+              <span x-show="done" x-cloak>Refreshing...</span>
+            </button>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input class="sr-only peer"
+                     type="checkbox"
+                     name="group_related_media"
+                     {% if user.group_related_media %}checked{% endif %}>
+              <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-accent">
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
       {# Date Format #}
       <div class="mb-5">
         <div class="flex items-center justify-between p-3 bg-input rounded-md">

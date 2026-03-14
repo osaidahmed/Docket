@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 from django.apps import apps
 from django.db.models import F, Window
 from django.db.models.functions import RowNumber
@@ -8,6 +6,7 @@ from django.utils import timezone
 import users
 from app import config
 from app.models import BasicMedia, MediaTypes, Status
+from app.services.grouping import group_media_list
 
 
 def get_backlog(user, sort_by, media_type_filter=None, group_by="type"):
@@ -19,18 +18,17 @@ def get_backlog(user, sort_by, media_type_filter=None, group_by="type"):
     ]
 
     media_types = _get_media_types_to_process(user, media_type_filter)
-    archive_all = []
 
     if group_by == "status":
-        groups = _build_status_groups(
-            user, media_types, backlog_statuses, sort_by, archive_all
+        groups, archive_all = _build_status_groups(
+            user, media_types, backlog_statuses, sort_by
         )
     else:
-        groups = _build_type_groups(
-            user, media_types, backlog_statuses, sort_by, archive_all
+        groups, archive_all = _build_type_groups(
+            user, media_types, backlog_statuses, sort_by
         )
         if not media_type_filter or len(media_type_filter) > 1:
-            groups = _extract_rewatches(groups, backlog_statuses, sort_by)
+            groups = _extract_rewatches(groups, backlog_statuses, sort_by, user)
         groups = _extract_not_yet_airing(groups, backlog_statuses)
 
     archive_all.sort(
@@ -65,21 +63,22 @@ def _fetch_and_partition(user, media_type, backlog_statuses):
     return backlog_items, completed_items
 
 
-def _build_type_groups(user, media_types, backlog_statuses, sort_by, archive_all):
+def _build_type_groups(user, media_types, backlog_statuses, sort_by):
     """Build groups organized by media type, then status."""
     groups = []
+    completed = []
 
     for media_type in media_types:
         backlog_items, completed_items = _fetch_and_partition(
             user, media_type, backlog_statuses
         )
-        archive_all.extend(completed_items)
+        completed.extend(completed_items)
 
         if not backlog_items:
             continue
 
         status_groups = _build_status_subgroups(
-            backlog_items, backlog_statuses, sort_by
+            backlog_items, backlog_statuses, sort_by, user
         )
         if status_groups:
             groups.append(
@@ -90,29 +89,38 @@ def _build_type_groups(user, media_types, backlog_statuses, sort_by, archive_all
                 }
             )
 
-    return groups
+    return groups, completed
 
 
-def _build_status_groups(user, media_types, backlog_statuses, sort_by, archive_all):
+def _build_status_groups(user, media_types, backlog_statuses, sort_by):
     """Build groups organized by status (flat, across all media types)."""
     all_backlog = []
+    completed = []
 
     for media_type in media_types:
         backlog_items, completed_items = _fetch_and_partition(
             user, media_type, backlog_statuses
         )
         all_backlog.extend(backlog_items)
-        archive_all.extend(completed_items)
+        completed.extend(completed_items)
 
     nya_items = [m for m in all_backlog if getattr(m, "not_yet_airing", False)]
     all_backlog = [m for m in all_backlog if not getattr(m, "not_yet_airing", False)]
 
-    groups = _build_flat_groups(all_backlog, backlog_statuses, sort_by)
+    groups = _build_flat_groups(all_backlog, backlog_statuses, sort_by, user)
     _append_nya_group(groups, nya_items)
-    return groups
+    return groups, completed
 
 
-def _build_flat_groups(all_backlog, backlog_statuses, sort_by):
+def _apply_pinned_and_grouping(sg, status_val, user):
+    """Apply pinned splitting or media grouping to a status group."""
+    if status_val == Status.PLANNING.value:
+        _split_pinned(sg, user)
+    elif user and user.group_related_media:
+        sg["items"] = _apply_grouping_to_backlog_items(sg["items"], user)
+
+
+def _build_flat_groups(all_backlog, backlog_statuses, sort_by, user=None):
     """Build top-level groups where each status is its own group."""
     groups = []
     for status_val in backlog_statuses:
@@ -123,8 +131,7 @@ def _build_flat_groups(all_backlog, backlog_statuses, sort_by):
             "status": status_val,
             "items": _sort_in_progress_media(items, sort_by),
         }
-        if status_val == Status.PLANNING.value:
-            _split_pinned(sg)
+        _apply_pinned_and_grouping(sg, status_val, user)
         groups.append(
             {
                 "media_type": f"status_{status_val}",
@@ -154,7 +161,7 @@ def _append_nya_group(groups, nya_items):
     )
 
 
-def _build_status_subgroups(items, backlog_statuses, sort_by):
+def _build_status_subgroups(items, backlog_statuses, sort_by, user=None):
     """Build sorted status sub-groups from a flat list of items."""
     status_groups = []
     for status_val in backlog_statuses:
@@ -165,8 +172,7 @@ def _build_status_subgroups(items, backlog_statuses, sort_by):
             "status": status_val,
             "items": _sort_in_progress_media(matched, sort_by),
         }
-        if status_val == Status.PLANNING.value:
-            _split_pinned(sg)
+        _apply_pinned_and_grouping(sg, status_val, user)
         status_groups.append(sg)
     return status_groups
 
@@ -194,7 +200,7 @@ def _cleanup_empty_groups(groups):
     return [g for g in groups if g["status_groups"]]
 
 
-def _extract_rewatches(groups, backlog_statuses, sort_by):
+def _extract_rewatches(groups, backlog_statuses, sort_by, user=None):
     """Separate is_rewatch items into a dedicated Rewatches group."""
     rewatch_items = []
     for group in groups:
@@ -207,7 +213,7 @@ def _extract_rewatches(groups, backlog_statuses, sort_by):
         return groups
 
     rewatch_status_groups = _build_status_subgroups(
-        rewatch_items, backlog_statuses, sort_by
+        rewatch_items, backlog_statuses, sort_by, user
     )
     if rewatch_status_groups:
         groups.append(
@@ -366,39 +372,37 @@ def _compute_is_caught_up(media):
     return False
 
 
-def _split_pinned(status_group):
+def _split_pinned(status_group, user=None):
     """Split a Planning status group into pinned and rest items."""
     items = status_group["items"]
     pinned = [m for m in items if m.is_pinned]
     rest = [m for m in items if not m.is_pinned]
 
-    if not pinned:
-        status_group["items"] = _collapse_seasons(rest)
-        return
+    if pinned:
+        pinned.sort(key=lambda m: m.pin_order)
+        status_group["pinned_items"] = pinned
 
-    pinned.sort(key=lambda m: m.pin_order)
-    status_group["pinned_items"] = pinned
-    status_group["items"] = _collapse_seasons(rest)
+    status_group["items"] = (
+        _apply_grouping_to_backlog_items(rest, user)
+        if user and user.group_related_media
+        else rest
+    )
 
 
-def _collapse_seasons(items):
-    """Collapse seasons of the same show into the earliest unwatched."""
-    show_groups = defaultdict(list)
-    result = []
-
+def _apply_grouping_to_backlog_items(items, user):
+    """Apply grouping to backlog items, handling mixed media types."""
+    by_type = {}
+    order = []
     for item in items:
-        if item.item.media_type == MediaTypes.SEASON.value:
-            key = (item.item.media_id, item.item.source)
-            show_groups[key].append(item)
-        else:
-            result.append(item)
+        mt = item.item.media_type
+        if mt not in by_type:
+            by_type[mt] = []
+            order.append(mt)
+        by_type[mt].append(item)
 
-    for seasons in show_groups.values():
-        seasons.sort(key=lambda s: s.item.season_number or 0)
-        representative = seasons[0]
-        representative.collapsed_seasons = seasons[1:]
-        result.append(representative)
-
+    result = []
+    for mt in order:
+        result.extend(group_media_list(by_type[mt], mt))
     return result
 
 

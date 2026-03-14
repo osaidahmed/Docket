@@ -195,10 +195,19 @@ def browse_seasonal(year, season, page):
     return data
 
 
+def _needs_relationship_refetch(data):
+    """Check if cached data is stale (missing relation_type on related anime)."""
+    related = data.get("related", {}).get("related_anime", [])
+    return related and any("relation_type" not in r for r in related)
+
+
 def anime(media_id):
     """Return the metadata for the selected anime from MyAnimeList."""
     cache_key = f"{Sources.MAL.value}_{MediaTypes.ANIME.value}_{media_id}"
     data = cache.get(cache_key)
+
+    if data is not None and _needs_relationship_refetch(data):
+        data = None
 
     if data is None:
         response = _mal_request(
@@ -225,16 +234,18 @@ def anime(media_id):
                 "source": get_source(response),
             }
         )
+        related_anime = get_related(
+            response.get("related_anime"),
+            MediaTypes.ANIME.value,
+        )
         data["related"] = {
-            "related_anime": get_related(
-                response.get("related_anime"),
-                MediaTypes.ANIME.value,
-            ),
+            "related_anime": related_anime,
             "recommendations": get_related(
                 response.get("recommendations"),
                 MediaTypes.ANIME.value,
             ),
         }
+        _save_anime_relationships(media_id, related_anime)
         cache.set(cache_key, data)
 
     return data
@@ -482,7 +493,47 @@ def get_related(related_medias, media_type):
                 "english_title": get_english_title(media["node"]),
                 "media_type": media_type,
                 "image": get_image_url(media["node"]),
+                "relation_type": media.get("relation_type", ""),
             }
             for media in related_medias
         ]
     return []
+
+
+_GROUPING_RELATION_TYPES = frozenset({"sequel", "prequel"})
+
+
+def _save_anime_relationships(media_id, related_anime):
+    """Persist sequel/prequel relationships from MAL API data."""
+    from app.models import Item, ItemRelationship  # noqa: PLC0415
+
+    groupable = [
+        r for r in related_anime if r.get("relation_type") in _GROUPING_RELATION_TYPES
+    ]
+    if not groupable:
+        return
+
+    try:
+        from_item = Item.objects.get(
+            media_id=str(media_id),
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+        )
+    except Item.DoesNotExist:
+        return
+
+    for related in groupable:
+        to_item, _ = Item.objects.get_or_create(
+            media_id=str(related["media_id"]),
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            defaults={
+                "title": related.get("title", "-"),
+                "image": related.get("image", settings.IMG_NONE),
+            },
+        )
+        ItemRelationship.objects.get_or_create(
+            from_item=from_item,
+            to_item=to_item,
+            relation_type=related["relation_type"],
+        )

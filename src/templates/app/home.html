@@ -104,6 +104,14 @@
              title="Group by Status">Status</a>
         </div>
 
+        {# Related Media Grouping Toggle #}
+        <button hx-post="{% url 'toggle_grouping' %}"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-swap="none"
+                class="p-2 rounded-md cursor-pointer transition-colors {% if request.user.group_related_media %}bg-accent text-white{% else %}bg-input hover:bg-highlight{% endif %}"
+                title="{% if request.user.group_related_media %}Ungroup related items{% else %}Group related items{% endif %}"
+                type="button">{% include "app/icons/layers.svg" with classes="w-4 h-4" %}</button>
+
         {# Sort Dropdown #}
         <div class="relative" x-data="{ open: false }">
           <button @click="open = !open"
@@ -219,10 +227,18 @@
                   <div x-show="expanded"
                        x-cloak
                        {% if forloop.counter0 == sg.truncated_at %}id="see-all-{{ group.media_type }}-{{ sg.status|slugify }}"{% endif %}>
-                    {% include "app/components/backlog_grid_card.html" with media=media %}
+                    {% if media.is_group %}
+                      {% include "app/components/media_list_grid_card_group.html" with group=media %}
+                    {% else %}
+                      {% include "app/components/backlog_grid_card.html" with media=media %}
+                    {% endif %}
                   </div>
                 {% else %}
-                  {% include "app/components/backlog_grid_card.html" with media=media %}
+                  {% if media.is_group %}
+                    {% include "app/components/media_list_grid_card_group.html" with group=media %}
+                  {% else %}
+                    {% include "app/components/backlog_grid_card.html" with media=media %}
+                  {% endif %}
                 {% endif %}
               {% endfor %}
             </div>
@@ -239,10 +255,18 @@
                   <div x-show="expanded"
                        x-cloak
                        {% if forloop.counter0 == sg.truncated_at %}id="see-all-{{ group.media_type }}-{{ sg.status|slugify }}"{% endif %}>
-                    {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
+                    {% if media.is_group %}
+                      {% include "app/components/backlog_card_group.html" with media=media status_choices=status_choices %}
+                    {% else %}
+                      {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
+                    {% endif %}
                   </div>
                 {% else %}
-                  {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
+                  {% if media.is_group %}
+                    {% include "app/components/backlog_card_group.html" with media=media status_choices=status_choices %}
+                  {% else %}
+                    {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
+                  {% endif %}
                 {% endif %}
               {% endfor %}
             </div>

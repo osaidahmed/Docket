@@ -160,6 +160,16 @@
                @click="layout = 'table'">{% include "app/icons/table.svg" with classes="w-5 h-5" %}</a>
           </div>
 
+          {% if media_type == "season" or media_type == "anime" %}
+            <!-- Grouping Toggle -->
+            <button hx-post="{% url 'toggle_grouping' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-swap="none"
+                    class="p-2 rounded-md cursor-pointer transition-colors {% if is_grouped %}bg-accent text-white{% else %}bg-input hover:bg-highlight{% endif %}"
+                    title="{% if is_grouped %}Ungroup related items{% else %}Group related items{% endif %}"
+                    type="button">{% include "app/icons/layers.svg" with classes="w-5 h-5" %}</button>
+          {% endif %}
+
           <!-- Select Toggle -->
           <button @click="selecting = !selecting; if (!selecting) selected = []"
                   :class="selecting ? 'bg-accent text-white' : 'bg-input hover:bg-highlight'"

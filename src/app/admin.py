@@ -48,7 +48,7 @@ admin.site.register(Episode, EpisodeAdmin)
 
 # Auto-register remaining models
 app_models = apps.get_app_config("app").get_models()
-SpecialModels = ["Item", "Episode", "BasicMedia"]
+SpecialModels = ["Item", "Episode", "BasicMedia", "ItemRelationship"]
 for model in app_models:
     if (
         not model.__name__.startswith("Historical")

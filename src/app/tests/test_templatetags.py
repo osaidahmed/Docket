@@ -7,6 +7,7 @@ from django.utils import timezone
 from app import config
 from app.models import Item, MediaTypes, Sources
 from app.templatetags import app_tags
+from app.templatetags.app_tags import media_url
 
 
 class AppTagsTests(TestCase):
@@ -514,3 +515,37 @@ class ConfigTests(TestCase):
 
     def test_csv_contains_none(self):
         self.assertFalse(app_tags.csv_contains(None, "28"))
+
+
+class MediaUrlEdgeCasesTests(TestCase):
+    """Test media_url template tag handles all title edge cases."""
+
+    def test_normal_title(self):
+        item = Item(
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Attack on Titan",
+        )
+        url = media_url(item)
+        self.assertIn("attack-on-titan", url)
+
+    def test_empty_title_does_not_crash(self):
+        item = Item(
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="",
+        )
+        url = media_url(item)
+        self.assertIn("/1/", url)
+
+    def test_none_title_does_not_crash(self):
+        item = Item(
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title=None,
+        )
+        url = media_url(item)
+        self.assertIn("/1/", url)

@@ -277,26 +277,32 @@ def natural_day(datetime, user):
     return datetime_format(datetime, user)
 
 
+def _media_attr(media, key, is_dict=None):
+    """Get an attribute from either a dict or model object."""
+    if is_dict is None:
+        is_dict = isinstance(media, dict)
+    if is_dict:
+        return media.get(key)
+    return getattr(media, key, None)
+
+
 @register.filter
 def media_url(media):
     """Return the media URL for both metadata and model object cases."""
     is_dict = isinstance(media, dict)
-
-    # Get attributes using either dict access or object attribute
-    media_type = media["media_type"] if is_dict else media.media_type
-    source = media["source"] if is_dict else media.source
-    media_id = media["media_id"] if is_dict else media.media_id
-    title = media["title"] if is_dict else media.title
+    media_type = _media_attr(media, "media_type", is_dict)
+    source = _media_attr(media, "source", is_dict)
+    media_id = _media_attr(media, "media_id", is_dict)
+    title = _media_attr(media, "title", is_dict) or "-"
 
     if media_type in [MediaTypes.SEASON.value, MediaTypes.EPISODE.value]:
-        season_number = media["season_number"] if is_dict else media.season_number
         return reverse(
             "season_details",
             kwargs={
                 "source": source,
                 "media_id": media_id,
                 "title": slug(title),
-                "season_number": season_number,
+                "season_number": _media_attr(media, "season_number", is_dict),
             },
         )
 
@@ -315,26 +321,15 @@ def media_url(media):
 def media_view_url(view_name, media):
     """Return the modal URL for both metadata and model object cases."""
     is_dict = isinstance(media, dict)
-
-    # Build kwargs using either dict access or object attribute
     kwargs = {
-        "source": media["source"] if is_dict else media.source,
-        "media_type": media["media_type"] if is_dict else media.media_type,
-        "media_id": media["media_id"] if is_dict else media.media_id,
+        "source": _media_attr(media, "source", is_dict),
+        "media_type": _media_attr(media, "media_type", is_dict),
+        "media_id": _media_attr(media, "media_id", is_dict),
     }
-
-    # Handle season/episode numbers if they exist
-    if is_dict:
-        if "season_number" in media:
-            kwargs["season_number"] = media["season_number"]
-        if "episode_number" in media:
-            kwargs["episode_number"] = media["episode_number"]
-    else:
-        if media.season_number is not None:
-            kwargs["season_number"] = media.season_number
-        if media.episode_number is not None:
-            kwargs["episode_number"] = media.episode_number
-
+    for key in ("season_number", "episode_number"):
+        val = _media_attr(media, key, is_dict)
+        if val is not None:
+            kwargs[key] = val
     return reverse(view_name, kwargs=kwargs)
 
 
@@ -342,30 +337,18 @@ def media_view_url(view_name, media):
 def component_id(component_type, media, instance_id=None):
     """Return the component ID for both metadata and model object cases."""
     is_dict = isinstance(media, dict)
-
-    # Get base attributes using either dict access or object attribute
-    media_type = media["media_type"] if is_dict else media.media_type
-    media_id = media["media_id"] if is_dict else media.media_id
-
-    component_id = f"{component_type}-{media_type}-{media_id}"
-
-    # Handle season/episode numbers if they exist
-    if is_dict:
-        if "season_number" in media:
-            component_id += f"-{media['season_number']}"
-        if "episode_number" in media:
-            component_id += f"-{media['episode_number']}"
-    else:
-        if media.season_number is not None:
-            component_id += f"-{media.season_number}"
-        if media.episode_number is not None:
-            component_id += f"-{media.episode_number}"
-
-    # Add instance id if provided
+    parts = [
+        component_type,
+        str(_media_attr(media, "media_type", is_dict)),
+        str(_media_attr(media, "media_id", is_dict)),
+    ]
+    for key in ("season_number", "episode_number"):
+        val = _media_attr(media, key, is_dict)
+        if val is not None:
+            parts.append(str(val))
     if instance_id:
-        component_id += f"-{instance_id}"
-
-    return component_id
+        parts.append(str(instance_id))
+    return "-".join(parts)
 
 
 @register.simple_tag

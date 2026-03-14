@@ -48,6 +48,7 @@ from app.views.home import (
     media_list,
     progress_edit,
     recommendations_section,
+    toggle_grouping,
 )
 from app.views.search import (
     media_search,
@@ -103,6 +104,7 @@ __all__ = [
     "service_worker",
     "statistics",
     "sync_metadata",
+    "toggle_grouping",
     "toggle_pin",
     "track_modal",
     "update_media_score",

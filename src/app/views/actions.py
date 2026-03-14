@@ -43,6 +43,13 @@ def _create_media_from_search(request, status, *, caught_up=False):
             source=source,
             media_type=media_type,
         )
+        if not item.title or item.title == "-":
+            metadata = services.get_media_metadata(media_type, media_id, source)
+            item.title = metadata["title"]
+            item.english_title = metadata.get("english_title", "")
+            item.image = metadata["image"]
+            item.synopsis = metadata.get("synopsis", "")
+            item.save()
     except Item.DoesNotExist:
         metadata = services.get_media_metadata(media_type, media_id, source)
         item, _ = Item.objects.get_or_create(
@@ -366,6 +373,15 @@ def backlog_save(request):
             response["HX-Refresh"] = "true"
         return response
 
+    return _render_backlog_save_response(
+        request, media_type, instance_id, source_context, state_changed
+    )
+
+
+def _render_backlog_save_response(
+    request, media_type, instance_id, source_context, state_changed
+):
+    """Render the appropriate response template after a backlog save."""
     media = BasicMedia.objects.get_media_prefetch(request.user, media_type, instance_id)
     ctx = {"media": media, "status_choices": Status.choices}
 

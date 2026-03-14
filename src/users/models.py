@@ -398,6 +398,12 @@ class User(AbstractUser):
         help_text="Hide zero ratings from media cards",
     )
 
+    # Group related media
+    group_related_media = models.BooleanField(
+        default=False,
+        help_text="Group related seasons and sequels on list pages",
+    )
+
     # Calendar preferences
     calendar_layout = models.CharField(
         max_length=20,

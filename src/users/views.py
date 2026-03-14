@@ -7,6 +7,7 @@ from django.contrib.auth import update_session_auth_hash
 from django.core.cache import cache
 from django.db import IntegrityError
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import pluralize
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
@@ -210,6 +211,7 @@ def _update_preferences_from_post(user, post_data, all_types):
     user.progress_bar = "progress_bar" in post_data
     user.hide_completed_recommendations = "hide_completed_recommendations" in post_data
     user.hide_zero_rating = "hide_zero_rating" in post_data
+    user.group_related_media = "group_related_media" in post_data
 
     color_scheme = post_data.get("color_scheme", "charcoal")
     valid_schemes = {c[0] for c in user.COLOR_SCHEME_CHOICES}
@@ -232,6 +234,15 @@ def _update_preferences_from_post(user, post_data, all_types):
             user.media_type_order = json.loads(order_json)
 
     user.save()
+
+
+@require_POST
+def refresh_relationships(request):
+    """Trigger background task to refresh anime relationship data."""
+    from app.tasks import refresh_anime_relationships_task  # noqa: PLC0415
+
+    refresh_anime_relationships_task.delay(request.user.id)
+    return HttpResponse(status=204)
 
 
 @require_http_methods(["GET", "POST"])

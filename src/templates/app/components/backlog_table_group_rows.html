@@ -1,0 +1,127 @@
+{% load app_tags %}
+
+<tbody x-data="{ expanded: false }">
+  <tr class="hover:bg-input transition-colors cursor-pointer"
+      @click="expanded = !expanded">
+    <td class="p-2">
+      <img alt="{{ media }}"
+           class="lazyload min-w-10 w-10 h-10 object-cover rounded-md"
+           data-src="{{ media.item.image }}"
+           src="{{ IMG_NONE }}">
+    </td>
+    <td class="p-2 pe-8 font-medium">
+      <div class="flex items-center gap-2">
+        <span class="text-gray-400 text-xs" x-text="expanded ? '&#9662;' : '&#9656;'"></span>
+        <div class="min-w-0 flex-1">
+          <a href="{{ media.item|media_url }}"
+             class="hover:text-accent-soft transition-colors line-clamp-1"
+             @click.stop>{{ media }}</a>
+          {% if media.item.english_title %}
+            <p class="text-xs text-gray-400 line-clamp-1">{{ media.item.english_title }}</p>
+          {% endif %}
+        </div>
+        <span class="text-xs text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded-md border border-gray-600/50 shrink-0 flex items-center gap-1">
+          {% include "app/icons/layers.svg" with classes="w-3 h-3" %}
+          +{{ media.group_items|length }}
+        </span>
+      </div>
+    </td>
+    {% if not hide_type %}
+      <td class="p-2 text-center">
+        <span class="flex items-center justify-center gap-1 text-gray-400">
+          {% icon media.item.media_type is_active=False extra_classes="w-4 h-4" %}
+        </span>
+      </td>
+    {% endif %}
+    {% if not is_archive %}
+      <td class="p-2 text-center text-sm {{ media.status|status_color }}">{{ media.status|media_status_readable }}</td>
+    {% endif %}
+    <td class="p-2 text-center text-sm">
+      {{ media.formatted_progress }}
+      {% if media.max_progress %}/ {{ media.max_progress }}{% endif %}
+    </td>
+    {% if media.score is not None %}
+      <td class="p-2 text-center">
+        <div class="flex items-center justify-center">
+          {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
+          <span class="text-white text-sm -mt-[3px]">{{ media.formatted_score }}</span>
+        </div>
+      </td>
+    {% else %}
+      <td class="p-2 text-center">
+        <div class="flex items-center justify-center">
+          {% include "app/icons/star.svg" with classes="w-4 h-4 text-gray-400 mr-1 fill-current" %}
+        </div>
+      </td>
+    {% endif %}
+    {% if not is_archive %}
+      <td class="p-2 text-center text-xs whitespace-nowrap">
+        {% if media.next_event and not media.next_event.is_max_datetime %}
+          <span class="text-accent-soft">
+            {% if media.next_event.content_number %}
+              {{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} •
+            {% endif %}
+            {{ media.next_event.datetime|natural_day:user }}
+          </span>
+        {% else %}
+          <span class="text-gray-500">-</span>
+        {% endif %}
+      </td>
+    {% else %}
+      <td class="p-2 text-center text-sm whitespace-nowrap">
+        {% if media.end_date %}{{ media.end_date|date_format:user }}{% else %}<span class="text-gray-500">-</span>{% endif %}
+      </td>
+    {% endif %}
+    <td class="p-2"></td>
+  </tr>
+
+  {% for sub in media.group_items %}
+    <tr x-show="expanded" x-cloak class="bg-input/30 hover:bg-input/50 transition-colors">
+      <td class="p-2 pl-6">
+        <img alt="{{ sub }}"
+             class="lazyload min-w-8 w-8 h-8 object-cover rounded-md"
+             data-src="{{ sub.item.image }}"
+             src="{{ IMG_NONE }}">
+      </td>
+      <td class="p-2 pe-8 font-medium">
+        <a href="{{ sub.item|media_url }}" class="hover:text-accent-soft transition-colors line-clamp-1 pl-4">{{ sub }}</a>
+      </td>
+      {% if not hide_type %}
+        <td class="p-2 text-center">
+          <span class="flex items-center justify-center gap-1 text-gray-400">
+            {% icon sub.item.media_type is_active=False extra_classes="w-4 h-4" %}
+          </span>
+        </td>
+      {% endif %}
+      {% if not is_archive %}
+        <td class="p-2 text-center text-sm {{ sub.status|status_color }}">{{ sub.status|media_status_readable }}</td>
+      {% endif %}
+      <td class="p-2 text-center text-sm">
+        {{ sub.formatted_progress }}
+        {% if sub.max_progress %}/ {{ sub.max_progress }}{% endif %}
+      </td>
+      {% if sub.score is not None %}
+        <td class="p-2 text-center">
+          <div class="flex items-center justify-center">
+            {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
+            <span class="text-white text-sm -mt-[3px]">{{ sub.formatted_score }}</span>
+          </div>
+        </td>
+      {% else %}
+        <td class="p-2 text-center">
+          <div class="flex items-center justify-center">
+            {% include "app/icons/star.svg" with classes="w-4 h-4 text-gray-400 mr-1 fill-current" %}
+          </div>
+        </td>
+      {% endif %}
+      {% if not is_archive %}
+        <td class="p-2 text-center text-xs"><span class="text-gray-500">-</span></td>
+      {% else %}
+        <td class="p-2 text-center text-sm">
+          {% if sub.end_date %}{{ sub.end_date|date_format:user }}{% else %}<span class="text-gray-500">-</span>{% endif %}
+        </td>
+      {% endif %}
+      <td class="p-2"></td>
+    </tr>
+  {% endfor %}
+</tbody>

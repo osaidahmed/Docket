@@ -10,7 +10,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from app import config
 from app.models import BasicMedia, MediaTypes, Status
-from app.services import backlog
+from app.services import backlog, grouping
 from app.services import recommendations as recs_service
 from app.templatetags import app_tags
 from users.models import (
@@ -81,12 +81,16 @@ _VIRTUAL_TYPES = {"rewatch", "not_yet_airing"}
 def _apply_truncation(groups, truncation):
     """Apply truncation limits to backlog status groups."""
     for group in groups:
-        if group["media_type"] in _VIRTUAL_TYPES:
-            continue
-        for sg in group["status_groups"]:
-            if len(sg["items"]) > truncation:
-                sg["truncated_at"] = truncation
-                sg["media_type"] = group["media_type"]
+        if group["media_type"] not in _VIRTUAL_TYPES:
+            _truncate_status_groups(group, truncation)
+
+
+def _truncate_status_groups(group, truncation):
+    """Mark status groups that exceed the truncation limit."""
+    for sg in group["status_groups"]:
+        if len(sg["items"]) > truncation:
+            sg["truncated_at"] = truncation
+            sg["media_type"] = group["media_type"]
 
 
 def _get_type_filter_choices(user, selected, query_base):
@@ -219,7 +223,13 @@ def media_list(request, media_type):
         status_filter,
     )
 
-    paginator = Paginator(media_queryset, 32)
+    is_grouped = _should_group(request.user, media_type)
+    if is_grouped:
+        all_items = list(media_queryset)
+        grouped = grouping.group_media_list(all_items, media_type)
+        paginator = Paginator(grouped, 32)
+    else:
+        paginator = Paginator(media_queryset, 32)
     media_page = paginator.get_page(page)
     _annotate_media_list(media_page.object_list, pinned_list, media_type)
 
@@ -252,39 +262,42 @@ def media_list(request, media_type):
         "supports_recommendations": config.supports_recommendations(media_type),
         "pinned_list": pinned_list,
         "active_tab": request.GET.get("tab", "collection"),
+        "is_grouped": is_grouped,
     }
 
-    template_name = _get_medialist_template(
-        request,
-        layout,
-        page,
-        pinned_list,
-        status_filter,
-        media_type,
+    if request.headers.get("HX-Request"):
+        if request.headers.get("HX-Target") == "empty_list":
+            response = HttpResponse()
+            response["HX-Redirect"] = reverse("medialist", args=[media_type])
+            return response
+        if int(page) <= 1 and (pinned_list or status_filter == Status.PLANNING.value):
+            response = HttpResponse()
+            response["HX-Redirect"] = request.get_full_path()
+            return response
+
+    return render(request, _get_medialist_template(request, layout), context)
+
+
+def _should_group(user, media_type):
+    return user.group_related_media and media_type in (
+        MediaTypes.SEASON.value,
+        MediaTypes.ANIME.value,
     )
-    if isinstance(template_name, HttpResponse):
-        return template_name
-
-    return render(request, template_name, context)
 
 
-def _get_medialist_template(
-    request, layout, page, pinned_list, status_filter, media_type
-):
-    """Determine the template for media_list, or return an HttpResponse redirect."""
+@require_POST
+def toggle_grouping(request):
+    """Toggle the group_related_media preference."""
+    request.user.group_related_media = not request.user.group_related_media
+    request.user.save(update_fields=["group_related_media"])
+    referer = request.META.get("HTTP_REFERER", "/")
+    return HttpResponse(status=204, headers={"HX-Redirect": referer})
+
+
+def _get_medialist_template(request, layout):
+    """Determine the template for media_list."""
     if not request.headers.get("HX-Request"):
         return "app/media_list.html"
-
-    if request.headers.get("HX-Target") == "empty_list":
-        response = HttpResponse()
-        response["HX-Redirect"] = reverse("medialist", args=[media_type])
-        return response
-
-    if int(page) <= 1 and (pinned_list or status_filter == Status.PLANNING.value):
-        response = HttpResponse()
-        response["HX-Redirect"] = request.get_full_path()
-        return response
-
     return _HTMX_TEMPLATES.get(layout, "app/components/media_cards_items.html")
 
 

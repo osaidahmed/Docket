@@ -1,0 +1,10 @@
+{% load app_tags %}
+
+<button @click="expanded = !expanded"
+        class="flex items-center gap-1 text-xs text-gray-400 hover:text-accent-soft transition-colors cursor-pointer"
+        type="button">
+  {% include "app/icons/layers.svg" with classes="w-3.5 h-3.5" %}
+  <span x-text="expanded ? 'Hide' : 'Show'">Show</span>
+  {{ count }} related
+  <span x-text="expanded ? '\u25B4' : '\u25BE'" class="ml-0.5"></span>
+</button>

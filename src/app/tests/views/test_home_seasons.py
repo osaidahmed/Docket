@@ -278,13 +278,15 @@ class PinnedPlanningTests(TestCase):
         self.assertGreater(manga.pin_order, first_order)
 
 
-class SeasonCollapsingTests(TestCase):
-    """Tests for automatic collapsing of multiple seasons in Planning."""
+class SeasonGroupingTests(TestCase):
+    """Tests for grouping of related seasons on the backlog."""
 
     @classmethod
     def setUpTestData(cls):
         cls.credentials = {"username": "test", "password": "12345"}
-        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.user = get_user_model().objects.create_user(
+            **cls.credentials, group_related_media=True
+        )
 
     def setUp(self):
         self.client.login(**self.credentials)
@@ -317,8 +319,8 @@ class SeasonCollapsingTests(TestCase):
             **kwargs,
         )
 
-    def test_multiple_seasons_collapsed(self):
-        """S1, S2, S3 in Planning collapse to S1 with collapsed_seasons."""
+    def test_multiple_seasons_grouped(self):
+        """S1, S2, S3 in Planning are grouped with is_group=True."""
         self._create_season("show-1", 1, "Show X")
         self._create_season("show-1", 2, "Show X")
         self._create_season("show-1", 3, "Show X")
@@ -327,35 +329,27 @@ class SeasonCollapsingTests(TestCase):
         groups = response.context["groups"]
 
         season_items = _collect_season_items(groups)
-
         show_items = [m for m in season_items if m.item.media_id == "show-1"]
         self.assertEqual(len(show_items), 1)
         representative = show_items[0]
-        self.assertEqual(representative.item.season_number, 1)
-        self.assertEqual(len(representative.collapsed_seasons), 2)
+        self.assertTrue(representative.is_group)
+        self.assertEqual(representative.group_count, 3)
+        self.assertEqual(len(representative.group_items), 2)
 
-    def test_single_season_not_collapsed(self):
-        """Single season renders normally without collapsed_seasons."""
+    def test_single_season_not_grouped(self):
+        """Single season renders normally with is_group=False."""
         self._create_season("show-2", 1, "Show Y")
 
         response = self.client.get(reverse("home"))
         groups = response.context["groups"]
 
-        season_items = []
-        for group in groups:
-            for sg in group["status_groups"]:
-                season_items.extend(
-                    m
-                    for m in sg["items"]
-                    if m.item.media_type == MediaTypes.SEASON.value
-                )
-
+        season_items = _collect_season_items(groups)
         show_items = [m for m in season_items if m.item.media_id == "show-2"]
         self.assertEqual(len(show_items), 1)
-        self.assertEqual(show_items[0].collapsed_seasons, [])
+        self.assertFalse(show_items[0].is_group)
 
-    def test_pinned_season_not_collapsed(self):
-        """Pinned season appears independently, rest are collapsed."""
+    def test_pinned_season_not_grouped(self):
+        """Pinned season appears independently, rest are grouped."""
         self._create_season("show-3", 1, "Show Z")
         self._create_season("show-3", 2, "Show Z")
         self._create_season("show-3", 3, "Show Z", pin_order=0)
@@ -386,11 +380,11 @@ class SeasonCollapsingTests(TestCase):
         self.assertEqual(pinned_show[0].item.season_number, 3)
 
         self.assertEqual(len(rest_show), 1)
-        self.assertEqual(rest_show[0].item.season_number, 1)
-        self.assertEqual(len(rest_show[0].collapsed_seasons), 1)
+        self.assertTrue(rest_show[0].is_group)
+        self.assertEqual(rest_show[0].group_count, 2)
 
-    def test_collapse_only_in_planning(self):
-        """In Progress seasons are not collapsed."""
+    def test_grouping_in_progress(self):
+        """In Progress seasons are also grouped when toggle is on."""
         s1 = self._create_season("show-4", 1, "Show W")
         s1.status = Status.IN_PROGRESS.value
         s1.save()
@@ -412,16 +406,28 @@ class SeasonCollapsingTests(TestCase):
                     )
 
         show_items = [m for m in ip_seasons if m.item.media_id == "show-4"]
-        self.assertEqual(len(show_items), 2)
+        self.assertEqual(len(show_items), 1)
+        self.assertTrue(show_items[0].is_group)
+        self.assertEqual(show_items[0].group_count, 2)
 
-    def test_collapse_badge_in_template(self):
-        """Collapsed seasons show '+N more seasons' badge in rendered HTML."""
+    def test_no_grouping_when_toggle_off(self):
+        """Seasons are not grouped when group_related_media is False."""
+        self.user.group_related_media = False
+        self.user.save()
+
         self._create_season("show-5", 1, "Show V")
         self._create_season("show-5", 2, "Show V")
         self._create_season("show-5", 3, "Show V")
 
         response = self.client.get(reverse("home"))
-        self.assertContains(response, "+2 more seasons")
+        groups = response.context["groups"]
+
+        season_items = _collect_season_items(groups)
+        show_items = [m for m in season_items if m.item.media_id == "show-5"]
+        self.assertEqual(len(show_items), 3)
+
+        self.user.group_related_media = True
+        self.user.save()
 
 
 def _collect_season_items(groups):
@@ -439,3 +445,46 @@ def _collect_season_items(groups):
                     if m.item.media_type == MediaTypes.SEASON.value
                 )
     return season_items
+
+
+class ToggleGroupingViewTests(TestCase):
+    """Test the toggle_grouping endpoint."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "toggletest", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def test_toggle_on(self):
+        self.assertFalse(self.user.group_related_media)
+        self.client.post(
+            reverse("toggle_grouping"),
+            HTTP_REFERER="/medialist/anime",
+        )
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.group_related_media)
+
+    def test_toggle_off(self):
+        self.user.group_related_media = True
+        self.user.save()
+        self.client.post(
+            reverse("toggle_grouping"),
+            HTTP_REFERER="/medialist/anime",
+        )
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.group_related_media)
+
+    def test_toggle_returns_204_with_redirect(self):
+        response = self.client.post(
+            reverse("toggle_grouping"),
+            HTTP_REFERER="/medialist/anime",
+        )
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response["HX-Redirect"], "/medialist/anime")
+
+    def test_toggle_get_not_allowed(self):
+        response = self.client.get(reverse("toggle_grouping"))
+        self.assertEqual(response.status_code, 405)

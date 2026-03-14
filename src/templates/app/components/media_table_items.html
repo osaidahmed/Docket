@@ -1,221 +1,225 @@
 {% load app_tags %}
 
 {% for media in media_list %}
-  <tr class="hover:bg-input transition-colors cursor-pointer hover-tap"
-      :class="{ 'bg-accent/10': selecting && selected.includes('{{ media.id }}') }"
-      data-bulk-id="{{ media.id }}"
-      x-data="{ trackOpen: false }"
-      {% if forloop.last and media_list.has_next %} hx-get="{% url 'medialist' media_type %}?page={{ media_list.next_page_number }}" hx-trigger="revealed threshold:200px" hx-swap="afterend" hx-include="#filter-form" hx-indicator="#loading-indicator" {% endif %}>
-    <td x-show="selecting" class="p-2" @click.stop>
-      <input type="checkbox"
-             :checked="selected.includes('{{ media.id }}')"
-             @click="toggleItem('{{ media.id }}', $event)"
-             class="w-5 h-5 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0 cursor-pointer">
-    </td>
-    <td class="p-2 relative">
-      <img alt="{{ media.item }}"
-           class="lazyload min-w-10 w-10 h-10 object-cover rounded-md parent-hover-tap:hidden"
-           data-src="{{ media.item.image }}"
-           src="{{ IMG_NONE }}">
-      <button class="w-10 h-10 bg-accent hover:bg-accent-hover text-white rounded-md transition-colors items-center justify-center hidden cursor-pointer parent-hover-tap:flex"
-              hx-get="{% media_view_url 'track_modal' media.item %}"
-              hx-vals='{"return_url": "{{ request.get_full_path|urlencode }}", "instance_id": "{{ media.id }}"}'
-              hx-target="#{% component_id 'track' media.item media.id %}"
-              hx-trigger="click once"
-              @click="trackOpen = true">{% include "app/icons/edit.svg" with classes="w-4 h-4" %}</button>
+  {% if media.is_group %}
+    {% include "app/components/media_table_group_rows.html" with group=media media_type=media_type %}
+  {% else %}
+    <tr class="hover:bg-input transition-colors cursor-pointer hover-tap"
+        :class="{ 'bg-accent/10': selecting && selected.includes('{{ media.id }}') }"
+        data-bulk-id="{{ media.id }}"
+        x-data="{ trackOpen: false }"
+        {% if forloop.last and media_list.has_next %} hx-get="{% url 'medialist' media_type %}?page={{ media_list.next_page_number }}" hx-trigger="revealed threshold:200px" hx-swap="afterend" hx-include="#filter-form" hx-indicator="#loading-indicator" {% endif %}>
+      <td x-show="selecting" class="p-2" @click.stop>
+        <input type="checkbox"
+               :checked="selected.includes('{{ media.id }}')"
+               @click="toggleItem('{{ media.id }}', $event)"
+               class="w-5 h-5 rounded bg-input border-gray-600 text-accent focus:ring-accent focus:ring-offset-0 cursor-pointer">
+      </td>
+      <td class="p-2 relative">
+        <img alt="{{ media.item }}"
+             class="lazyload min-w-10 w-10 h-10 object-cover rounded-md parent-hover-tap:hidden"
+             data-src="{{ media.item.image }}"
+             src="{{ IMG_NONE }}">
+        <button class="w-10 h-10 bg-accent hover:bg-accent-hover text-white rounded-md transition-colors items-center justify-center hidden cursor-pointer parent-hover-tap:flex"
+                hx-get="{% media_view_url 'track_modal' media.item %}"
+                hx-vals='{"return_url": "{{ request.get_full_path|urlencode }}", "instance_id": "{{ media.id }}"}'
+                hx-target="#{% component_id 'track' media.item media.id %}"
+                hx-trigger="click once"
+                @click="trackOpen = true">{% include "app/icons/edit.svg" with classes="w-4 h-4" %}</button>
 
-      {# Track Modal #}
-      <div x-show="trackOpen"
-           @keydown.escape.window="trackOpen = false"
-           class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div class="w-152 max-h-[90vh] px-4 md:px-0 relative z-60"
-             @click.outside="trackOpen = false">
-          <div id="{% component_id 'track' media.item media.id %}"></div>
+        {# Track Modal #}
+        <div x-show="trackOpen"
+             @keydown.escape.window="trackOpen = false"
+             class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div class="w-152 max-h-[90vh] px-4 md:px-0 relative z-60"
+               @click.outside="trackOpen = false">
+            <div id="{% component_id 'track' media.item media.id %}"></div>
+          </div>
         </div>
-      </div>
-    </td>
-    <td class="p-2 pe-8 font-medium">
-      <div class=" flex justify-between items-center">
-        <div class="min-w-0">
-          <a href="{{ media.item|media_url }}"
-             class="hover:text-accent-soft transition-colors line-clamp-1">{{ media.item }}</a>
-          {% if media.item.english_title %}
-            <p class="text-xs text-gray-400 line-clamp-1">{{ media.item.english_title }}</p>
+      </td>
+      <td class="p-2 pe-8 font-medium">
+        <div class=" flex justify-between items-center">
+          <div class="min-w-0">
+            <a href="{{ media.item|media_url }}"
+               class="hover:text-accent-soft transition-colors line-clamp-1">{{ media.item }}</a>
+            {% if media.item.english_title %}
+              <p class="text-xs text-gray-400 line-clamp-1">{{ media.item.english_title }}</p>
+            {% endif %}
+          </div>
+
+          {% if media.repeats > 1 %}
+            <div class="flex items-center">
+              {% include "app/icons/repeat.svg" with classes="w-4 h-4 text-slate-200 mr-1" %}
+              <span class="text-sm text-white">{{ media.repeats }}</span>
+            </div>
           {% endif %}
         </div>
-
-        {% if media.repeats > 1 %}
-          <div class="flex items-center">
-            {% include "app/icons/repeat.svg" with classes="w-4 h-4 text-slate-200 mr-1" %}
-            <span class="text-sm text-white">{{ media.repeats }}</span>
+      </td>
+      <td class="p-2 text-center">
+        {% if not media.not_yet_airing %}
+          <div x-data="{ showRatingPopup: false, rating: {{ media.score|default:'null' }}, hoverRating: null, isHovering: false }"
+               class="relative flex items-center justify-center">
+            <button @click.stop="showRatingPopup = !showRatingPopup"
+                    class="flex items-center justify-center cursor-pointer"
+                    title="Click to rate">
+              <template x-if="rating">
+                <span class="flex items-center">
+                  {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
+                  <span class="text-white -mt-[3px]" x-text="rating"></span>
+                </span>
+              </template>
+              <template x-if="!rating">
+                <span>
+                  {% include "app/icons/star.svg" with classes="w-4 h-4 text-gray-400 fill-current hover:text-yellow-400 transition-colors" %}
+                </span>
+              </template>
+            </button>
+            {% include "app/components/star_rating_popup.html" with popup_classes="left-1/2 -translate-x-1/2 top-full mt-2" %}
+          </div>
+        {% elif media.score is not None %}
+          <div class="flex items-center justify-center">
+            {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
+            <span class="text-white -mt-[3px]">{{ media.formatted_score }}</span>
+          </div>
+        {% else %}
+          <div class="flex items-center justify-center">
+            {% include "app/icons/star.svg" with classes="w-4 h-4 text-gray-400 mr-1 fill-current" %}
           </div>
         {% endif %}
-      </div>
-    </td>
-    <td class="p-2 text-center">
-      {% if not media.not_yet_airing %}
-        <div x-data="{ showRatingPopup: false, rating: {{ media.score|default:'null' }}, hoverRating: null, isHovering: false }"
-             class="relative flex items-center justify-center">
-          <button @click.stop="showRatingPopup = !showRatingPopup"
-                  class="flex items-center justify-center cursor-pointer"
-                  title="Click to rate">
-            <template x-if="rating">
-              <span class="flex items-center">
-                {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
-                <span class="text-white -mt-[3px]" x-text="rating"></span>
-              </span>
-            </template>
-            <template x-if="!rating">
-              <span>
-                {% include "app/icons/star.svg" with classes="w-4 h-4 text-gray-400 fill-current hover:text-yellow-400 transition-colors" %}
-              </span>
-            </template>
-          </button>
-          {% include "app/components/star_rating_popup.html" with popup_classes="left-1/2 -translate-x-1/2 top-full mt-2" %}
-        </div>
-      {% elif media.score is not None %}
-        <div class="flex items-center justify-center">
-          {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
-          <span class="text-white -mt-[3px]">{{ media.formatted_score }}</span>
-        </div>
+      </td>
+
+      {# Progress field #}
+      {% if media_type != MediaTypes.MOVIE.value %}
+        <td class="p-2 text-center">
+          {{ media.formatted_progress }}
+          {% if media.max_progress %}/ {{ media.max_progress }}{% endif %}
+        </td>
+        {% if media_type == MediaTypes.TV.value %}<td class="p-2 text-center">{{ media.last_watched }}</td>{% endif %}
+      {% endif %}
+
+      <td class="p-2 text-center text-sm {{ media.status|status_color }}">{{ media.status|media_status_readable }}</td>
+
+      {% if media_type != MediaTypes.MOVIE.value and media_type != MediaTypes.TV.value %}
+        <td class="p-2 text-center text-xs whitespace-nowrap">
+          {% if media.next_event and not media.next_event.is_max_datetime %}
+            <span class="text-accent-soft">
+              {% if media.next_event.content_number %}
+                {{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} •
+              {% endif %}
+              {{ media.next_event.datetime|natural_day:user }}
+            </span>
+          {% else %}
+            <span class="text-gray-500">-</span>
+          {% endif %}
+        </td>
+      {% endif %}
+
+      {% if media.start_date %}
+        <td class="p-2 text-center">{{ media.start_date|date_format:user }}</td>
       {% else %}
-        <div class="flex items-center justify-center">
-          {% include "app/icons/star.svg" with classes="w-4 h-4 text-gray-400 mr-1 fill-current" %}
-        </div>
-      {% endif %}
-    </td>
-
-    {# Progress field #}
-    {% if media_type != MediaTypes.MOVIE.value %}
-      <td class="p-2 text-center">
-        {{ media.formatted_progress }}
-        {% if media.max_progress %}/ {{ media.max_progress }}{% endif %}
-      </td>
-      {% if media_type == MediaTypes.TV.value %}<td class="p-2 text-center">{{ media.last_watched }}</td>{% endif %}
-    {% endif %}
-
-    <td class="p-2 text-center text-sm {{ media.status|status_color }}">{{ media.status|media_status_readable }}</td>
-
-    {% if media_type != MediaTypes.MOVIE.value and media_type != MediaTypes.TV.value %}
-      <td class="p-2 text-center text-xs whitespace-nowrap">
-        {% if media.next_event and not media.next_event.is_max_datetime %}
-          <span class="text-accent-soft">
-            {% if media.next_event.content_number %}
-              {{ media.item.media_type|short_unit }}{{ media.next_event.content_number }} •
-            {% endif %}
-            {{ media.next_event.datetime|natural_day:user }}
-          </span>
-        {% else %}
+        <td class="p-2 text-center">
           <span class="text-gray-500">-</span>
+        </td>
+      {% endif %}
+
+      {% if media.end_date %}
+        <td class="p-2 text-center">{{ media.end_date|date_format:user }}</td>
+      {% else %}
+        <td class="p-2 text-center">
+          <span class="text-gray-500">-</span>
+        </td>
+      {% endif %}
+
+      <td class="p-2">
+        {% if media.link %}
+          <a href="{{ media.link }}"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="p-1.5 text-gray-400 hover:text-accent-soft transition-colors"
+             title="Open link">{% include "app/icons/external-link.svg" with classes="w-4 h-4" %}</a>
         {% endif %}
       </td>
-    {% endif %}
-
-    {% if media.start_date %}
-      <td class="p-2 text-center">{{ media.start_date|date_format:user }}</td>
-    {% else %}
-      <td class="p-2 text-center">
-        <span class="text-gray-500">-</span>
-      </td>
-    {% endif %}
-
-    {% if media.end_date %}
-      <td class="p-2 text-center">{{ media.end_date|date_format:user }}</td>
-    {% else %}
-      <td class="p-2 text-center">
-        <span class="text-gray-500">-</span>
-      </td>
-    {% endif %}
-
-    <td class="p-2">
-      {% if media.link %}
-        <a href="{{ media.link }}"
-           target="_blank"
-           rel="noopener noreferrer"
-           class="p-1.5 text-gray-400 hover:text-accent-soft transition-colors"
-           title="Open link">{% include "app/icons/external-link.svg" with classes="w-4 h-4" %}</a>
-      {% endif %}
-    </td>
-    <td class="p-2">
-      {% if media.status == Status.PLANNING.value and not media.not_yet_airing %}
-        <button hx-post="{% url 'toggle_pin' %}"
-                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
-                hx-swap="none"
-                class="p-1.5 transition-colors cursor-pointer {% if media.is_pinned %}text-accent-soft{% else %}text-gray-400 hover:text-accent-soft{% endif %}"
-                title="{% if media.is_pinned %}Unpin{% else %}Pin{% endif %}">
-          {% include "app/icons/pin.svg" with classes="w-4 h-4" %}
-        </button>
-      {% endif %}
-    </td>
-    <td class="p-2">
-      {% if media.status == Status.IN_PROGRESS.value %}
-        {% if not media.not_yet_airing and media.item.media_type|has_caught_up and media.next_event and not media.next_event.is_max_datetime %}
-          {% if media.is_caught_up %}
-            <div class="flex items-center gap-1 px-2 py-1 bg-gray-600 text-gray-300 rounded-full text-xs font-medium whitespace-nowrap w-fit">
-              {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
-              Caught Up
-            </div>
-          {% else %}
-            <button hx-post="{% url 'quick_catch_up' %}"
-                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
-                    hx-swap="none"
-                    class="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
-                    hx-on::after-request="location.reload()">
-              {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
-              Caught Up?
-            </button>
-          {% endif %}
-        {% elif not media.not_yet_airing and media.item.media_type|has_caught_up and media.is_ongoing %}
-          {% if media.is_caught_up %}
-            <div class="flex items-center gap-1 px-2 py-1 bg-gray-600 text-gray-300 rounded-full text-xs font-medium whitespace-nowrap w-fit">
-              {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
-              Caught Up
-            </div>
-          {% else %}
-            <button hx-post="{% url 'quick_catch_up' %}"
-                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
-                    hx-swap="none"
-                    class="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
-                    hx-on::after-request="location.reload()">
-              {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
-              Caught Up?
-            </button>
-          {% endif %}
-        {% else %}
-          <button hx-post="{% url 'quick_complete' %}"
+      <td class="p-2">
+        {% if media.status == Status.PLANNING.value and not media.not_yet_airing %}
+          <button hx-post="{% url 'toggle_pin' %}"
                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'
                   hx-swap="none"
-                  class="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
-                  hx-on::after-request="location.reload()">
-            {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
-            Done
+                  class="p-1.5 transition-colors cursor-pointer {% if media.is_pinned %}text-accent-soft{% else %}text-gray-400 hover:text-accent-soft{% endif %}"
+                  title="{% if media.is_pinned %}Unpin{% else %}Pin{% endif %}">
+            {% include "app/icons/pin.svg" with classes="w-4 h-4" %}
           </button>
         {% endif %}
-      {% elif media.status == Status.PLANNING.value and not media.not_yet_airing %}
-        <button hx-post="{% url 'quick_status_transition' %}"
-                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "In progress", "source_context": "medialist"}'
-                hx-swap="none"
-                class="flex items-center gap-1 px-2 py-1 bg-accent text-white rounded-full hover:bg-accent-hover transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
-                hx-on::after-request="location.reload()">
-          {% include "app/icons/states/in-progress.svg" with classes="w-3.5 h-3.5" %}
-          Start
-        </button>
-      {% elif media.status == Status.PAUSED.value %}
-        <button hx-post="{% url 'quick_status_transition' %}"
-                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "Planning", "source_context": "medialist"}'
-                hx-swap="none"
-                class="flex items-center gap-1 px-2 py-1 bg-sky-600 text-white rounded-full hover:bg-sky-500 transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
-                hx-on::after-request="location.reload()">
-          {% include "app/icons/states/planning.svg" with classes="w-3.5 h-3.5" %}
-          Plan
-        </button>
-      {% endif %}
-    </td>
-  </tr>
+      </td>
+      <td class="p-2">
+        {% if media.status == Status.IN_PROGRESS.value %}
+          {% if not media.not_yet_airing and media.item.media_type|has_caught_up and media.next_event and not media.next_event.is_max_datetime %}
+            {% if media.is_caught_up %}
+              <div class="flex items-center gap-1 px-2 py-1 bg-gray-600 text-gray-300 rounded-full text-xs font-medium whitespace-nowrap w-fit">
+                {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
+                Caught Up
+              </div>
+            {% else %}
+              <button hx-post="{% url 'quick_catch_up' %}"
+                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                      hx-swap="none"
+                      class="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
+                      hx-on::after-request="location.reload()">
+                {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
+                Caught Up?
+              </button>
+            {% endif %}
+          {% elif not media.not_yet_airing and media.item.media_type|has_caught_up and media.is_ongoing %}
+            {% if media.is_caught_up %}
+              <div class="flex items-center gap-1 px-2 py-1 bg-gray-600 text-gray-300 rounded-full text-xs font-medium whitespace-nowrap w-fit">
+                {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
+                Caught Up
+              </div>
+            {% else %}
+              <button hx-post="{% url 'quick_catch_up' %}"
+                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                      hx-swap="none"
+                      class="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
+                      hx-on::after-request="location.reload()">
+                {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
+                Caught Up?
+              </button>
+            {% endif %}
+          {% else %}
+            <button hx-post="{% url 'quick_complete' %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "source_context": "medialist"}'
+                    hx-swap="none"
+                    class="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
+                    hx-on::after-request="location.reload()">
+              {% include "app/icons/circle-check.svg" with classes="w-3.5 h-3.5" %}
+              Done
+            </button>
+          {% endif %}
+        {% elif media.status == Status.PLANNING.value and not media.not_yet_airing %}
+          <button hx-post="{% url 'quick_status_transition' %}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "In progress", "source_context": "medialist"}'
+                  hx-swap="none"
+                  class="flex items-center gap-1 px-2 py-1 bg-accent text-white rounded-full hover:bg-accent-hover transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
+                  hx-on::after-request="location.reload()">
+            {% include "app/icons/states/in-progress.svg" with classes="w-3.5 h-3.5" %}
+            Start
+          </button>
+        {% elif media.status == Status.PAUSED.value %}
+          <button hx-post="{% url 'quick_status_transition' %}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}", "target_status": "Planning", "source_context": "medialist"}'
+                  hx-swap="none"
+                  class="flex items-center gap-1 px-2 py-1 bg-sky-600 text-white rounded-full hover:bg-sky-500 transition-all duration-200 text-xs font-medium cursor-pointer whitespace-nowrap"
+                  hx-on::after-request="location.reload()">
+            {% include "app/icons/states/planning.svg" with classes="w-3.5 h-3.5" %}
+            Plan
+          </button>
+        {% endif %}
+      </td>
+    </tr>
+  {% endif %}
 {% endfor %}
