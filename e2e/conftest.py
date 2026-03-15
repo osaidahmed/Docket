@@ -44,3 +44,45 @@ def test_user(transactional_db):
 def authenticated_page(page, live_server, test_user):
     login(page, live_server)
     return page
+
+
+def create_movie(user, media_id, title, status, **kwargs):
+    from app.models import Item, MediaTypes, Movie, Sources
+
+    item = Item.objects.create(
+        media_id=media_id,
+        source=Sources.TMDB.value,
+        media_type=MediaTypes.MOVIE.value,
+        title=title,
+        image="https://via.placeholder.com/150",
+    )
+    return Movie.objects.create(item=item, user=user, status=status, **kwargs)
+
+
+def create_anime(user, media_id, title, status, **kwargs):
+    from app.models import Anime, Item, MediaTypes, Sources
+
+    item = Item.objects.create(
+        media_id=media_id,
+        source=Sources.MAL.value,
+        media_type=MediaTypes.ANIME.value,
+        title=title,
+        image="https://via.placeholder.com/150",
+    )
+    return Anime.objects.create(item=item, user=user, status=status, **kwargs)
+
+
+def create_list(user, name, description=""):
+    from lists.models import CustomList
+
+    return CustomList.objects.create(name=name, description=description, owner=user)
+
+
+def create_second_user(transactional_db=None):
+    User = get_user_model()
+    user = User.objects.create_user(username="user_b", password="pass12345")
+    for field in user._meta.get_fields():
+        if field.name.endswith("_enabled") and hasattr(field, "default"):
+            setattr(user, field.name, True)
+    user.save()
+    return user

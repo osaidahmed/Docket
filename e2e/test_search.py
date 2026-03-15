@@ -46,3 +46,36 @@ def test_search_empty_query_loads_page(
 ):
     authenticated_page.goto(f"{live_server.url}/search")
     expect(authenticated_page).to_have_url(re.compile(r".*/search"))
+
+
+def test_search_keyboard_shortcut(authenticated_page: Page):
+    authenticated_page.keyboard.press("/")
+    expect(authenticated_page.locator("#global-search")).to_be_focused()
+
+
+def test_search_shortcut_ignored_in_textarea(
+    authenticated_page: Page, live_server,
+):
+    authenticated_page.goto(f"{live_server.url}/create")
+    textarea = authenticated_page.locator("textarea").first
+    if textarea.is_visible():
+        textarea.click()
+        textarea.press("/")
+        expect(authenticated_page.locator("#global-search")).not_to_be_focused()
+
+
+def test_search_with_query_param(
+    authenticated_page: Page, live_server,
+):
+    authenticated_page.goto(f"{live_server.url}/search?q=inception")
+    expect(authenticated_page).to_have_url(re.compile(r".*/search"))
+
+
+def test_create_entry_page_loads(
+    authenticated_page: Page, live_server,
+):
+    authenticated_page.goto(f"{live_server.url}/create")
+    expect(authenticated_page.locator("input[name='title']")).to_be_visible()
+    expect(
+        authenticated_page.locator("select[name='status']"),
+    ).to_be_visible()
