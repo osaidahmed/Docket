@@ -18,31 +18,33 @@
         <th class="p-2 w-12"></th>
       </tr>
     </thead>
-    <tbody>
-      {% for media in items %}
-        {% if not truncated_at or forloop.counter <= truncated_at %}
-          {% if media.is_group and media.group_items %}
+    {% for media in items %}
+      {% if not truncated_at or forloop.counter <= truncated_at %}
+        {% if media.is_group and media.group_items %}
+          <tbody x-data="{ groupOpen: false }">
             {% include "app/components/backlog_table_group_rows.html" with media=media is_archive=is_archive hide_type=hide_type %}
-          {% else %}
+          </tbody>
+        {% else %}
+          <tbody>
             {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
-          {% endif %}
+          </tbody>
         {% endif %}
-      {% endfor %}
-    </tbody>
-    {% if truncated_at %}
-      <tbody x-show="expanded"
-             x-cloak
-             id="see-all-{{ see_all_type }}-{{ see_all_status|slugify }}">
-        {% for media in items %}
-          {% if forloop.counter > truncated_at %}
-            {% if media.is_group and media.group_items %}
-              {% include "app/components/backlog_table_group_rows.html" with media=media is_archive=is_archive hide_type=hide_type %}
-            {% else %}
-              {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
-            {% endif %}
-          {% endif %}
-        {% endfor %}
-      </tbody>
-    {% endif %}
+      {% else %}
+        {% if media.is_group and media.group_items %}
+          <tbody x-data="{ groupOpen: false }"
+                 x-show="expanded"
+                 x-cloak
+                 {% if forloop.counter0 == truncated_at %}id="see-all-{{ see_all_type }}-{{ see_all_status|slugify }}"{% endif %}>
+            {% include "app/components/backlog_table_group_rows.html" with media=media is_archive=is_archive hide_type=hide_type %}
+          </tbody>
+        {% else %}
+          <tbody x-show="expanded"
+                 x-cloak
+                 {% if forloop.counter0 == truncated_at %}id="see-all-{{ see_all_type }}-{{ see_all_status|slugify }}"{% endif %}>
+            {% include "app/components/backlog_table_row.html" with media=media is_archive=is_archive hide_type=hide_type %}
+          </tbody>
+        {% endif %}
+      {% endif %}
+    {% endfor %}
   </table>
 </div>

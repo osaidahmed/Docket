@@ -7,7 +7,7 @@
   {% else %}
     Home
   {% endif %}
-  - Yamtrack
+  - Docket
 {% endblock title %}
 
 {% block content %}
@@ -282,17 +282,24 @@
         {% endif %}
 
         {% if sg.truncated_at %}
-          <button x-show="!expanded"
-                  @click="expanded = true; $nextTick(() => { const el = document.getElementById('see-all-{{ group.media_type }}-{{ sg.status|slugify }}'); if (el && el.getBoundingClientRect().top > window.innerHeight) el.scrollIntoView({ behavior: 'smooth', block: 'start' }) })"
-                  class="block w-full text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2 cursor-pointer">
-            See all
-          </button>
-          <button x-show="expanded"
-                  x-cloak
-                  @click="expanded = false"
-                  class="block w-full text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2 cursor-pointer">
-            Show less
-          </button>
+          {% if current_group == "type" and group.media_type != "not_yet_airing" and group.media_type != "rewatch" %}
+            <a href="{% url 'medialist' group.media_type %}?status={{ sg.status|urlencode }}&temp=1"
+               class="block w-full text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2">
+              See all
+            </a>
+          {% else %}
+            <button x-show="!expanded"
+                    @click="expanded = true; $nextTick(() => { const el = document.getElementById('see-all-{{ group.media_type }}-{{ sg.status|slugify }}'); if (el && el.getBoundingClientRect().top > window.innerHeight) el.scrollIntoView({ behavior: 'smooth', block: 'start' }) })"
+                    class="block w-full text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2 cursor-pointer">
+              See all
+            </button>
+            <button x-show="expanded"
+                    x-cloak
+                    @click="expanded = false"
+                    class="block w-full text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2 cursor-pointer">
+              Show less
+            </button>
+          {% endif %}
         {% endif %}
       </div>
     {% endfor %}

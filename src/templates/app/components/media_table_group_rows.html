@@ -1,8 +1,8 @@
 {% load app_tags %}
 
-<tbody x-data="{ expanded: false }">
+<tbody x-data="{ groupOpen: false }">
   <tr class="hover:bg-input transition-colors cursor-pointer"
-      @click="expanded = !expanded">
+      @click="groupOpen = !groupOpen">
     <td x-show="selecting" class="p-2" @click.stop></td>
     <td class="p-2 relative">
       <img alt="{{ group.item }}"
@@ -12,7 +12,7 @@
     </td>
     <td class="p-2 pe-8 font-medium">
       <div class="flex items-center gap-2">
-        <span class="text-gray-400 text-xs" x-text="expanded ? '&#9662;' : '&#9656;'"></span>
+        <span class="text-gray-400 text-xs" x-text="groupOpen ? '&#9662;' : '&#9656;'"></span>
         <div class="min-w-0 flex-1">
           <a href="{{ group.item|media_url }}"
              class="hover:text-accent-soft transition-colors line-clamp-1"
@@ -60,7 +60,7 @@
   </tr>
 
   {% for sub in group.group_items %}
-      <tr x-show="expanded" x-cloak class="bg-input/30 hover:bg-input/50 transition-colors">
+      <tr x-show="groupOpen" x-cloak class="bg-input/30 hover:bg-input/50 transition-colors">
         <td x-show="selecting" class="p-2" @click.stop></td>
         <td class="p-2 pl-6">
           <img alt="{{ sub.item }}"

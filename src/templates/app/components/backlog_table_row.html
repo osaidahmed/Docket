@@ -83,12 +83,21 @@
     </td>
   {% endif %}
   <td class="p-2">
-    {% if media.link %}
-      <a href="{{ media.link }}"
-         target="_blank"
-         rel="noopener noreferrer"
-         class="p-1.5 text-gray-400 hover:text-accent-soft transition-colors"
-         title="Open link">{% include "app/icons/external-link.svg" with classes="w-4 h-4" %}</a>
-    {% endif %}
+    <div class="flex items-center gap-1">
+      <button class="p-1.5 text-gray-400 hover:text-accent-soft transition-colors cursor-pointer"
+              hx-get="{% media_view_url 'track_modal' media.item %}"
+              hx-vals='{"return_url": "{{ request.get_full_path|urlencode }}", "instance_id": "{{ media.id }}"}'
+              hx-target="#{% component_id 'track' media.item media.id %}"
+              hx-trigger="click once"
+              @click="trackOpen = true"
+              title="Edit">{% include "app/icons/edit.svg" with classes="w-4 h-4" %}</button>
+      {% if media.link %}
+        <a href="{{ media.link }}"
+           target="_blank"
+           rel="noopener noreferrer"
+           class="p-1.5 text-gray-400 hover:text-accent-soft transition-colors"
+           title="Open link">{% include "app/icons/external-link.svg" with classes="w-4 h-4" %}</a>
+      {% endif %}
+    </div>
   </td>
 </tr>
