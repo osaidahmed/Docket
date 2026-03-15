@@ -15,7 +15,7 @@ COPY ./nginx.conf /etc/nginx/nginx.conf
 # Generate a copy of the nginx config with IPv6 support.
 RUN sed 's/listen 8000;/listen 8000; listen [::]:8000;/' /etc/nginx/nginx.conf > /etc/nginx/nginx.ipv6.conf
 
-WORKDIR /yamtrack
+WORKDIR /docket
 
 RUN apk add --no-cache nginx shadow \
     && pip install --no-cache-dir -r /requirements.txt \

@@ -1,7 +1,7 @@
 services:
-  yamtrack:
-    container_name: yamtrack
-    image: ghcr.io/fuzzygrim/yamtrack
+  docket:
+    container_name: docket
+    image: ghcr.io/osaidahmed/docket
     restart: unless-stopped
     depends_on:
       - redis
@@ -10,12 +10,12 @@ services:
       - SECRET=longstring
       - REDIS_URL=redis://redis:6379
     volumes:
-      - ./db:/yamtrack/db
+      - ./db:/docket/db
     ports:
       - "8000:8000"
 
   redis:
-    container_name: yamtrack-redis
+    container_name: docket-redis
     image: redis:8-alpine
     restart: unless-stopped
     volumes:

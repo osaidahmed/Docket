@@ -16,11 +16,11 @@ if ! docker info &>/dev/null; then
 fi
 
 echo "==> starting redis..."
-if docker ps --format '{{.Names}}' | grep -q '^yamtrack-redis$'; then
+if docker ps --format '{{.Names}}' | grep -q '^docket-redis$'; then
   echo "    redis already running"
 else
-  docker run -d --name yamtrack-redis -p 6379:6379 redis:8-alpine >/dev/null 2>&1 || \
-    docker start yamtrack-redis >/dev/null 2>&1
+  docker run -d --name docket-redis -p 6379:6379 redis:8-alpine >/dev/null 2>&1 || \
+    docker start docket-redis >/dev/null 2>&1
   echo "    redis started on localhost:6379"
 fi
 

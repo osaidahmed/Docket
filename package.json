@@ -1,21 +1,21 @@
 {
-  "name": "yamtrack",
+  "name": "docket",
   "version": "1.0.0",
   "description": "![App Tests](https://github.com/FuzzyGrim/Yamtrack/actions/workflows/app-tests.yml/badge.svg) ![Docker Image](https://github.com/FuzzyGrim/Yamtrack/actions/workflows/docker-image.yml/badge.svg) ![CodeFactor](https://www.codefactor.io/repository/github/fuzzygrim/yamtrack/badge) ![Codecov](https://codecov.io/github/FuzzyGrim/Yamtrack/branch/dev/graph/badge.svg?token=PWUG660120) ![GitHub](https://img.shields.io/badge/license-AGPL--3.0-blue)",
   "main": "index.js",
   "scripts": {},
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/osaidahmed/Yamtrack.git"
+    "url": "git+https://github.com/osaidahmed/Docket.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/osaidahmed/Yamtrack/issues"
+    "url": "https://github.com/osaidahmed/Docket/issues"
   },
-  "homepage": "https://github.com/osaidahmed/Yamtrack#readme",
+  "homepage": "https://github.com/osaidahmed/Docket#readme",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/node": "^25.5.0"

@@ -1,7 +1,7 @@
 services:
-  yamtrack:
-    container_name: yamtrack
-    image: ghcr.io/fuzzygrim/yamtrack
+  docket:
+    container_name: docket
+    image: ghcr.io/osaidahmed/docket
     restart: unless-stopped
     depends_on:
       - db
@@ -11,26 +11,26 @@ services:
       - SECRET=longstring
       - REDIS_URL=redis://redis:6379
       - DB_HOST=db
-      - DB_NAME=yamtrack
-      - DB_USER=yamtrack
-      - DB_PASSWORD=yamtrack
+      - DB_NAME=docket
+      - DB_USER=docket
+      - DB_PASSWORD=docket
       - DB_PORT=5432
     ports:
       - "8000:8000"
 
   db:
     image: postgres:16-alpine
-    container_name: yamtrack-db
+    container_name: docket-db
     environment:
-      - POSTGRES_DB=yamtrack
-      - POSTGRES_USER=yamtrack
-      - POSTGRES_PASSWORD=yamtrack
+      - POSTGRES_DB=docket
+      - POSTGRES_USER=docket
+      - POSTGRES_PASSWORD=docket
     volumes:
       - ./db:/var/lib/postgresql/data
     restart: unless-stopped
 
   redis:
-    container_name: yamtrack-redis
+    container_name: docket-redis
     image: redis:8-alpine
     restart: unless-stopped
     volumes:

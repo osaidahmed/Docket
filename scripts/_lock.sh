@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shared test/coverage lock — prevents concurrent runs that cause SQLite contention
 
-LOCK_DIR="/tmp/yamtrack-test.lock"
+LOCK_DIR="/tmp/docket-test.lock"
 LOCK_PID_FILE="$LOCK_DIR/pid"
 LOCK_CMD_FILE="$LOCK_DIR/cmd"
 

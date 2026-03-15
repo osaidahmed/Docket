@@ -361,7 +361,7 @@ class DownloadCalendarViewTests(TestCase):
         self.assertIn("calendar.ics", response["Content-Disposition"])
         content = response.content.decode("utf-8")
         self.assertIn("BEGIN:VCALENDAR", content)
-        self.assertIn("PRODID:-//Yamtrack//EN", content)
+        self.assertIn("PRODID:-//Docket//EN", content)
 
     def test_download_calendar_empty(self):
         url = reverse("download_calendar", kwargs={"token": self.user.token})

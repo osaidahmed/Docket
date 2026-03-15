@@ -3,7 +3,7 @@
 {% load app_tags %}
 
 {% block title %}
-  Import - Yamtrack
+  Import - Docket
 {% endblock title %}
 
 {% block settings_content %}
@@ -60,7 +60,7 @@
       </div>
       <p class="text-gray-400 mb-5 text-sm">
         Some of these require additional configuration, check the
-        <a href="https://github.com/FuzzyGrim/Yamtrack/wiki/Media-Import-Configuration"
+        <a href="https://github.com/FuzzyGrim/Docket/wiki/Media-Import-Configuration"
            target="_blank"
            class="text-accent-soft hover:text-accent-soft underline">import configuration guide</a>.
       </p>
@@ -242,20 +242,20 @@
           </form>
         </div>
 
-        {# Yamtrack #}
+        {# Docket #}
         <div class="bg-input p-4 rounded-lg">
           <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center">{% source_display "yamtrack" %}</div>
-            <a href="https://github.com/FuzzyGrim/Yamtrack/wiki/Media-Import-Configuration#yamtrack-csv-format"
+            <div class="flex items-center">{% source_display "docket" %}</div>
+            <a href="https://github.com/FuzzyGrim/Docket/wiki/Media-Import-Configuration#yamtrack-csv-format"
                target="_blank"
                class="text-gray-400 hover:text-accent-soft transition-colors p-1 rounded-md hover:bg-gray-600/50"
                title="View CSV format documentation">{% include "app/icons/info.svg" with classes="w-4 h-4" %}</a>
           </div>
           <p class="text-sm text-gray-400 mb-3"
-             x-text="importFrequency === 'once' ? 'Import from Yamtrack backup' : 'File uploads are not available for periodic imports'">
+             x-text="importFrequency === 'once' ? 'Import from Docket backup' : 'File uploads are not available for periodic imports'">
           </p>
           <form method="post"
-                action="{% url 'import_yamtrack' %}"
+                action="{% url 'import_docket' %}"
                 enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="frequency" x-model="importFrequency">
@@ -264,7 +264,7 @@
             <label class="flex items-center justify-center w-full px-4 py-2 text-sm rounded-md transition-colors"
                    :class="importFrequency === 'once' ? 'bg-accent text-white hover:bg-accent-hover cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'"
                    :disabled="importFrequency !== 'once'">
-              <input name="yamtrack_csv"
+              <input name="docket_csv"
                      accept=".csv"
                      class="hidden"
                      type="file"
