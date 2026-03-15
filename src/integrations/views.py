@@ -228,10 +228,10 @@ def import_kitsu(request):
 
 
 @require_POST
-def import_yamtrack(request):
-    """Import media from Yamtrack CSV."""
+def import_docket(request):
+    """Import media from Docket CSV."""
     return _handle_file_import(
-        request, "yamtrack_csv", "Yamtrack CSV", tasks.import_yamtrack
+        request, "docket_csv", "Docket CSV", tasks.import_docket
     )
 
 
@@ -271,7 +271,7 @@ def export_csv(request):
     response = StreamingHttpResponse(
         streaming_content=exports.generate_rows(request.user),
         content_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="yamtrack_{now}.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="docket_{now}.csv"'},
     )
     logger.info("User %s started CSV export", request.user.username)
     return response

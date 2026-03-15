@@ -110,7 +110,7 @@ class TaskWrapperTests(TestCase):
             ("import_mal", {"username": "u", "user_id": self.user.id, "mode": "new"}),
             ("import_anilist", {"user_id": self.user.id, "mode": "new", "token": "t"}),
             ("import_kitsu", {"username": "u", "user_id": self.user.id, "mode": "new"}),
-            ("import_yamtrack", {"file": "f", "user_id": self.user.id, "mode": "new"}),
+            ("import_docket", {"file": "f", "user_id": self.user.id, "mode": "new"}),
             ("import_hltb", {"file": "f", "user_id": self.user.id, "mode": "new"}),
             ("import_steam", {"username": "u", "user_id": self.user.id, "mode": "new"}),
             ("import_imdb", {"file": "f", "user_id": self.user.id, "mode": "new"}),

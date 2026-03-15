@@ -18,7 +18,7 @@ from integrations.imports import (
     simkl,
     steam,
     trakt,
-    yamtrack,
+    docket,
 )
 
 logger = logging.getLogger(__name__)
@@ -109,10 +109,10 @@ def import_kitsu(username, user_id, mode):
     return import_media(kitsu.importer, username, user_id, mode)
 
 
-@shared_task(name="Import from Yamtrack")
-def import_yamtrack(file, user_id, mode):
-    """Celery task for importing media data from Yamtrack."""
-    return import_media(yamtrack.importer, file, user_id, mode)
+@shared_task(name="Import from Docket")
+def import_docket(file, user_id, mode):
+    """Celery task for importing media data from Docket."""
+    return import_media(docket.importer, file, user_id, mode)
 
 
 @shared_task(name="Import from HowLongToBeat")

@@ -18,7 +18,7 @@ from app.models import (
     Sources,
 )
 from integrations.imports import (
-    yamtrack,
+    docket,
 )
 from integrations.imports.helpers import MediaImportError
 
@@ -28,8 +28,8 @@ app_mock_path = (
 )
 
 
-class ImportYamtrack(TestCase):
-    """Test importing media from Yamtrack CSV."""
+class ImportDocket(TestCase):
+    """Test importing media from Docket CSV."""
 
     @classmethod
     def setUpTestData(cls):
@@ -38,8 +38,8 @@ class ImportYamtrack(TestCase):
             username="test",
             password="12345",
         )
-        with Path(mock_path / "import_yamtrack.csv").open("rb") as file:
-            cls.import_results = yamtrack.importer(file, cls.user, "new")
+        with Path(mock_path / "import_docket.csv").open("rb") as file:
+            cls.import_results = docket.importer(file, cls.user, "new")
 
     def test_import_counts(self):
         """Test basic counts of imported media."""
@@ -110,7 +110,7 @@ class ImportYamtrack(TestCase):
             },
         ]
 
-        importer = yamtrack.YamtrackImporter(None, self.user, "new")
+        importer = docket.DocketImporter(None, self.user, "new")
 
         for row in test_rows:
             # Make copies of original rows to verify they're modified
@@ -128,8 +128,8 @@ class ImportYamtrack(TestCase):
             self.assertNotEqual(row["image"], original_row["image"])
 
 
-class ImportYamtrackPartials(TestCase):
-    """Test importing yamtrack media with no ID."""
+class ImportDocketPartials(TestCase):
+    """Test importing Docket media with no ID."""
 
     @classmethod
     def setUpTestData(cls):
@@ -138,8 +138,8 @@ class ImportYamtrackPartials(TestCase):
             username="test",
             password="12345",
         )
-        with Path(mock_path / "import_yamtrack_partials.csv").open("rb") as file:
-            cls.import_results = yamtrack.importer(file, cls.user, "new")
+        with Path(mock_path / "import_docket_partials.csv").open("rb") as file:
+            cls.import_results = docket.importer(file, cls.user, "new")
 
     def test_import_counts(self):
         """Test basic counts of imported media."""
@@ -177,7 +177,7 @@ class ImportYamtrackPartials(TestCase):
             },
         ]
 
-        importer = yamtrack.YamtrackImporter(None, self.user, "new")
+        importer = docket.DocketImporter(None, self.user, "new")
 
         for row in test_rows:
             original_row = row.copy()
@@ -222,8 +222,8 @@ class ImportYamtrackPartials(TestCase):
         )
 
 
-class YamtrackEdgeCaseTests(TestCase):
-    """Test edge cases and error paths for Yamtrack CSV importer."""
+class DocketEdgeCaseTests(TestCase):
+    """Test edge cases and error paths for Docket CSV importer."""
 
     @classmethod
     def setUpTestData(cls):
@@ -234,7 +234,7 @@ class YamtrackEdgeCaseTests(TestCase):
     def test_unicode_decode_error(self):
         file = BytesIO(b"\x80\x81\x82\x83")
         with self.assertRaises(MediaImportError):
-            yamtrack.importer(file, self.user, "new")
+            docket.importer(file, self.user, "new")
 
     def test_manual_source_missing_image(self):
         csv_content = (
@@ -244,6 +244,6 @@ class YamtrackEdgeCaseTests(TestCase):
             "1,manual,movie,Manual Movie,,,,Completed,8,1,,,,,,"
         )
         file = BytesIO(csv_content.encode("utf-8"))
-        yamtrack.importer(file, self.user, "new")
+        docket.importer(file, self.user, "new")
         item = Item.objects.get(media_id="1", source=Sources.MANUAL.value)
         self.assertEqual(item.image, settings.IMG_NONE)

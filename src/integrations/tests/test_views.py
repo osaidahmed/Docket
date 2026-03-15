@@ -252,21 +252,21 @@ class ImportFileViewTests(TestCase):
     def setUp(self):
         self.client.login(**self.credentials)
 
-    @patch("integrations.views.tasks.import_yamtrack.delay")
-    def test_import_yamtrack_with_file(self, mock_delay):
+    @patch("integrations.views.tasks.import_docket.delay")
+    def test_import_docket_with_file(self, mock_delay):
         csv_file = SimpleUploadedFile("test.csv", b"col1,col2\nval1,val2")
         response = self.client.post(
-            reverse("import_yamtrack"),
-            {"yamtrack_csv": csv_file, "mode": "full"},
+            reverse("import_docket"),
+            {"docket_csv": csv_file, "mode": "full"},
         )
         self.assertRedirects(response, reverse("import_data"))
         mock_delay.assert_called_once()
         messages = list(get_messages(response.wsgi_request))
-        self.assertTrue(any("Yamtrack" in str(m) for m in messages))
+        self.assertTrue(any("Docket" in str(m) for m in messages))
 
-    def test_import_yamtrack_missing_file(self):
+    def test_import_docket_missing_file(self):
         response = self.client.post(
-            reverse("import_yamtrack"),
+            reverse("import_docket"),
             {"mode": "full"},
         )
         self.assertRedirects(response, reverse("import_data"))

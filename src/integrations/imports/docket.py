@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 
 def importer(file, user, mode):
     """Import media from CSV file using the class-based importer."""
-    csv_importer = YamtrackImporter(file, user, mode)
+    csv_importer = DocketImporter(file, user, mode)
     return csv_importer.import_data()
 
 
-class YamtrackImporter:
+class DocketImporter:
     """Class to handle importing user data from CSV files."""
 
     def __init__(self, file, user, mode):
@@ -50,7 +50,7 @@ class YamtrackImporter:
         self.bulk_media = defaultdict(list)
 
         logger.info(
-            "Initialized Yamtrack CSV importer for user %s with mode %s",
+            "Initialized Docket CSV importer for user %s with mode %s",
             user.username,
             mode,
         )
