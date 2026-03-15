@@ -1,6 +1,118 @@
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+
+from app.models import Anime, Item, ItemRelationship, MediaTypes, Sources, Status
+
+_IMG = "http://example.com/image.jpg"
+
+
+class RefreshAnimeRelationshipsTaskTests(TestCase):
+    """Test the refresh_anime_relationships_task Celery task."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="tasktest", password="12345"
+        )
+
+    def setUp(self):
+        patcher = patch(
+            "app.providers.services.get_media_metadata",
+            return_value={"max_progress": None},
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _make_anime(self, media_id):
+        item = Item.objects.create(
+            media_id=media_id,
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title=f"Anime {media_id}",
+            image=_IMG,
+        )
+        return Anime.objects.create(
+            item=item, user=self.user, status=Status.PLANNING.value
+        )
+
+    @patch("time.sleep")
+    @patch("app.providers.mal._save_anime_relationships")
+    @patch("app.providers.mal.anime")
+    def test_fetches_relationships_for_anime_without_existing(
+        self, mock_anime, mock_save, mock_sleep
+    ):
+        a = self._make_anime("100")
+        mock_anime.return_value = {
+            "related": {"related_anime": [{"media_id": 200, "title": "Sequel"}]}
+        }
+
+        from app.tasks import refresh_anime_relationships_task
+
+        refresh_anime_relationships_task(self.user.id)
+
+        mock_anime.assert_called_once_with("100")
+        mock_save.assert_called_once_with(
+            "100", [{"media_id": 200, "title": "Sequel"}]
+        )
+
+    @patch("time.sleep")
+    @patch("app.providers.mal._save_anime_relationships")
+    @patch("app.providers.mal.anime")
+    def test_skips_anime_with_existing_relationships(
+        self, mock_anime, mock_save, mock_sleep
+    ):
+        a = self._make_anime("101")
+        other_item = Item.objects.create(
+            media_id="201",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Related",
+            image=_IMG,
+        )
+        ItemRelationship.objects.create(
+            from_item=a.item, to_item=other_item, relation_type="sequel"
+        )
+
+        from app.tasks import refresh_anime_relationships_task
+
+        refresh_anime_relationships_task(self.user.id)
+
+        mock_anime.assert_not_called()
+        mock_save.assert_not_called()
+
+    @patch("time.sleep")
+    @patch("app.providers.mal.anime")
+    def test_skips_on_exception(self, mock_anime, mock_sleep):
+        self._make_anime("102")
+        mock_anime.side_effect = RuntimeError("API error")
+
+        from app.tasks import refresh_anime_relationships_task
+
+        refresh_anime_relationships_task(self.user.id)
+        mock_anime.assert_called_once()
+
+    @patch("time.sleep")
+    @patch("app.providers.mal.anime")
+    def test_skips_when_no_related_anime(self, mock_anime, mock_sleep):
+        self._make_anime("103")
+        mock_anime.return_value = {"related": {"related_anime": []}}
+
+        from app.tasks import refresh_anime_relationships_task
+
+        refresh_anime_relationships_task(self.user.id)
+
+        mock_anime.assert_called_once()
+
+    @patch("time.sleep")
+    @patch("app.providers.mal.anime")
+    def test_no_tracked_anime_does_nothing(self, mock_anime, mock_sleep):
+        from app.tasks import refresh_anime_relationships_task
+
+        refresh_anime_relationships_task(self.user.id)
+
+        mock_anime.assert_not_called()
 
 
 class ComputeRecommendationsTaskTests(TestCase):

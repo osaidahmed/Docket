@@ -185,14 +185,10 @@
           <div class="flex items-center gap-3 ml-4">
             <button hx-post="{% url 'refresh_relationships' %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-swap="none"
+                    hx-swap="outerHTML"
                     class="px-3 py-1.5 text-xs font-medium text-gray-300 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors cursor-pointer border border-gray-600"
-                    x-data="{ done: false }"
-                    @click="done = true; setTimeout(() => done = false, 3000)"
-                    :class="done && 'opacity-50 pointer-events-none'"
                     type="button">
-              <span x-show="!done">Refresh relationships</span>
-              <span x-show="done" x-cloak>Refreshing...</span>
+              Refresh relationships
             </button>
             <label class="relative inline-flex items-center cursor-pointer">
               <input class="sr-only peer"

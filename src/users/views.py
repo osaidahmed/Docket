@@ -242,7 +242,10 @@ def refresh_relationships(request):
     from app.tasks import refresh_anime_relationships_task  # noqa: PLC0415
 
     refresh_anime_relationships_task.delay(request.user.id)
-    return HttpResponse(status=204)
+    return HttpResponse(
+        status=200,
+        content='<span class="text-xs text-emerald-400">Refreshing...</span>',
+    )
 
 
 @require_http_methods(["GET", "POST"])
