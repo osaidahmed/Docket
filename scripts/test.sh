@@ -28,6 +28,7 @@ resolve_category() {
     providers)    echo "$SRC_DIR/app/tests/providers" ;;
     imports)      echo "$SRC_DIR/integrations/tests/imports" ;;
     webhooks)     echo "$SRC_DIR/integrations/tests/test_webhooks_emby.py $SRC_DIR/integrations/tests/test_webhooks_jellyfin.py $SRC_DIR/integrations/tests/test_webhooks_plex.py" ;;
+    e2e)          echo "$ROOT_DIR/e2e" ;;
     *)            return 1 ;;
   esac
 }
@@ -45,6 +46,7 @@ views            app/tests/views
 providers        app/tests/providers
 imports          integrations/tests/imports
 webhooks         integrations/tests/test_webhooks_*.py
+e2e              e2e/ (playwright browser tests)
 EOF
 }
 
@@ -118,6 +120,11 @@ if [ -z "$categories" ]; then
 else
   test_paths="$categories"
 fi
+
+# ── e2e: force serial mode (browsers + live_server) ──────────────
+case "$test_paths" in
+  *"/e2e"*) parallel=false ;;
+esac
 
 # ── build flags ───────────────────────────────────────────────────
 # interactive terminals get verbose output with durations;
