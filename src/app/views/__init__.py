@@ -30,6 +30,10 @@ from app.views.details import (
     sync_metadata,
     update_media_score,
 )
+from app.views.discover import (
+    discover_section,
+    discover_type,
+)
 from app.views.explore import (
     explore,
     explore_type,
@@ -70,6 +74,8 @@ __all__ = [
     "bulk_action",
     "create_entry",
     "delete_history_record",
+    "discover_section",
+    "discover_type",
     "episode_save",
     "explore",
     "explore_type",

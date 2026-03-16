@@ -37,6 +37,16 @@ urlpatterns = [
         name="explore_type",
     ),
     path(
+        "discover/<media_type:media_type>",
+        views.discover_type,
+        name="discover_type",
+    ),
+    path(
+        "discover/<media_type:media_type>/section/<str:section_key>",
+        views.discover_section,
+        name="discover_section",
+    ),
+    path(
         "details/<source:source>/<media_type:media_type>/<str:media_id>/<str:title>",
         views.media_details,
         name="media_details",

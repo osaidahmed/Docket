@@ -1,0 +1,18 @@
+{% load app_tags %}
+
+{% for result in items %}
+  <div data-card>
+    {% include "app/components/media_card.html" with item=result.item title=result.item.title media=result.media has_active=result.has_active from_search=True from_grid=True %}
+  </div>
+{% endfor %}
+
+<div id="{{ section_key }}-load-more" class="mt-6 text-center" hx-swap-oob="true">
+  {% if has_next_page %}
+    <button hx-get="{% url 'discover_section' media_type=media_type section_key=section_key %}?page={{ next_page }}"
+            hx-target="#{{ section_key }}-grid"
+            hx-swap="beforeend"
+            class="px-8 py-2.5 text-sm font-medium text-gray-300 bg-card hover:bg-input border border-white/10 rounded-lg transition-colors">
+      Load more
+    </button>
+  {% endif %}
+</div>

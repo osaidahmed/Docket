@@ -1,0 +1,92 @@
+{% load app_tags %}
+
+<section>
+  <div class="flex items-center justify-between mb-5">
+    <h3 class="text-xl font-bold text-white">{{ section.label }}</h3>
+  </div>
+  {% if section.items %}
+    <style>
+      @keyframes marquee-scroll {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+      }
+    </style>
+    <div style="overflow: hidden;">
+      <div style="display: flex; gap: 0.75rem; width: max-content; animation: marquee-scroll 60s linear infinite; will-change: transform;"
+           class="hover:[animation-play-state:paused]">
+        {% for result in section.items %}
+          <div style="flex-shrink: 0; width: 160px;">
+            <div class="relative overflow-hidden rounded-lg bg-input group/item">
+              <a href="{{ result.item|media_url }}">
+                <img data-src="{{ result.item.image }}"
+                     src="{{ IMG_NONE }}"
+                     alt="{{ result.item.title }}"
+                     class="lazyload object-cover transition-transform duration-300 group-hover/item:scale-105"
+                     style="width: 160px; height: 227px;">
+              </a>
+              <div class="absolute bottom-0 left-0 p-1.5 pointer-events-none">
+                <span class="text-[2rem] font-black leading-none {{ text_color }}"
+                      style="-webkit-text-stroke: 1.5px currentColor; -webkit-text-fill-color: transparent;">
+                  {{ forloop.counter|stringformat:"02d" }}
+                </span>
+              </div>
+              <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover-tap:opacity-100 transition-opacity">
+                <a href="{{ result.item|media_url }}" class="absolute inset-0"></a>
+                <div class="relative z-10">
+                  {% include "app/components/search_action.html" with item=result.item media=result.media has_active=result.has_active %}
+                </div>
+              </div>
+            </div>
+            <div class="mt-2 pr-1">
+              <a href="{{ result.item|media_url }}"
+                 class="text-sm font-medium text-gray-200 hover:text-white line-clamp-1 transition-colors"
+                 title="{{ result.item.title }}">
+                {{ result.item.title }}
+              </a>
+              {% if result.item.english_title %}
+                <p class="text-xs text-gray-400 line-clamp-1 mt-0.5"
+                   title="{{ result.item.english_title }}">{{ result.item.english_title }}</p>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+        {# Duplicate for seamless loop #}
+        {% for result in section.items %}
+          <div style="flex-shrink: 0; width: 160px;" aria-hidden="true">
+            <div class="relative overflow-hidden rounded-lg bg-input group/item">
+              <a href="{{ result.item|media_url }}" tabindex="-1">
+                <img data-src="{{ result.item.image }}"
+                     src="{{ IMG_NONE }}"
+                     alt=""
+                     class="lazyload object-cover transition-transform duration-300 group-hover/item:scale-105"
+                     style="width: 160px; height: 227px;">
+              </a>
+              <div class="absolute bottom-0 left-0 p-1.5 pointer-events-none">
+                <span class="text-[2rem] font-black leading-none {{ text_color }}"
+                      style="-webkit-text-stroke: 1.5px currentColor; -webkit-text-fill-color: transparent;">
+                  {{ forloop.counter|stringformat:"02d" }}
+                </span>
+              </div>
+              <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover-tap:opacity-100 transition-opacity">
+                <a href="{{ result.item|media_url }}" class="absolute inset-0" tabindex="-1"></a>
+                <div class="relative z-10">
+                  {% include "app/components/search_action.html" with item=result.item media=result.media has_active=result.has_active %}
+                </div>
+              </div>
+            </div>
+            <div class="mt-2 pr-1">
+              <a href="{{ result.item|media_url }}"
+                 class="text-sm font-medium text-gray-200 hover:text-white line-clamp-1 transition-colors"
+                 title="{{ result.item.title }}" tabindex="-1">
+                {{ result.item.title }}
+              </a>
+              {% if result.item.english_title %}
+                <p class="text-xs text-gray-400 line-clamp-1 mt-0.5">{{ result.item.english_title }}</p>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+</section>

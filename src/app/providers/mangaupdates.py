@@ -102,6 +102,59 @@ def search(query, page):
     return data
 
 
+def browse(category, page):
+    """Browse manga on MangaUpdates by category."""
+    cache_key = f"browse_{Sources.MANGAUPDATES.value}_{category}_{page}"
+    data = cache.get(cache_key)
+
+    if data is None:
+        url = f"{base_url}/series/search"
+        per_page = 24
+        params = {
+            "search": "",
+            "perpage": per_page,
+            "page": page,
+        }
+
+        if category == "releases":
+            params["orderby"] = "year"
+        elif category == "rating":
+            params["orderby"] = "rating"
+
+        if not settings.MAL_NSFW:
+            params["exclude_genre"] = ["Adult", "Hentai", "Doujinshi"]
+
+        try:
+            response = services.api_request(
+                Sources.MANGAUPDATES.value,
+                "POST",
+                url,
+                params=params,
+            )
+        except requests.exceptions.HTTPError as error:
+            response = handle_error(error)
+            if response is None:
+                return helpers.format_search_response(page, per_page, 0, [])
+
+        results = [
+            {
+                "media_id": media["record"]["series_id"],
+                "source": Sources.MANGAUPDATES.value,
+                "media_type": MediaTypes.MANGA.value,
+                "title": media["record"]["title"],
+                "image": get_image_url(media["record"]),
+                "synopsis": media["record"].get("description", ""),
+            }
+            for media in response.get("results", [])
+        ]
+
+        total_results = response.get("total_hits", 0)
+        data = helpers.format_search_response(page, per_page, total_results, results)
+        cache.set(cache_key, data)
+
+    return data
+
+
 def manga(media_id):
     """Get metadata for a manga from MangaUpdates."""
     return asyncio.run(async_manga(media_id))

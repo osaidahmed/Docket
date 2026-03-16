@@ -1,0 +1,37 @@
+{% load app_tags %}
+
+<section>
+  <div class="flex items-center justify-between mb-5">
+    <h3 class="text-xl font-bold text-white">{{ section.label }}</h3>
+  </div>
+  <div class="bg-card rounded-xl overflow-hidden">
+    {% if section.days %}
+      <div class="divide-y divide-white/5">
+        {% for item in section.days %}
+          <a href="{% url 'media_details' source=item.source media_type=item.media_type media_id=item.media_id title=item.title|slugify %}"
+             class="flex items-center gap-4 px-5 py-3.5 hover:bg-input/50 transition-colors group/sched">
+            {% if item.airing_at %}
+              <span class="text-sm font-mono font-semibold text-gray-500 w-12 shrink-0 tabular-nums">
+                {{ item.airing_at|timestamp_to_time }}
+              </span>
+            {% endif %}
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-gray-200 group-hover/sched:text-white truncate transition-colors">
+                {{ item.title }}
+              </p>
+            </div>
+            {% if item.episode %}
+              <span class="text-xs font-medium text-gray-500 bg-input px-2 py-0.5 rounded shrink-0">
+                Ep {{ item.episode }}
+              </span>
+            {% endif %}
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="px-5 py-8 text-center">
+        <p class="text-gray-500 text-sm">No schedule data available for today.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>

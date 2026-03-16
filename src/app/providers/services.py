@@ -12,6 +12,7 @@ from requests_ratelimiter import LimiterAdapter, LimiterSession
 
 from app.models import MediaTypes, Sources
 from app.providers import (
+    anilist,
     bgg,
     comicvine,
     hardcover,
@@ -380,6 +381,75 @@ def search_all(query, enabled_types):
         for mt in enabled_types
         if mt in grouped
     ]
+
+
+DISCOVER_TIMEOUT = 8
+
+
+def discover_sections(media_type):
+    """Fetch all discover sections for a media type in parallel."""
+    from app import config  # noqa: PLC0415
+
+    sections_config = config.get_discover_sections(media_type)
+    if not sections_config:
+        return {}
+
+    def _fetch_section(section_cfg):
+        provider = section_cfg.get("provider", "")
+
+        if provider == "anilist_trending":
+            return anilist.trending(media_type, 1, section_cfg["limit"])
+        if provider == "anilist_recently_updated":
+            return anilist.recently_updated(media_type, 1, section_cfg["limit"])
+        if provider == "anilist_upcoming":
+            return anilist.upcoming(media_type, 1, section_cfg["limit"])
+        if provider == "anilist_schedule":
+            return anilist.airing_schedule(1, section_cfg["limit"])
+        if provider == "jikan_schedule":
+            return jikan.browse_schedule(limit=section_cfg["limit"])
+        if provider == "mangaupdates_releases":
+            return mangaupdates.browse("releases", 1)
+
+        category = section_cfg.get("browse_category", "")
+        if section_cfg["type"] == "spotlight_carousel":
+            return tmdb.browse_for_discover(media_type, category, 1)
+
+        return browse(media_type, category, 1)
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=len(sections_config)) as executor:
+        futures = {
+            executor.submit(_fetch_section, cfg): cfg["key"]
+            for cfg in sections_config
+        }
+        for future in as_completed(futures, timeout=DISCOVER_TIMEOUT):
+            key = futures[future]
+            try:
+                results[key] = future.result()
+            except Exception:
+                logger.exception("Discover section %s failed", key)
+                results[key] = None
+
+    return results
+
+
+def discover_section_page(media_type, section_cfg, page):
+    """Fetch a single discover section's page (for HTMX load-more)."""
+    from app.providers import anilist  # noqa: PLC0415
+
+    provider = section_cfg.get("provider", "")
+
+    if provider == "anilist_trending":
+        return anilist.trending(media_type, page, section_cfg["limit"])
+    if provider == "anilist_recently_updated":
+        return anilist.recently_updated(media_type, page, section_cfg["limit"])
+    if provider == "anilist_upcoming":
+        return anilist.upcoming(media_type, page, section_cfg["limit"])
+    if provider == "mangaupdates_releases":
+        return mangaupdates.browse("releases", page)
+
+    category = section_cfg.get("browse_category", "")
+    return browse(media_type, category, page)
 
 
 def _parallel_search(query, searchable):

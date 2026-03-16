@@ -858,3 +858,160 @@ def get_status_stats_color(status):
 def get_status_background_color(status):
     """Get the background color for a status."""
     return get_status_property(status, "background_color")
+
+
+# --- Discover Page Configuration ---
+DISCOVER_SECTIONS = {
+    MediaTypes.MOVIE.value: [
+        {
+            "key": "spotlight",
+            "label": "Spotlight",
+            "type": "spotlight_carousel",
+            "browse_category": "trending",
+            "limit": 10,
+        },
+        {
+            "key": "trending",
+            "label": "Trending",
+            "type": "ranked_carousel",
+            "browse_category": "trending",
+            "limit": 10,
+        },
+        {
+            "key": "now_playing",
+            "label": "Now Playing",
+            "type": "card_grid",
+            "browse_category": "now_playing",
+            "explore_category": "now_playing",
+            "limit": 12,
+        },
+        {
+            "key": "upcoming",
+            "label": "Upcoming",
+            "type": "card_grid",
+            "browse_category": "popular",
+            "explore_category": "popular",
+            "limit": 12,
+        },
+    ],
+    MediaTypes.TV.value: [
+        {
+            "key": "spotlight",
+            "label": "Spotlight",
+            "type": "spotlight_carousel",
+            "browse_category": "trending",
+            "limit": 10,
+        },
+        {
+            "key": "trending",
+            "label": "Trending",
+            "type": "ranked_carousel",
+            "browse_category": "trending",
+            "limit": 10,
+        },
+        {
+            "key": "airing_now",
+            "label": "Airing Now",
+            "type": "card_grid",
+            "browse_category": "on_the_air",
+            "explore_category": "on_the_air",
+            "limit": 12,
+        },
+        {
+            "key": "top_rated",
+            "label": "Top Rated",
+            "type": "card_grid",
+            "browse_category": "top_rated",
+            "explore_category": "top_rated",
+            "limit": 12,
+        },
+    ],
+    MediaTypes.ANIME.value: [
+        {
+            "key": "trending",
+            "label": "Trending",
+            "type": "ranked_carousel",
+            "provider": "anilist_trending",
+            "limit": 10,
+        },
+        {
+            "key": "recently_updated",
+            "label": "Recently Updated",
+            "type": "card_grid",
+            "provider": "anilist_recently_updated",
+            "limit": 30,
+        },
+        {
+            "key": "schedule",
+            "label": "Estimated Schedule",
+            "type": "schedule_list",
+            "provider": "anilist_schedule",
+            "limit": 20,
+        },
+        {
+            "key": "upcoming",
+            "label": "Upcoming",
+            "type": "card_grid",
+            "provider": "anilist_upcoming",
+            "limit": 30,
+        },
+    ],
+    MediaTypes.MANGA.value: [
+        {
+            "key": "trending",
+            "label": "Trending",
+            "type": "ranked_carousel",
+            "provider": "anilist_trending",
+            "limit": 10,
+        },
+        {
+            "key": "recently_updated",
+            "label": "Recently Updated",
+            "type": "card_grid",
+            "provider": "anilist_recently_updated",
+            "limit": 30,
+        },
+        {
+            "key": "upcoming",
+            "label": "Upcoming",
+            "type": "card_grid",
+            "provider": "anilist_upcoming",
+            "limit": 30,
+        },
+    ],
+    MediaTypes.GAME.value: [
+        {
+            "key": "trending",
+            "label": "Trending",
+            "type": "ranked_carousel",
+            "browse_category": "popular",
+            "limit": 10,
+        },
+        {
+            "key": "recent",
+            "label": "Recently Released",
+            "type": "card_grid",
+            "browse_category": "recent",
+            "explore_category": "recent",
+            "limit": 12,
+        },
+        {
+            "key": "anticipated",
+            "label": "Most Anticipated",
+            "type": "card_grid",
+            "browse_category": "anticipated",
+            "explore_category": "anticipated",
+            "limit": 12,
+        },
+    ],
+}
+
+
+def get_discover_sections(media_type):
+    """Get the discover page section config for a media type."""
+    return DISCOVER_SECTIONS.get(media_type)
+
+
+def get_discoverable_types():
+    """Return the list of media types that have discover pages."""
+    return list(DISCOVER_SECTIONS.keys())

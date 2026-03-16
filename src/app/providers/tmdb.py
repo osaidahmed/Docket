@@ -216,6 +216,72 @@ def browse(media_type, category, page):
     return data
 
 
+def get_backdrop_url(path):
+    """Return a landscape backdrop URL for carousel use."""
+    if path:
+        return f"https://image.tmdb.org/t/p/w1280{path}"
+    return None
+
+
+def browse_for_discover(media_type, category, page):
+    """Browse media for discover page, including backdrop images."""
+    cache_key = f"discover_{Sources.TMDB.value}_{media_type}_{category}_{page}"
+    data = cache.get(cache_key)
+
+    if data is None:
+        endpoint_map = {
+            ("tv", "trending"): "/trending/tv/week",
+            ("tv", "popular"): "/tv/popular",
+            ("tv", "top_rated"): "/tv/top_rated",
+            ("tv", "on_the_air"): "/tv/on_the_air",
+            ("movie", "trending"): "/trending/movie/week",
+            ("movie", "popular"): "/movie/popular",
+            ("movie", "top_rated"): "/movie/top_rated",
+            ("movie", "now_playing"): "/movie/now_playing",
+        }
+        endpoint = endpoint_map.get((media_type, category))
+
+        url = f"{base_url}{endpoint}"
+        params = {**base_params, "page": page}
+
+        try:
+            response = services.api_request(
+                Sources.TMDB.value,
+                "GET",
+                url,
+                params=params,
+            )
+        except requests.exceptions.HTTPError as error:
+            handle_error(error)
+
+        results = [
+            {
+                "media_id": media["id"],
+                "source": Sources.TMDB.value,
+                "media_type": media_type,
+                "title": get_title(media),
+                "image": get_image_url(media["poster_path"]),
+                "backdrop": get_backdrop_url(media.get("backdrop_path")),
+                "synopsis": media.get("overview", ""),
+            }
+            for media in response["results"]
+        ]
+
+        total_results = response["total_results"]
+        per_page = 20
+        data = helpers.format_search_response(
+            page,
+            per_page,
+            total_results,
+            results,
+            max_pages=500,
+        )
+
+        cache.set(cache_key, data)
+
+    return data
+
+
 def discover(media_type, filters, page):
     """Browse media using TMDB discover endpoint with filters."""
     filter_hash = _build_discover_filter_hash(media_type, filters)

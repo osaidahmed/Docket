@@ -485,3 +485,14 @@ def csv_contains(csv_string, value):
     if not csv_string:
         return False
     return str(value) in str(csv_string).split(",")
+
+
+@register.filter
+def timestamp_to_time(timestamp):
+    """Convert a Unix timestamp to a local time string (HH:MM)."""
+    if not timestamp:
+        return ""
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    dt = datetime.fromtimestamp(int(timestamp), tz=UTC)
+    return dt.strftime("%H:%M")
