@@ -386,6 +386,30 @@ def search_all(query, enabled_types):
 DISCOVER_TIMEOUT = 8
 
 
+def _resolve_section_fetcher(media_type, section_cfg):
+    """Return a callable(page) that fetches data for a discover section."""
+    provider = section_cfg.get("provider", "")
+    limit = section_cfg.get("limit", 24)
+
+    dispatch = {
+        "anilist_trending": lambda p: anilist.trending(media_type, p, limit),
+        "anilist_recently_updated": lambda p: anilist.recently_updated(
+            media_type, p, limit
+        ),
+        "anilist_upcoming": lambda p: anilist.upcoming(media_type, p, limit),
+        "anilist_schedule": lambda p: anilist.airing_schedule(p, limit),
+        "jikan_schedule": lambda _p: jikan.browse_schedule(limit=limit),
+        "mangaupdates_releases": lambda p: mangaupdates.browse("releases", p),
+    }
+    if provider in dispatch:
+        return dispatch[provider]
+
+    category = section_cfg.get("browse_category", "")
+    if section_cfg.get("type") == "spotlight_carousel":
+        return lambda p: tmdb.browse_for_discover(media_type, category, p)
+    return lambda p: browse(media_type, category, p)
+
+
 def discover_sections(media_type):
     """Fetch all discover sections for a media type in parallel."""
     from app import config  # noqa: PLC0415
@@ -394,32 +418,12 @@ def discover_sections(media_type):
     if not sections_config:
         return {}
 
-    def _fetch_section(section_cfg):
-        provider = section_cfg.get("provider", "")
-
-        if provider == "anilist_trending":
-            return anilist.trending(media_type, 1, section_cfg["limit"])
-        if provider == "anilist_recently_updated":
-            return anilist.recently_updated(media_type, 1, section_cfg["limit"])
-        if provider == "anilist_upcoming":
-            return anilist.upcoming(media_type, 1, section_cfg["limit"])
-        if provider == "anilist_schedule":
-            return anilist.airing_schedule(1, section_cfg["limit"])
-        if provider == "jikan_schedule":
-            return jikan.browse_schedule(limit=section_cfg["limit"])
-        if provider == "mangaupdates_releases":
-            return mangaupdates.browse("releases", 1)
-
-        category = section_cfg.get("browse_category", "")
-        if section_cfg["type"] == "spotlight_carousel":
-            return tmdb.browse_for_discover(media_type, category, 1)
-
-        return browse(media_type, category, 1)
-
     results = {}
     with ThreadPoolExecutor(max_workers=len(sections_config)) as executor:
         futures = {
-            executor.submit(_fetch_section, cfg): cfg["key"]
+            executor.submit(_resolve_section_fetcher(media_type, cfg), 1): cfg[
+                "key"
+            ]
             for cfg in sections_config
         }
         for future in as_completed(futures, timeout=DISCOVER_TIMEOUT):
@@ -435,21 +439,8 @@ def discover_sections(media_type):
 
 def discover_section_page(media_type, section_cfg, page):
     """Fetch a single discover section's page (for HTMX load-more)."""
-    from app.providers import anilist  # noqa: PLC0415
-
-    provider = section_cfg.get("provider", "")
-
-    if provider == "anilist_trending":
-        return anilist.trending(media_type, page, section_cfg["limit"])
-    if provider == "anilist_recently_updated":
-        return anilist.recently_updated(media_type, page, section_cfg["limit"])
-    if provider == "anilist_upcoming":
-        return anilist.upcoming(media_type, page, section_cfg["limit"])
-    if provider == "mangaupdates_releases":
-        return mangaupdates.browse("releases", page)
-
-    category = section_cfg.get("browse_category", "")
-    return browse(media_type, category, page)
+    fetcher = _resolve_section_fetcher(media_type, section_cfg)
+    return fetcher(page)
 
 
 def _parallel_search(query, searchable):

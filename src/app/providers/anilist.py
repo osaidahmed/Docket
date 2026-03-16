@@ -92,6 +92,35 @@ query ($page: Int, $perPage: Int, $start: Int, $end: Int) {
 }
 """
 
+_RECENTLY_AIRED_SCHEDULE = """
+query ($page: Int, $perPage: Int, $end: Int) {
+    Page(page: $page, perPage: $perPage) {
+        pageInfo { total hasNextPage }
+        airingSchedules(airingAt_lesser: $end, sort: TIME_DESC) {
+            episode
+            airingAt
+            media {
+                id
+                idMal
+                title { romaji english }
+                coverImage { large extraLarge }
+                bannerImage
+                description(asHtml: false)
+                episodes
+                status
+                isAdult
+                format
+            }
+        }
+    }
+}
+"""
+
+_ALLOWED_FORMATS = {"TV", "MOVIE"}
+
+
+# --- Internal helpers ---
+
 
 def _graphql_request(query, variables):
     """Make an AniList GraphQL request."""
@@ -142,162 +171,16 @@ def _format_media(media, media_type):
     }
 
 
-def trending(media_type, page=1, per_page=10):
-    """Fetch trending anime/manga sorted by recent activity."""
-    cache_key = f"anilist_trending_{media_type}_{page}_{per_page}"
+def _cached_media_query(query, media_type, page, per_page, cache_prefix, ttl):
+    """Execute a cached AniList media query and return paginated results."""
+    cache_key = f"anilist_{cache_prefix}_{media_type}_{page}_{per_page}"
     data = cache.get(cache_key)
 
     if data is None:
         response = _graphql_request(
-            _TRENDING_QUERY,
+            query,
             {"type": _anilist_type(media_type), "page": page, "perPage": per_page},
         )
-
-        page_data = response["data"]["Page"]
-        page_info = page_data["pageInfo"]
-        results = [_format_media(m, media_type) for m in page_data["media"]]
-
-        data = helpers.format_search_response(
-            page, per_page, page_info.get("total", 0), results
-        )
-        cache.set(cache_key, data, timeout=CACHE_TTL_TRENDING)
-
-    return data
-
-
-def recently_updated(media_type, page=1, per_page=24):
-    """Fetch recently updated anime/manga.
-
-    For anime: uses airing schedule (episodes that aired in last 48h).
-    For manga: falls back to UPDATED_AT_DESC since manga has no schedule.
-    """
-    cache_key = f"anilist_recently_updated_{media_type}_{page}_{per_page}"
-    data = cache.get(cache_key)
-
-    if data is None:
-        if media_type == MediaTypes.ANIME.value:
-            data = _recently_aired_anime(page, per_page)
-        else:
-            data = _recently_updated_manga(media_type, page, per_page)
-        cache.set(cache_key, data, timeout=CACHE_TTL_RECENT)
-
-    return data
-
-
-_RECENTLY_AIRED_SCHEDULE = """
-query ($page: Int, $perPage: Int, $end: Int) {
-    Page(page: $page, perPage: $perPage) {
-        pageInfo { total hasNextPage }
-        airingSchedules(airingAt_lesser: $end, sort: TIME_DESC) {
-            episode
-            airingAt
-            media {
-                id
-                idMal
-                title { romaji english }
-                coverImage { large extraLarge }
-                bannerImage
-                description(asHtml: false)
-                episodes
-                status
-                isAdult
-                format
-            }
-        }
-    }
-}
-"""
-
-_ALLOWED_FORMATS = {"TV", "MOVIE"}
-
-
-def _recently_aired_anime(page, per_page):
-    """Fetch recently aired episodes via airingSchedules TIME_DESC.
-
-    Per-episode feed that is truly infinite. Deduplicates to show
-    each anime once (most recent episode), filters to TV/Movie only.
-    """
-    cache_key = f"anilist_recent_anime_{page}_{per_page}"
-    data = cache.get(cache_key)
-
-    if data is None:
-        now = int(time.time())
-        seen_ids = set()
-        results = []
-        api_page = (page - 1) * 2 + 1
-        max_attempts = 6
-
-        while len(results) < per_page and max_attempts > 0:
-            response = _graphql_request(
-                _RECENTLY_AIRED_SCHEDULE,
-                {"page": api_page, "perPage": 50, "end": now},
-            )
-            page_data = response["data"]["Page"]
-            has_next = page_data["pageInfo"].get("hasNextPage", False)
-
-            for s in page_data.get("airingSchedules", []):
-                media = s.get("media")
-                if not media or media.get("isAdult"):
-                    continue
-                if media.get("format") not in _ALLOWED_FORMATS:
-                    continue
-                mid = media.get("idMal") or media["id"]
-                if mid in seen_ids:
-                    continue
-                seen_ids.add(mid)
-                item = _format_media(media, MediaTypes.ANIME.value)
-                item["episode"] = s.get("episode")
-                results.append(item)
-                if len(results) >= per_page:
-                    break
-
-            if not has_next:
-                break
-            api_page += 1
-            max_attempts -= 1
-
-        data = helpers.format_search_response(
-            page, per_page, 5000, results[:per_page]
-        )
-        data["has_next_page"] = len(results) >= per_page
-        cache.set(cache_key, data, timeout=CACHE_TTL_RECENT)
-
-    return data
-
-
-def _recently_updated_manga(media_type, page, per_page):
-    """Fetch recently updated manga via UPDATED_AT_DESC."""
-    response = _graphql_request(
-        _RECENTLY_UPDATED_QUERY,
-        {
-            "type": _anilist_type(media_type),
-            "page": page,
-            "perPage": per_page,
-        },
-    )
-
-    page_data = response["data"]["Page"]
-    page_info = page_data["pageInfo"]
-    results = [_format_media(m, media_type) for m in page_data["media"]]
-
-    data = helpers.format_search_response(
-        page, per_page, page_info.get("total", 0), results
-    )
-    data["has_next_page"] = page_info.get("hasNextPage", False)
-    return data
-
-
-def upcoming(media_type, page=1, per_page=24):
-    """Fetch upcoming anime/manga (not yet released, sorted by popularity)."""
-    cache_key = f"anilist_upcoming_{media_type}_{page}_{per_page}"
-    data = cache.get(cache_key)
-
-    if data is None:
-        response = _graphql_request(
-            _UPCOMING_QUERY,
-            {"type": _anilist_type(media_type), "page": page, "perPage": per_page},
-        )
-
         page_data = response["data"]["Page"]
         page_info = page_data["pageInfo"]
         results = [_format_media(m, media_type) for m in page_data["media"]]
@@ -306,9 +189,106 @@ def upcoming(media_type, page=1, per_page=24):
             page, per_page, page_info.get("total", 0), results
         )
         data["has_next_page"] = page_info.get("hasNextPage", False)
-        cache.set(cache_key, data, timeout=CACHE_TTL_UPCOMING)
+        cache.set(cache_key, data, timeout=ttl)
 
     return data
+
+
+def _extract_schedule_item(entry, seen_ids):
+    """Extract a valid anime item from an airing schedule entry, or None."""
+    media = entry.get("media")
+    if not media or media.get("isAdult"):
+        return None
+    if media.get("format") not in _ALLOWED_FORMATS:
+        return None
+    mid = media.get("idMal") or media["id"]
+    if mid in seen_ids:
+        return None
+    seen_ids.add(mid)
+    item = _format_media(media, MediaTypes.ANIME.value)
+    item["episode"] = entry.get("episode")
+    return item
+
+
+# --- Public API ---
+
+
+def trending(media_type, page=1, per_page=10):
+    """Fetch trending anime/manga sorted by recent activity."""
+    return _cached_media_query(
+        _TRENDING_QUERY, media_type, page, per_page, "trending", CACHE_TTL_TRENDING
+    )
+
+
+def recently_updated(media_type, page=1, per_page=24):
+    """Fetch recently updated anime/manga.
+
+    For anime: uses airing schedule (episodes that recently aired).
+    For manga: uses UPDATED_AT_DESC query.
+    """
+    cache_key = f"anilist_recently_updated_{media_type}_{page}_{per_page}"
+    data = cache.get(cache_key)
+
+    if data is None:
+        if media_type == MediaTypes.ANIME.value:
+            data = _recently_aired_anime(page, per_page)
+        else:
+            data = _cached_media_query(
+                _RECENTLY_UPDATED_QUERY,
+                media_type,
+                page,
+                per_page,
+                f"recent_manga_{page}",
+                CACHE_TTL_RECENT,
+            )
+        cache.set(cache_key, data, timeout=CACHE_TTL_RECENT)
+
+    return data
+
+
+def _recently_aired_anime(page, per_page):
+    """Fetch recently aired episodes via airingSchedules TIME_DESC.
+
+    Deduplicates to show each anime once (most recent episode).
+    """
+    now = int(time.time())
+    seen_ids = set()
+    results = []
+    api_page = (page - 1) * 2 + 1
+    max_attempts = 6
+
+    while len(results) < per_page and max_attempts > 0:
+        response = _graphql_request(
+            _RECENTLY_AIRED_SCHEDULE,
+            {"page": api_page, "perPage": 50, "end": now},
+        )
+        page_data = response["data"]["Page"]
+        has_next = page_data["pageInfo"].get("hasNextPage", False)
+
+        for entry in page_data.get("airingSchedules", []):
+            item = _extract_schedule_item(entry, seen_ids)
+            if item:
+                results.append(item)
+            if len(results) >= per_page:
+                break
+
+        if not has_next:
+            break
+        api_page += 1
+        max_attempts -= 1
+
+    data = helpers.format_search_response(
+        page, per_page, 5000, results[:per_page]
+    )
+    data["has_next_page"] = len(results) >= per_page
+    return data
+
+
+def upcoming(media_type, page=1, per_page=24):
+    """Fetch upcoming anime/manga (not yet released, sorted by popularity)."""
+    return _cached_media_query(
+        _UPCOMING_QUERY, media_type, page, per_page, "upcoming", CACHE_TTL_UPCOMING
+    )
 
 
 def airing_schedule(page=1, per_page=20):

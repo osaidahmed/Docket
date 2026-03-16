@@ -1,10 +1,20 @@
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import requests
-from django.test import SimpleTestCase
+from django.conf import settings
+from django.core.cache import cache
+from django.test import SimpleTestCase, TestCase
 
-from app.providers import services
-from app.providers.mangaupdates import handle_error
+from app.models import MediaTypes, Sources
+from app.providers import mangaupdates, services
+from app.providers.mangaupdates import (
+    get_authors,
+    get_genres,
+    get_max_progress,
+    get_score,
+    get_status,
+    handle_error,
+)
 
 
 class HandleErrorTests(SimpleTestCase):
@@ -66,3 +76,87 @@ class HandleErrorTests(SimpleTestCase):
 
         with self.assertRaises(services.ProviderAPIError):
             handle_error(error)
+
+
+class MangaUpdatesBrowseTests(TestCase):
+
+    def setUp(self):
+        cache.clear()
+
+    @patch("app.providers.services.api_request")
+    def test_browse_releases(self, mock_api):
+        mock_api.return_value = {
+            "results": [
+                {
+                    "record": {
+                        "series_id": 123,
+                        "title": "Test Manga",
+                        "image": {"url": {"original": "https://img/1.jpg"}},
+                        "description": "A test manga",
+                    }
+                }
+            ],
+            "total_hits": 1,
+        }
+        data = mangaupdates.browse("releases", 1)
+        self.assertEqual(len(data["results"]), 1)
+        self.assertEqual(data["results"][0]["title"], "Test Manga")
+        self.assertEqual(data["results"][0]["source"], Sources.MANGAUPDATES.value)
+
+    @patch("app.providers.services.api_request")
+    def test_browse_releases_orderby(self, mock_api):
+        mock_api.return_value = {"results": [], "total_hits": 0}
+        mangaupdates.browse("releases", 1)
+        call_kwargs = mock_api.call_args[1]
+        self.assertEqual(call_kwargs["params"]["orderby"], "year")
+
+    @patch("app.providers.services.api_request")
+    def test_browse_rating_orderby(self, mock_api):
+        mock_api.return_value = {"results": [], "total_hits": 0}
+        mangaupdates.browse("rating", 1)
+        call_kwargs = mock_api.call_args[1]
+        self.assertEqual(call_kwargs["params"]["orderby"], "rating")
+
+    @patch("app.providers.services.api_request")
+    def test_browse_cached(self, mock_api):
+        mock_api.return_value = {"results": [], "total_hits": 0}
+        mangaupdates.browse("releases", 1)
+        mangaupdates.browse("releases", 1)
+        mock_api.assert_called_once()
+
+
+class MangaUpdatesHelperTests(SimpleTestCase):
+
+    def test_get_genres_with_list(self):
+        result = get_genres([{"genre": "Action"}, {"genre": "Drama"}])
+        self.assertEqual(result, ["Action", "Drama"])
+
+    def test_get_genres_empty(self):
+        self.assertIsNone(get_genres(None))
+
+    def test_get_authors_with_list(self):
+        self.assertEqual(get_authors([{"name": "Author A"}]), ["Author A"])
+
+    def test_get_authors_empty(self):
+        self.assertIsNone(get_authors(None))
+
+    def test_get_max_progress_completed(self):
+        result = get_max_progress({"completed": True, "latest_chapter": 100})
+        self.assertEqual(result, 100)
+
+    def test_get_max_progress_ongoing(self):
+        result = get_max_progress({"completed": False, "latest_chapter": 50})
+        self.assertIsNone(result)
+
+    def test_get_score_with_value(self):
+        self.assertEqual(get_score(8.567), 8.6)
+
+    def test_get_score_none(self):
+        self.assertIsNone(get_score(None))
+
+    def test_get_status_with_volumes(self):
+        result = get_status("5 Volumes (Complete)")
+        self.assertEqual(result, "5 Volumes (Complete)")
+
+    def test_get_status_none(self):
+        self.assertIsNone(get_status(None))
