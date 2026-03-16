@@ -9,6 +9,7 @@ from app.models import MediaTypes
 from app.templatetags import app_tags
 from integrations.imports import (
     anilist,
+    docket,
     goodreads,
     helpers,
     hltb,
@@ -18,7 +19,6 @@ from integrations.imports import (
     simkl,
     steam,
     trakt,
-    docket,
 )
 
 logger = logging.getLogger(__name__)

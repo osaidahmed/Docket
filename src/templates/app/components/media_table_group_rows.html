@@ -12,7 +12,8 @@
     </td>
     <td class="p-2 pe-8 font-medium">
       <div class="flex items-center gap-2">
-        <span class="text-gray-400 text-xs" x-text="groupOpen ? '&#9662;' : '&#9656;'"></span>
+        <span class="text-gray-400 text-xs"
+              x-text="groupOpen ? '&#9662;' : '&#9656;'"></span>
         <div class="min-w-0 flex-1">
           <a href="{{ group.item|media_url }}"
              class="hover:text-accent-soft transition-colors line-clamp-1"
@@ -52,46 +53,75 @@
         {% endif %}
       </td>
     {% endif %}
-    <td class="p-2 text-center">{% if group.start_date %}{{ group.start_date|date_format:user }}{% else %}<span class="text-gray-500">-</span>{% endif %}</td>
-    <td class="p-2 text-center">{% if group.end_date %}{{ group.end_date|date_format:user }}{% else %}<span class="text-gray-500">-</span>{% endif %}</td>
+    <td class="p-2 text-center">
+      {% if group.start_date %}
+        {{ group.start_date|date_format:user }}
+      {% else %}
+        <span class="text-gray-500">-</span>
+      {% endif %}
+    </td>
+    <td class="p-2 text-center">
+      {% if group.end_date %}
+        {{ group.end_date|date_format:user }}
+      {% else %}
+        <span class="text-gray-500">-</span>
+      {% endif %}
+    </td>
     <td class="p-2"></td>
     <td class="p-2"></td>
     <td class="p-2"></td>
   </tr>
 
   {% for sub in group.group_items %}
-      <tr x-show="groupOpen" x-cloak class="bg-input/30 hover:bg-input/50 transition-colors">
-        <td x-show="selecting" class="p-2" @click.stop></td>
-        <td class="p-2 pl-6">
-          <img alt="{{ sub.item }}"
-               class="lazyload min-w-8 w-8 h-8 object-cover rounded-md"
-               data-src="{{ sub.item.image }}"
-               src="{{ IMG_NONE }}">
-        </td>
-        <td class="p-2 pe-8 font-medium">
-          <a href="{{ sub.item|media_url }}" class="hover:text-accent-soft transition-colors line-clamp-1 pl-4">{{ sub.item }}</a>
-        </td>
-        <td class="p-2 text-center">
-          {% if sub.score is not None and sub.score %}
-            <div class="flex items-center justify-center">
-              {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
-              <span class="text-white -mt-[3px]">{{ sub.formatted_score }}</span>
-            </div>
-          {% endif %}
-        </td>
-        {% if media_type != "movie" %}
-          <td class="p-2 text-center">{{ sub.formatted_progress }}</td>
-          {% if media_type == "tv" %}<td class="p-2 text-center"></td>{% endif %}
+    <tr x-show="groupOpen"
+        x-cloak
+        class="bg-input/30 hover:bg-input/50 transition-colors">
+      <td x-show="selecting" class="p-2" @click.stop></td>
+      <td class="p-2 pl-6">
+        <img alt="{{ sub.item }}"
+             class="lazyload min-w-8 w-8 h-8 object-cover rounded-md"
+             data-src="{{ sub.item.image }}"
+             src="{{ IMG_NONE }}">
+      </td>
+      <td class="p-2 pe-8 font-medium">
+        <a href="{{ sub.item|media_url }}"
+           class="hover:text-accent-soft transition-colors line-clamp-1 pl-4">{{ sub.item }}</a>
+      </td>
+      <td class="p-2 text-center">
+        {% if sub.score is not None and sub.score %}
+          <div class="flex items-center justify-center">
+            {% include "app/icons/star.svg" with classes="w-4 h-4 text-yellow-400 mr-1 fill-current" %}
+            <span class="text-white -mt-[3px]">{{ sub.formatted_score }}</span>
+          </div>
         {% endif %}
-        <td class="p-2 text-center text-sm {{ sub.status|status_color }}">{{ sub.status|media_status_readable }}</td>
-        {% if media_type != "movie" and media_type != "tv" %}
-          <td class="p-2 text-center text-xs"><span class="text-gray-500">-</span></td>
+      </td>
+      {% if media_type != "movie" %}
+        <td class="p-2 text-center">{{ sub.formatted_progress }}</td>
+        {% if media_type == "tv" %}<td class="p-2 text-center"></td>{% endif %}
+      {% endif %}
+      <td class="p-2 text-center text-sm {{ sub.status|status_color }}">{{ sub.status|media_status_readable }}</td>
+      {% if media_type != "movie" and media_type != "tv" %}
+        <td class="p-2 text-center text-xs">
+          <span class="text-gray-500">-</span>
+        </td>
+      {% endif %}
+      <td class="p-2 text-center">
+        {% if sub.start_date %}
+          {{ sub.start_date|date_format:user }}
+        {% else %}
+          <span class="text-gray-500">-</span>
         {% endif %}
-        <td class="p-2 text-center">{% if sub.start_date %}{{ sub.start_date|date_format:user }}{% else %}<span class="text-gray-500">-</span>{% endif %}</td>
-        <td class="p-2 text-center">{% if sub.end_date %}{{ sub.end_date|date_format:user }}{% else %}<span class="text-gray-500">-</span>{% endif %}</td>
-        <td class="p-2"></td>
-        <td class="p-2"></td>
-        <td class="p-2"></td>
-      </tr>
+      </td>
+      <td class="p-2 text-center">
+        {% if sub.end_date %}
+          {{ sub.end_date|date_format:user }}
+        {% else %}
+          <span class="text-gray-500">-</span>
+        {% endif %}
+      </td>
+      <td class="p-2"></td>
+      <td class="p-2"></td>
+      <td class="p-2"></td>
+    </tr>
   {% endfor %}
 </tbody>

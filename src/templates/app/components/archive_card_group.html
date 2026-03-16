@@ -13,7 +13,10 @@
         <span x-text="expanded ? '\u25B4' : '\u25BE'" class="ml-0.5"></span>
       </button>
     </div>
-    <div x-show="expanded" x-cloak x-transition class="ml-4 space-y-0.5 border-l border-gray-700/30 pl-3 mt-1 mb-2">
+    <div x-show="expanded"
+         x-cloak
+         x-transition
+         class="ml-4 space-y-0.5 border-l border-gray-700/30 pl-3 mt-1 mb-2">
       {% for sub in media.group_items %}
         {% include "app/components/backlog_card_archived.html" with media=sub status_choices=status_choices %}
       {% endfor %}

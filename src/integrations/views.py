@@ -230,9 +230,7 @@ def import_kitsu(request):
 @require_POST
 def import_docket(request):
     """Import media from Docket CSV."""
-    return _handle_file_import(
-        request, "docket_csv", "Docket CSV", tasks.import_docket
-    )
+    return _handle_file_import(request, "docket_csv", "Docket CSV", tasks.import_docket)
 
 
 @require_POST

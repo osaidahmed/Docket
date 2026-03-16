@@ -23,13 +23,15 @@ def _make_item(media_id, source, media_type, **kwargs):
     kwargs.setdefault("title", "Test")
     kwargs.setdefault("image", _IMG)
     return Item.objects.create(
-        media_id=media_id, source=source, media_type=media_type, **kwargs,
+        media_id=media_id,
+        source=source,
+        media_type=media_type,
+        **kwargs,
     )
 
 
 def _assert_stub_title_updated(test_case, media_id, initial_title, expected_title):
-    _make_item(media_id, Sources.MAL.value, MediaTypes.ANIME.value,
-               title=initial_title)
+    _make_item(media_id, Sources.MAL.value, MediaTypes.ANIME.value, title=initial_title)
     with patch(
         "app.providers.services.get_media_metadata",
         return_value={
@@ -76,8 +78,13 @@ class TVSeasonGroupingTests(TestCase):
         self.addCleanup(patcher.stop)
 
     def _make_season(self, media_id, season_num, status=Status.PLANNING.value):
-        item = _make_item(media_id, Sources.TMDB.value, MediaTypes.SEASON.value,
-                          title=f"Show {media_id}", season_number=season_num)
+        item = _make_item(
+            media_id,
+            Sources.TMDB.value,
+            MediaTypes.SEASON.value,
+            title=f"Show {media_id}",
+            season_number=season_num,
+        )
         return Season.objects.create(item=item, user=self.user, status=status)
 
     def test_single_season_not_grouped(self):
@@ -102,9 +109,7 @@ class TVSeasonGroupingTests(TestCase):
         self.assertEqual(len(result), 1)
         group = result[0]
         self.assertEqual(group.item.season_number, 1)
-        self.assertEqual(
-            [g.item.season_number for g in group.group_items], [2, 3]
-        )
+        self.assertEqual([g.item.season_number for g in group.group_items], [2, 3])
 
     def test_different_shows_not_grouped_together(self):
         s1 = self._make_season("show-d", 1)
@@ -181,14 +186,16 @@ class AnimeGroupingTests(TestCase):
         self.addCleanup(patcher.stop)
 
     def _make_anime(self, media_id, title="Anime", status=Status.PLANNING.value):
-        item = _make_item(media_id, Sources.MAL.value, MediaTypes.ANIME.value,
-                          title=title)
+        item = _make_item(
+            media_id, Sources.MAL.value, MediaTypes.ANIME.value, title=title
+        )
         return Anime.objects.create(item=item, user=self.user, status=status)
 
     def _make_item_only(self, media_id, title="Stub"):
         """Create an Item without a Media entry (untracked stub)."""
-        return _make_item(media_id, Sources.MAL.value, MediaTypes.ANIME.value,
-                          title=title)
+        return _make_item(
+            media_id, Sources.MAL.value, MediaTypes.ANIME.value, title=title
+        )
 
     def _relate(self, from_item, to_item, rel_type=RelationType.SEQUEL):
         ItemRelationship.objects.create(
@@ -379,12 +386,8 @@ class FullFlowRelationshipStubTests(TestCase):
             title="Anime B",
             image=_IMG,
         )
-        Anime.objects.create(
-            item=a1_item, user=self.user, status=Status.PLANNING.value
-        )
-        Anime.objects.create(
-            item=a2_item, user=self.user, status=Status.PLANNING.value
-        )
+        Anime.objects.create(item=a1_item, user=self.user, status=Status.PLANNING.value)
+        Anime.objects.create(item=a2_item, user=self.user, status=Status.PLANNING.value)
         ItemRelationship.objects.create(
             from_item=a1_item,
             to_item=a2_item,
@@ -406,14 +409,10 @@ class FullFlowRelationshipStubTests(TestCase):
             title="Solo Anime",
             image=_IMG,
         )
-        Anime.objects.create(
-            item=item, user=self.user, status=Status.PLANNING.value
-        )
+        Anime.objects.create(item=item, user=self.user, status=Status.PLANNING.value)
 
         response = self.client.get(reverse("medialist", args=["anime"]))
         self.assertEqual(response.status_code, 200)
 
         self.user.group_related_media = True
         self.user.save()
-
-

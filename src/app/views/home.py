@@ -48,7 +48,9 @@ def home(request):
     archive_open = request.GET.get("view") == "archive"
     archive = backlog_data["archive"]
     if request.user.group_related_media:
-        from app.services.backlog import _apply_grouping_to_backlog_items  # noqa: PLC0415
+        from app.services.backlog import (
+            _apply_grouping_to_backlog_items,
+        )
 
         archive = _apply_grouping_to_backlog_items(archive, request.user)
     if not archive_open:

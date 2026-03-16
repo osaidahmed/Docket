@@ -20,7 +20,8 @@
   </div>
 
   {% if group.group_items %}
-    <div x-show="showPopover" x-cloak
+    <div x-show="showPopover"
+         x-cloak
          @click.outside="showPopover = false"
          x-transition:enter="transition ease-out duration-150"
          x-transition:enter-start="opacity-0 scale-95"

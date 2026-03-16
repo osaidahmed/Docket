@@ -11,7 +11,8 @@
   </td>
   <td class="p-2 pe-8 font-medium">
     <div class="flex items-center gap-2">
-      <span class="text-gray-400 text-xs" x-text="groupOpen ? '&#9662;' : '&#9656;'"></span>
+      <span class="text-gray-400 text-xs"
+            x-text="groupOpen ? '&#9662;' : '&#9656;'"></span>
       <div class="min-w-0 flex-1">
         <a href="{{ media.item|media_url }}"
            class="hover:text-accent-soft transition-colors line-clamp-1"
@@ -69,7 +70,11 @@
     </td>
   {% else %}
     <td class="p-2 text-center text-sm whitespace-nowrap">
-      {% if media.end_date %}{{ media.end_date|date_format:user }}{% else %}<span class="text-gray-500">-</span>{% endif %}
+      {% if media.end_date %}
+        {{ media.end_date|date_format:user }}
+      {% else %}
+        <span class="text-gray-500">-</span>
+      {% endif %}
     </td>
   {% endif %}
   <td class="p-2">
@@ -93,7 +98,9 @@
 </tr>
 
 {% for sub in media.group_items %}
-  <tr x-show="groupOpen" x-cloak class="bg-input/30 hover:bg-input/50 transition-colors"
+  <tr x-show="groupOpen"
+      x-cloak
+      class="bg-input/30 hover:bg-input/50 transition-colors"
       x-data="{ trackOpen: false }">
     <td class="p-2 pl-6">
       <img alt="{{ sub }}"
@@ -102,7 +109,8 @@
            src="{{ IMG_NONE }}">
     </td>
     <td class="p-2 pe-8 font-medium">
-      <a href="{{ sub.item|media_url }}" class="hover:text-accent-soft transition-colors line-clamp-1 pl-4">{{ sub }}</a>
+      <a href="{{ sub.item|media_url }}"
+         class="hover:text-accent-soft transition-colors line-clamp-1 pl-4">{{ sub }}</a>
     </td>
     {% if not hide_type %}
       <td class="p-2 text-center">
@@ -133,10 +141,16 @@
       </td>
     {% endif %}
     {% if not is_archive %}
-      <td class="p-2 text-center text-xs"><span class="text-gray-500">-</span></td>
+      <td class="p-2 text-center text-xs">
+        <span class="text-gray-500">-</span>
+      </td>
     {% else %}
       <td class="p-2 text-center text-sm">
-        {% if sub.end_date %}{{ sub.end_date|date_format:user }}{% else %}<span class="text-gray-500">-</span>{% endif %}
+        {% if sub.end_date %}
+          {{ sub.end_date|date_format:user }}
+        {% else %}
+          <span class="text-gray-500">-</span>
+        {% endif %}
       </td>
     {% endif %}
     <td class="p-2">

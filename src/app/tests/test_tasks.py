@@ -53,9 +53,7 @@ class RefreshAnimeRelationshipsTaskTests(TestCase):
         refresh_anime_relationships_task(self.user.id)
 
         mock_anime.assert_called_once_with("100")
-        mock_save.assert_called_once_with(
-            "100", [{"media_id": 200, "title": "Sequel"}]
-        )
+        mock_save.assert_called_once_with("100", [{"media_id": 200, "title": "Sequel"}])
 
     @patch("time.sleep")
     @patch("app.providers.mal._save_anime_relationships")
