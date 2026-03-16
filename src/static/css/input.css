@@ -194,30 +194,6 @@
   margin-top: 3px;
 }
 
-.discover-marquee {
-  overflow: hidden;
-}
-
-.discover-marquee-track {
-  display: flex;
-  gap: 0.75rem;
-  width: max-content;
-  animation: marquee-scroll 60s linear infinite;
-  will-change: transform;
-}
-
-.discover-marquee:hover .discover-marquee-track {
-  animation-play-state: paused;
-}
-
-@keyframes marquee-scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
 
 @media print {
   nav,

@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 
 base_url = "https://graphql.anilist.co"
 
+CACHE_TTL_RECENT = 60 * 60 * 2
+CACHE_TTL_TRENDING = 60 * 60 * 6
+CACHE_TTL_SCHEDULE = 60 * 60 * 6
+CACHE_TTL_UPCOMING = 60 * 60 * 24
+
 _MEDIA_FIELDS = """
     id
     idMal
@@ -155,7 +160,7 @@ def trending(media_type, page=1, per_page=10):
         data = helpers.format_search_response(
             page, per_page, page_info.get("total", 0), results
         )
-        cache.set(cache_key, data)
+        cache.set(cache_key, data, timeout=CACHE_TTL_TRENDING)
 
     return data
 
@@ -174,7 +179,7 @@ def recently_updated(media_type, page=1, per_page=24):
             data = _recently_aired_anime(page, per_page)
         else:
             data = _recently_updated_manga(media_type, page, per_page)
-        cache.set(cache_key, data)
+        cache.set(cache_key, data, timeout=CACHE_TTL_RECENT)
 
     return data
 
@@ -255,7 +260,7 @@ def _recently_aired_anime(page, per_page):
             page, per_page, 5000, results[:per_page]
         )
         data["has_next_page"] = len(results) >= per_page
-        cache.set(cache_key, data)
+        cache.set(cache_key, data, timeout=CACHE_TTL_RECENT)
 
     return data
 
@@ -301,7 +306,7 @@ def upcoming(media_type, page=1, per_page=24):
             page, per_page, page_info.get("total", 0), results
         )
         data["has_next_page"] = page_info.get("hasNextPage", False)
-        cache.set(cache_key, data)
+        cache.set(cache_key, data, timeout=CACHE_TTL_UPCOMING)
 
     return data
 
@@ -343,6 +348,6 @@ def airing_schedule(page=1, per_page=20):
             for s in schedules
             if s.get("media")
         ]
-        cache.set(cache_key, data)
+        cache.set(cache_key, data, timeout=CACHE_TTL_SCHEDULE)
 
     return data

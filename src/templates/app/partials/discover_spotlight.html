@@ -1,14 +1,11 @@
 {% load app_tags %}
 
-<style>
-  .spotlight-actions-wrap > div { flex-direction: row !important; gap: 0.5rem !important; }
-</style>
 <section x-data="{ active: 0, total: {{ section.items|length }}, paused: false }"
          x-init="setInterval(() => { if (!paused) active = (active + 1) % total }, 6000)"
          @mouseenter="paused = true"
          @mouseleave="paused = false"
-         class="relative rounded-xl overflow-hidden bg-card group"
-         style="aspect-ratio: 21/9;">
+         class="relative rounded-xl overflow-hidden bg-card group aspect-[21/9]">
+
   {% for result in section.items %}
     <div x-show="active === {{ forloop.counter0 }}"
          x-transition:enter="transition ease-out duration-500"
@@ -19,47 +16,49 @@
          x-transition:leave-end="opacity-0"
          class="absolute inset-0">
       {% if result.item.backdrop %}
-        <img src="{{ result.item.backdrop }}"
-             alt="{{ result.item.title }}"
+        <img src="{{ result.item.backdrop }}" alt="{{ result.item.title }}"
              class="absolute inset-0 w-full h-full object-cover">
       {% else %}
         <div class="absolute inset-0 bg-input"></div>
       {% endif %}
       <div class="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent"></div>
       <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-
-      <div class="absolute inset-y-0 left-0 flex items-center pl-8 lg:pl-12 z-10" style="max-width: 45%;">
-        <div>
-          <span class="text-xs {{ text_color }} font-semibold tracking-wider uppercase mb-2 block">
-            #{{ forloop.counter }} Spotlight
-          </span>
-          <h2 class="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-1 line-clamp-2">
-            {{ result.item.title }}
-          </h2>
-          {% if result.item.english_title %}
-            <p class="text-sm text-gray-400 mb-2 line-clamp-1">{{ result.item.english_title }}</p>
-          {% endif %}
-          {% if result.item.synopsis %}
-            <p class="text-sm text-gray-300 line-clamp-2 mb-4 hidden sm:block">
-              {{ result.item.synopsis }}
-            </p>
-          {% endif %}
-          <a href="{{ result.item|media_url }}"
-             class="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-medium backdrop-blur-sm transition-colors">
-            View Details
-          </a>
-        </div>
-      </div>
-
-      <div style="position: absolute; bottom: 2rem; right: 2rem; z-index: 10;">
-        <div class="spotlight-actions-wrap" style="display: flex; flex-direction: row; align-items: center; gap: 0.5rem;">
-          {% include "app/components/search_action.html" with item=result.item media=result.media has_active=result.has_active %}
-        </div>
-      </div>
     </div>
   {% endfor %}
 
-  <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+  <div class="absolute inset-y-0 left-0 flex items-center pl-8 lg:pl-12 z-20 max-w-[45%]">
+    {% for result in section.items %}
+      <div x-show="active === {{ forloop.counter0 }}" x-cloak class="w-full">
+        <span class="text-xs {{ text_color }} font-semibold tracking-wider uppercase mb-2 block">
+          #{{ forloop.counter }} Spotlight
+        </span>
+        <h2 class="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-1 line-clamp-2">
+          {{ result.item.title }}
+        </h2>
+        {% if result.item.english_title %}
+          <p class="text-sm text-gray-400 mb-2 line-clamp-1">{{ result.item.english_title }}</p>
+        {% endif %}
+        {% if result.item.synopsis %}
+          <p class="text-sm text-gray-300 line-clamp-2 mb-4 hidden sm:block">{{ result.item.synopsis }}</p>
+        {% endif %}
+        <a href="{{ result.item|media_url }}"
+           class="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-medium backdrop-blur-sm transition-colors">
+          View Details
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="absolute bottom-6 right-6 lg:right-10 z-20">
+    {% for result in section.items %}
+      <div x-show="active === {{ forloop.counter0 }}" x-cloak
+           class="flex flex-row items-center gap-2 *:flex-row *:gap-2">
+        {% include "app/components/search_action.html" with item=result.item media=result.media has_active=result.has_active %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
     {% for result in section.items %}
       <button @click="active = {{ forloop.counter0 }}"
               :class="active === {{ forloop.counter0 }} ? 'bg-white w-6' : 'bg-white/30 w-2'"
@@ -68,11 +67,11 @@
   </div>
 
   <button @click="active = (active - 1 + total) % total"
-          class="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60">
+          class="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
   </button>
   <button @click="active = (active + 1) % total"
-          class="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60">
+          class="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
   </button>
 </section>

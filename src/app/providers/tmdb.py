@@ -277,7 +277,7 @@ def browse_for_discover(media_type, category, page):
             max_pages=500,
         )
 
-        cache.set(cache_key, data)
+        cache.set(cache_key, data, timeout=60 * 60 * 6)
 
     return data
 

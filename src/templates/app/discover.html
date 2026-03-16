@@ -26,24 +26,4 @@
       {% endif %}
     {% endfor %}
   </div>
-  <script>
-    function hideTrailingCards(grid) {
-      const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').length;
-      const items = grid.querySelectorAll(':scope > [data-card]');
-      const total = items.length;
-      const show = Math.floor(total / cols) * cols || total;
-      items.forEach((el, i) => el.style.display = i < show ? '' : 'none');
-    }
-
-    function hideAllGrids() {
-      document.querySelectorAll('.discover-grid-autofill').forEach(hideTrailingCards);
-    }
-
-    // Run on initial load
-    document.addEventListener('DOMContentLoaded', hideAllGrids);
-    // Run after HTMX swaps new items in
-    document.addEventListener('htmx:afterSettle', hideAllGrids);
-    // Run on resize
-    window.addEventListener('resize', hideAllGrids);
-  </script>
 {% endblock content %}
