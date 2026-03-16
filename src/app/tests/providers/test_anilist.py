@@ -166,6 +166,20 @@ class TrendingTests(CacheClearMixin, TestCase):
         variables = mock_gql.call_args[0][1]
         self.assertEqual(variables["type"], "MANGA")
 
+    def test_anime_uses_anime_formats(self, mock_gql):
+        mock_gql.return_value = _mock_page_response([])
+        anilist.trending(MediaTypes.ANIME.value)
+        variables = mock_gql.call_args[0][1]
+        self.assertIn("TV", variables["formats"])
+        self.assertNotIn("MANGA", variables["formats"])
+
+    def test_manga_uses_manga_formats(self, mock_gql):
+        mock_gql.return_value = _mock_page_response([])
+        anilist.trending(MediaTypes.MANGA.value)
+        variables = mock_gql.call_args[0][1]
+        self.assertIn("MANGA", variables["formats"])
+        self.assertNotIn("TV", variables["formats"])
+
     def test_pagination(self, mock_gql):
         mock_gql.return_value = _mock_page_response([])
         anilist.trending(MediaTypes.ANIME.value, page=3)
@@ -185,6 +199,13 @@ class UpcomingTests(CacheClearMixin, TestCase):
         mock_gql.return_value = _mock_page_response([_make_media()])
         data = anilist.upcoming(MediaTypes.ANIME.value)
         self.assertEqual(len(data["results"]), 1)
+
+    def test_manga_upcoming_uses_manga_formats(self, mock_gql):
+        mock_gql.return_value = _mock_page_response([])
+        anilist.upcoming(MediaTypes.MANGA.value)
+        variables = mock_gql.call_args[0][1]
+        self.assertIn("MANGA", variables["formats"])
+        self.assertNotIn("TV", variables["formats"])
 
     def test_has_next_page(self, mock_gql):
         mock_gql.return_value = _mock_page_response([_make_media()], has_next=True)
@@ -214,6 +235,18 @@ class RecentlyUpdatedTests(CacheClearMixin, TestCase):
         anilist.recently_updated(MediaTypes.MANGA.value)
         query_used = mock_gql.call_args[0][0]
         self.assertIn("UPDATED_AT_DESC", query_used)
+
+    def test_manga_recently_updated_uses_manga_formats(self, mock_gql):
+        mock_gql.return_value = _mock_page_response([_make_media()])
+        anilist.recently_updated(MediaTypes.MANGA.value)
+        variables = mock_gql.call_args[0][1]
+        self.assertIn("MANGA", variables["formats"])
+        self.assertNotIn("TV", variables["formats"])
+
+    def test_manga_recently_updated_returns_results(self, mock_gql):
+        mock_gql.return_value = _mock_page_response([_make_media()])
+        data = anilist.recently_updated(MediaTypes.MANGA.value)
+        self.assertEqual(len(data["results"]), 1)
 
     def test_deduplicates_anime(self, mock_gql):
         mock_gql.return_value = _mock_schedule_response(

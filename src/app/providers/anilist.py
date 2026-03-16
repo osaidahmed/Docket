@@ -37,11 +37,11 @@ _MEDIA_FIELDS = """
 """
 
 _TRENDING_QUERY = f"""
-query ($type: MediaType, $page: Int, $perPage: Int) {{
+query ($type: MediaType, $page: Int, $perPage: Int, $formats: [MediaFormat]) {{
     Page(page: $page, perPage: $perPage) {{
         pageInfo {{ total currentPage lastPage hasNextPage perPage }}
         media(type: $type, sort: TRENDING_DESC, isAdult: false,
-              format_in: [TV, MOVIE]) {{
+              format_in: $formats) {{
             {_MEDIA_FIELDS}
         }}
     }}
@@ -49,11 +49,11 @@ query ($type: MediaType, $page: Int, $perPage: Int) {{
 """
 
 _RECENTLY_UPDATED_QUERY = f"""
-query ($type: MediaType, $page: Int, $perPage: Int) {{
+query ($type: MediaType, $page: Int, $perPage: Int, $formats: [MediaFormat]) {{
     Page(page: $page, perPage: $perPage) {{
         pageInfo {{ total currentPage lastPage hasNextPage perPage }}
         media(type: $type, sort: UPDATED_AT_DESC, isAdult: false,
-              format_in: [TV, MOVIE],
+              format_in: $formats,
               status_in: [RELEASING, FINISHED]) {{
             {_MEDIA_FIELDS}
         }}
@@ -62,16 +62,19 @@ query ($type: MediaType, $page: Int, $perPage: Int) {{
 """
 
 _UPCOMING_QUERY = f"""
-query ($type: MediaType, $page: Int, $perPage: Int) {{
+query ($type: MediaType, $page: Int, $perPage: Int, $formats: [MediaFormat]) {{
     Page(page: $page, perPage: $perPage) {{
         pageInfo {{ total currentPage lastPage hasNextPage perPage }}
         media(type: $type, sort: POPULARITY_DESC, status: NOT_YET_RELEASED,
-              isAdult: false, format_in: [TV, MOVIE]) {{
+              isAdult: false, format_in: $formats) {{
             {_MEDIA_FIELDS}
         }}
     }}
 }}
 """
+
+_ANIME_FORMATS = ["TV", "MOVIE"]
+_MANGA_FORMATS = ["MANGA", "ONE_SHOT"]
 
 _SCHEDULE_QUERY = """
 query ($page: Int, $perPage: Int, $start: Int, $end: Int) {
@@ -171,6 +174,13 @@ def _format_media(media, media_type):
     }
 
 
+def _formats_for_type(media_type):
+    """Return the allowed format list for a media type."""
+    if media_type == MediaTypes.MANGA.value:
+        return _MANGA_FORMATS
+    return _ANIME_FORMATS
+
+
 def _cached_media_query(query, media_type, page, per_page, cache_prefix, ttl):
     """Execute a cached AniList media query and return paginated results."""
     cache_key = f"anilist_{cache_prefix}_{media_type}_{page}_{per_page}"
@@ -179,7 +189,12 @@ def _cached_media_query(query, media_type, page, per_page, cache_prefix, ttl):
     if data is None:
         response = _graphql_request(
             query,
-            {"type": _anilist_type(media_type), "page": page, "perPage": per_page},
+            {
+                "type": _anilist_type(media_type),
+                "page": page,
+                "perPage": per_page,
+                "formats": _formats_for_type(media_type),
+            },
         )
         page_data = response["data"]["Page"]
         page_info = page_data["pageInfo"]

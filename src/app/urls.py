@@ -37,14 +37,9 @@ urlpatterns = [
         name="explore_type",
     ),
     path(
-        "discover/<media_type:media_type>",
-        views.discover_type,
-        name="discover_type",
-    ),
-    path(
-        "discover/<media_type:media_type>/section/<str:section_key>",
-        views.discover_section,
-        name="discover_section",
+        "explore/<media_type:media_type>/section/<str:section_key>",
+        views.explore_section,
+        name="explore_section",
     ),
     path(
         "details/<source:source>/<media_type:media_type>/<str:media_id>/<str:title>",

@@ -1,34 +1,32 @@
-from django.shortcuts import redirect, render
+from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
 from app import config, helpers
 from app.providers import services
 
 
-@require_GET
-def discover_type(request, media_type):
-    """Discover page for a specific media type with curated sections."""
+def render_discover(request, media_type):
+    """Render discover content for a media type (called from explore_type)."""
     sections_config = config.get_discover_sections(media_type)
-    if not sections_config:
-        return redirect("explore")
-
     sections_data = services.discover_sections(media_type)
-    sections = _build_sections(request, media_type, sections_config, sections_data)
+    sections = _build_sections(request, sections_config, sections_data)
 
     return render(
         request,
-        "app/discover.html",
+        "app/explore_type.html",
         {
             "media_type": media_type,
             "sections": sections,
             "text_color": config.get_text_color(media_type),
             "stats_color": config.get_stats_color(media_type),
+            "has_discover": True,
+            "current_view": "discover",
         },
     )
 
 
 @require_GET
-def discover_section(request, media_type, section_key):
+def explore_section(request, media_type, section_key):
     """HTMX endpoint: load more items for a discover section."""
     page = int(request.GET.get("page", 2))
 
@@ -65,7 +63,7 @@ def discover_section(request, media_type, section_key):
     )
 
 
-def _build_sections(request, _media_type, sections_config, sections_data):
+def _build_sections(request, sections_config, sections_data):
     """Build template-ready sections with enriched items."""
     sections = []
     for cfg in sections_config:

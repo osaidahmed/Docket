@@ -1,0 +1,15 @@
+{% load app_tags %}
+
+<div class="space-y-12">
+  {% for section in sections %}
+    {% if section.type == "spotlight_carousel" %}
+      {% include "app/partials/discover_spotlight.html" with section=section %}
+    {% elif section.type == "ranked_carousel" %}
+      {% include "app/partials/discover_trending.html" with section=section %}
+    {% elif section.type == "card_grid" %}
+      {% include "app/partials/discover_grid.html" with section=section %}
+    {% elif section.type == "schedule_list" %}
+      {% include "app/partials/discover_schedule.html" with section=section %}
+    {% endif %}
+  {% endfor %}
+</div>

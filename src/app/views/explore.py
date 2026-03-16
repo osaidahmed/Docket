@@ -173,6 +173,12 @@ def explore_type(request, media_type):
     if categories is None:
         return redirect("explore")
 
+    has_discover = config.get_discover_sections(media_type) is not None
+    if request.GET.get("view") == "discover" and has_discover:
+        from app.views.discover import render_discover  # noqa: PLC0415
+
+        return render_discover(request, media_type)
+
     category = request.GET.get("category", categories[0]["slug"])
     page = int(request.GET.get("page", 1))
     layout = request.GET.get("layout", "list")
@@ -224,6 +230,10 @@ def explore_type(request, media_type):
         year=year,
         season_name=season_name,
     )
+
+    context["has_discover"] = has_discover
+    context["current_view"] = "browse"
+    context["text_color"] = config.get_text_color(media_type)
 
     if request.headers.get("HX-Request"):
         return render(request, "app/explore_results.html", context)
