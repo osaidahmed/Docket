@@ -2,7 +2,7 @@ import re
 
 from playwright.sync_api import Page, expect
 
-from app.models import Item, MediaTypes, Movie, Sources, Status
+from app.models import Item, Status
 from e2e.conftest import create_movie
 
 
@@ -25,13 +25,20 @@ def _post_score_via_fetch(page, live_server, movie_id, score_value):
 
 def test_score_infinity(authenticated_page: Page, live_server, test_user):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.COMPLETED.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.COMPLETED.value,
+        score=5,
     )
     authenticated_page.goto(
         f"{live_server.url}/details/tmdb/movie/550/Fight-Club",
     )
     _post_score_via_fetch(
-        authenticated_page, live_server, movie.id, "Infinity",
+        authenticated_page,
+        live_server,
+        movie.id,
+        "Infinity",
     )
     authenticated_page.wait_for_timeout(500)
     movie.refresh_from_db()
@@ -40,13 +47,20 @@ def test_score_infinity(authenticated_page: Page, live_server, test_user):
 
 def test_score_nan(authenticated_page: Page, live_server, test_user):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.COMPLETED.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.COMPLETED.value,
+        score=5,
     )
     authenticated_page.goto(
         f"{live_server.url}/details/tmdb/movie/550/Fight-Club",
     )
     _post_score_via_fetch(
-        authenticated_page, live_server, movie.id, "NaN",
+        authenticated_page,
+        live_server,
+        movie.id,
+        "NaN",
     )
     authenticated_page.wait_for_timeout(500)
     movie.refresh_from_db()
@@ -54,20 +68,29 @@ def test_score_nan(authenticated_page: Page, live_server, test_user):
 
 def test_score_float(authenticated_page: Page, live_server, test_user):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.COMPLETED.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.COMPLETED.value,
+        score=5,
     )
     authenticated_page.goto(
         f"{live_server.url}/details/tmdb/movie/550/Fight-Club",
     )
     _post_score_via_fetch(
-        authenticated_page, live_server, movie.id, "7.5",
+        authenticated_page,
+        live_server,
+        movie.id,
+        "7.5",
     )
     authenticated_page.wait_for_timeout(500)
     movie.refresh_from_db()
 
 
 def test_unicode_title_in_create_entry(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/create")
 
@@ -90,7 +113,9 @@ def test_unicode_title_in_create_entry(
 
 
 def test_very_long_title(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/create")
 
@@ -110,10 +135,14 @@ def test_very_long_title(
 
 
 def test_html_injection_in_notes(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -124,7 +153,7 @@ def test_html_injection_in_notes(
 
     notes = card.locator("textarea[name='notes']")
     if notes.is_visible():
-        notes.fill('<img src=x onerror=alert(1)>')
+        notes.fill("<img src=x onerror=alert(1)>")
 
         with authenticated_page.expect_response(
             re.compile(r".*/backlog_save"),
@@ -141,7 +170,9 @@ def test_html_injection_in_notes(
 
 
 def test_html_injection_in_list_name(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/lists")
 
@@ -164,10 +195,14 @@ def test_html_injection_in_list_name(
 
 
 def test_status_value_tampered(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -203,10 +238,14 @@ def test_status_value_tampered(
 
 
 def test_media_type_tampered(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -230,19 +269,29 @@ def test_media_type_tampered(
 
 
 def test_instance_id_tampered_to_other_user(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     from django.contrib.auth import get_user_model
 
     user_b = get_user_model().objects.create_user(
-        username="victim", password="pass12345",
+        username="victim",
+        password="pass12345",
     )
     victim_movie = create_movie(
-        user_b, "551", "Inception", Status.IN_PROGRESS.value, score=5,
+        user_b,
+        "551",
+        "Inception",
+        Status.IN_PROGRESS.value,
+        score=5,
     )
 
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 

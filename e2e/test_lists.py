@@ -15,7 +15,9 @@ def test_lists_empty_state(authenticated_page: Page, live_server):
 
 
 def test_lists_page_shows_existing_lists(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     create_list(test_user, "My Favorites", "Best of the best")
     create_list(test_user, "Watch Later", "To watch")
@@ -25,7 +27,9 @@ def test_lists_page_shows_existing_lists(
 
 
 def test_list_detail_page(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     lst = create_list(test_user, "My Favorites", "Best of the best")
     authenticated_page.goto(f"{live_server.url}/list/{lst.id}")
@@ -35,7 +39,9 @@ def test_list_detail_page(
 
 
 def test_create_list_via_modal(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/lists")
 
@@ -59,12 +65,15 @@ def test_create_list_via_modal(
         authenticated_page.wait_for_load_state("networkidle")
 
         assert CustomList.objects.filter(
-            name="Test List", owner=test_user,
+            name="Test List",
+            owner=test_user,
         ).exists()
 
 
 def test_delete_list(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     lst = create_list(test_user, "To Delete")
     authenticated_page.goto(f"{live_server.url}/list/{lst.id}")
@@ -79,7 +88,9 @@ def test_delete_list(
 
 
 def test_list_detail_empty_state(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     lst = create_list(test_user, "Empty List")
     authenticated_page.goto(f"{live_server.url}/list/{lst.id}")
@@ -89,7 +100,9 @@ def test_list_detail_empty_state(
 
 
 def test_list_search_filters_results(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     create_list(test_user, "Action Movies")
     create_list(test_user, "Comedy Shows")
@@ -107,7 +120,9 @@ def test_list_search_filters_results(
 
 
 def test_list_search_clear_shows_all(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     create_list(test_user, "Action Movies")
     create_list(test_user, "Comedy Shows")
@@ -126,7 +141,9 @@ def test_list_search_clear_shows_all(
 
 
 def test_edit_list_name(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     lst = create_list(test_user, "Old Name", "A list")
     authenticated_page.goto(f"{live_server.url}/list/{lst.id}")
@@ -149,19 +166,29 @@ def test_edit_list_name(
 
 
 def test_list_sort_dropdown(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     create_list(test_user, "Alpha List")
     create_list(test_user, "Beta List")
     authenticated_page.goto(f"{live_server.url}/lists")
 
-    sort_btn = authenticated_page.locator(
-        "button:has(svg)",
-    ).filter(has_text="Name").first
-    if not sort_btn.is_visible():
-        sort_btn = authenticated_page.locator(
+    sort_btn = (
+        authenticated_page.locator(
             "button:has(svg)",
-        ).filter(has_text="Newest").first
+        )
+        .filter(has_text="Name")
+        .first
+    )
+    if not sort_btn.is_visible():
+        sort_btn = (
+            authenticated_page.locator(
+                "button:has(svg)",
+            )
+            .filter(has_text="Newest")
+            .first
+        )
     if sort_btn.is_visible():
         sort_btn.click()
         dropdown = authenticated_page.locator("[x-show='open']").first

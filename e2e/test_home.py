@@ -11,7 +11,8 @@ def test_home_empty_has_no_cards(authenticated_page: Page):
 
 
 def test_sidebar_links_navigate_correctly(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     for link_name, expected_path in {
         "Explore": "/explore",
@@ -27,7 +28,8 @@ def test_sidebar_links_navigate_correctly(
 
 
 def test_home_displays_in_progress_media(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     create_movie(test_user, "550", "Fight Club", Status.IN_PROGRESS.value)
     authenticated_page.reload()
@@ -35,7 +37,8 @@ def test_home_displays_in_progress_media(
 
 
 def test_home_excludes_completed_media(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     create_movie(test_user, "550", "Fight Club", Status.COMPLETED.value)
     authenticated_page.reload()
@@ -51,7 +54,8 @@ def test_home_groups_by_status(authenticated_page: Page, test_user):
 
 
 def test_backlog_card_edit_form_expands_and_collapses(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     create_movie(test_user, "550", "Fight Club", Status.IN_PROGRESS.value)
     authenticated_page.reload()
@@ -60,9 +64,13 @@ def test_backlog_card_edit_form_expands_and_collapses(
     status_select = card.locator("select[name='status']")
     expect(status_select).to_be_hidden()
 
-    edit_btn = card.locator("button").filter(
-        has=authenticated_page.locator("svg"),
-    ).first
+    edit_btn = (
+        card.locator("button")
+        .filter(
+            has=authenticated_page.locator("svg"),
+        )
+        .first
+    )
     edit_btn.click()
     expect(status_select).to_be_visible()
 
@@ -71,10 +79,15 @@ def test_backlog_card_edit_form_expands_and_collapses(
 
 
 def test_backlog_save_updates_score_via_htmx(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
+        score=5,
     )
     authenticated_page.reload()
 
@@ -93,10 +106,14 @@ def test_backlog_save_updates_score_via_htmx(
 
 
 def test_quick_complete_changes_status(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -113,10 +130,14 @@ def test_quick_complete_changes_status(
 
 
 def test_quick_status_transition_planning_to_in_progress(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.PLANNING.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.PLANNING.value,
     )
     authenticated_page.reload()
 
@@ -133,10 +154,14 @@ def test_quick_status_transition_planning_to_in_progress(
 
 
 def test_quick_drop_two_step_cancel(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -156,10 +181,14 @@ def test_quick_drop_two_step_cancel(
 
 
 def test_quick_drop_confirms_and_drops(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -182,10 +211,14 @@ def test_quick_drop_confirms_and_drops(
 
 
 def test_quick_untrack_removes_media(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     movie_id = movie.id
     authenticated_page.reload()
@@ -206,7 +239,10 @@ def test_quick_untrack_removes_media(
 
 def test_pin_toggle(authenticated_page: Page, test_user):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.PLANNING.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.PLANNING.value,
     )
     authenticated_page.reload()
 
@@ -223,10 +259,14 @@ def test_pin_toggle(authenticated_page: Page, test_user):
 
 
 def test_backlog_save_changes_status(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -245,10 +285,14 @@ def test_backlog_save_changes_status(
 
 
 def test_backlog_save_with_notes(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -271,10 +315,14 @@ def test_backlog_save_with_notes(
 
 
 def test_backlog_save_with_dates(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -297,7 +345,8 @@ def test_backlog_save_with_dates(
 
 
 def test_grouping_toggle(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     create_movie(test_user, "550", "Fight Club", Status.IN_PROGRESS.value)
     authenticated_page.reload()
@@ -316,13 +365,20 @@ def test_grouping_toggle(
 
 
 def test_multiple_media_types_coexist(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     create_anime(
-        test_user, "1", "Cowboy Bebop", Status.IN_PROGRESS.value,
+        test_user,
+        "1",
+        "Cowboy Bebop",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
     expect(authenticated_page.get_by_text("Fight Club")).to_be_visible()
@@ -358,20 +414,24 @@ def test_archive_section(authenticated_page: Page, test_user):
 def test_see_all_expand(authenticated_page: Page, test_user):
     from app.models import Anime, Item, MediaTypes, Sources
 
-    items = Item.objects.bulk_create([
-        Item(
-            media_id=str(80000 + i),
-            source=Sources.MAL.value,
-            media_type=MediaTypes.ANIME.value,
-            title=f"Anime {i}",
-            image="https://via.placeholder.com/150",
-        )
-        for i in range(8)
-    ])
-    Anime.objects.bulk_create([
-        Anime(item=item, user=test_user, status=Status.IN_PROGRESS.value)
-        for item in items
-    ])
+    items = Item.objects.bulk_create(
+        [
+            Item(
+                media_id=str(80000 + i),
+                source=Sources.MAL.value,
+                media_type=MediaTypes.ANIME.value,
+                title=f"Anime {i}",
+                image="https://via.placeholder.com/150",
+            )
+            for i in range(8)
+        ]
+    )
+    Anime.objects.bulk_create(
+        [
+            Anime(item=item, user=test_user, status=Status.IN_PROGRESS.value)
+            for item in items
+        ]
+    )
     authenticated_page.reload()
 
     see_all_btn = authenticated_page.get_by_text("See all").first
@@ -382,7 +442,8 @@ def test_see_all_expand(authenticated_page: Page, test_user):
 
 
 def test_sort_dropdown_opens_and_closes(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     create_movie(test_user, "550", "Fight Club", Status.IN_PROGRESS.value)
     authenticated_page.reload()
@@ -399,10 +460,14 @@ def test_sort_dropdown_opens_and_closes(
 
 
 def test_paused_to_planning_transition(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.PAUSED.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.PAUSED.value,
     )
     authenticated_page.reload()
 
@@ -419,10 +484,14 @@ def test_paused_to_planning_transition(
 
 
 def test_backlog_save_changes_progress(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 

@@ -2,25 +2,29 @@ import re
 
 from playwright.sync_api import Page, expect
 
-from app.models import Anime, Item, MediaTypes, Movie, Sources, Status
+from app.models import Anime, Item, MediaTypes, Sources, Status
 from e2e.conftest import create_movie
 
 
 def test_home_with_100_items(authenticated_page: Page, test_user):
-    items = Item.objects.bulk_create([
-        Item(
-            media_id=str(70000 + i),
-            source=Sources.MAL.value,
-            media_type=MediaTypes.ANIME.value,
-            title=f"Anime {i}",
-            image="https://via.placeholder.com/150",
-        )
-        for i in range(100)
-    ])
-    Anime.objects.bulk_create([
-        Anime(item=item, user=test_user, status=Status.IN_PROGRESS.value)
-        for item in items
-    ])
+    items = Item.objects.bulk_create(
+        [
+            Item(
+                media_id=str(70000 + i),
+                source=Sources.MAL.value,
+                media_type=MediaTypes.ANIME.value,
+                title=f"Anime {i}",
+                image="https://via.placeholder.com/150",
+            )
+            for i in range(100)
+        ]
+    )
+    Anime.objects.bulk_create(
+        [
+            Anime(item=item, user=test_user, status=Status.IN_PROGRESS.value)
+            for item in items
+        ]
+    )
 
     authenticated_page.reload()
     expect(
@@ -34,49 +38,59 @@ def test_home_with_100_items(authenticated_page: Page, test_user):
 
 
 def test_media_list_with_many_items(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
-    items = Item.objects.bulk_create([
-        Item(
-            media_id=str(60000 + i),
-            source=Sources.MAL.value,
-            media_type=MediaTypes.ANIME.value,
-            title=f"Anime List {i}",
-            image="https://via.placeholder.com/150",
-        )
-        for i in range(200)
-    ])
-    Anime.objects.bulk_create([
-        Anime(item=item, user=test_user, status=Status.COMPLETED.value)
-        for item in items
-    ])
+    items = Item.objects.bulk_create(
+        [
+            Item(
+                media_id=str(60000 + i),
+                source=Sources.MAL.value,
+                media_type=MediaTypes.ANIME.value,
+                title=f"Anime List {i}",
+                image="https://via.placeholder.com/150",
+            )
+            for i in range(200)
+        ]
+    )
+    Anime.objects.bulk_create(
+        [
+            Anime(item=item, user=test_user, status=Status.COMPLETED.value)
+            for item in items
+        ]
+    )
 
     authenticated_page.goto(f"{live_server.url}/medialist/anime")
     expect(authenticated_page.locator("main")).to_be_visible(timeout=15000)
 
 
 def test_list_with_many_items(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     from lists.models import CustomList, CustomListItem
 
     lst = CustomList.objects.create(
-        name="Big List", owner=test_user,
+        name="Big List",
+        owner=test_user,
     )
-    items = Item.objects.bulk_create([
-        Item(
-            media_id=str(50000 + i),
-            source=Sources.MAL.value,
-            media_type=MediaTypes.ANIME.value,
-            title=f"List Item {i}",
-            image="https://via.placeholder.com/150",
-        )
-        for i in range(100)
-    ])
-    CustomListItem.objects.bulk_create([
-        CustomListItem(custom_list=lst, item=item)
-        for item in items
-    ])
+    items = Item.objects.bulk_create(
+        [
+            Item(
+                media_id=str(50000 + i),
+                source=Sources.MAL.value,
+                media_type=MediaTypes.ANIME.value,
+                title=f"List Item {i}",
+                image="https://via.placeholder.com/150",
+            )
+            for i in range(100)
+        ]
+    )
+    CustomListItem.objects.bulk_create(
+        [CustomListItem(custom_list=lst, item=item) for item in items]
+    )
 
     authenticated_page.goto(f"{live_server.url}/list/{lst.id}")
     expect(
@@ -85,10 +99,16 @@ def test_list_with_many_items(
 
 
 def test_rapid_score_updates(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.COMPLETED.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.COMPLETED.value,
+        score=5,
     )
     authenticated_page.goto(
         f"{live_server.url}/details/tmdb/movie/550/Fight-Club",
@@ -119,10 +139,15 @@ def test_rapid_score_updates(
 
 
 def test_rapid_status_transitions(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.PLANNING.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.PLANNING.value,
     )
     authenticated_page.goto(f"{live_server.url}/")
 

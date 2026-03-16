@@ -11,7 +11,9 @@ def _create_user_b():
 
 
 def test_cannot_access_other_users_list(
-    live_server, test_user, browser,
+    live_server,
+    test_user,
+    browser,
 ):
     lst = create_list(test_user, "Private List")
     _create_user_b()
@@ -27,7 +29,9 @@ def test_cannot_access_other_users_list(
 
 
 def test_cannot_delete_other_users_list(
-    live_server, test_user, browser,
+    live_server,
+    test_user,
+    browser,
 ):
     lst = create_list(test_user, "Protected List")
     _create_user_b()
@@ -61,10 +65,16 @@ def test_cannot_delete_other_users_list(
 
 
 def test_cannot_edit_other_users_media(
-    live_server, test_user, browser,
+    live_server,
+    test_user,
+    browser,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
+        score=5,
     )
     _create_user_b()
 
@@ -96,10 +106,16 @@ def test_cannot_edit_other_users_media(
 
 
 def test_user_b_sees_empty_statistics(
-    live_server, test_user, browser,
+    live_server,
+    test_user,
+    browser,
 ):
     create_movie(
-        test_user, "550", "Fight Club", Status.COMPLETED.value, score=9,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.COMPLETED.value,
+        score=9,
     )
     _create_user_b()
 
@@ -114,11 +130,15 @@ def test_user_b_sees_empty_statistics(
 
 
 def test_demo_user_cannot_change_preferences(
-    live_server, browser, transactional_db,
+    live_server,
+    browser,
+    transactional_db,
 ):
     User = get_user_model()
     demo = User.objects.create_user(
-        username="demo", password="demo12345", is_demo=True,
+        username="demo",
+        password="demo12345",
+        is_demo=True,
     )
 
     ctx = browser.new_context()
@@ -145,11 +165,15 @@ def test_demo_user_cannot_change_preferences(
 
 
 def test_demo_user_cannot_change_username(
-    live_server, browser, transactional_db,
+    live_server,
+    browser,
+    transactional_db,
 ):
     User = get_user_model()
     User.objects.create_user(
-        username="demo", password="demo12345", is_demo=True,
+        username="demo",
+        password="demo12345",
+        is_demo=True,
     )
 
     ctx = browser.new_context()

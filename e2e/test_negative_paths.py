@@ -2,12 +2,13 @@ import re
 
 from playwright.sync_api import Page, expect
 
-from app.models import Movie, Status
+from app.models import Status
 from e2e.conftest import create_list, create_movie
 
 
 def test_calendar_invalid_month_does_not_crash(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     response = authenticated_page.goto(
         f"{live_server.url}/calendar?month=13&year=2025",
@@ -16,7 +17,8 @@ def test_calendar_invalid_month_does_not_crash(
 
 
 def test_calendar_month_zero_does_not_crash(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     response = authenticated_page.goto(
         f"{live_server.url}/calendar?month=0&year=2025",
@@ -25,7 +27,8 @@ def test_calendar_month_zero_does_not_crash(
 
 
 def test_calendar_negative_year_does_not_crash(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     response = authenticated_page.goto(
         f"{live_server.url}/calendar?month=1&year=-1",
@@ -34,7 +37,8 @@ def test_calendar_negative_year_does_not_crash(
 
 
 def test_calendar_float_month_does_not_crash(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     response = authenticated_page.goto(
         f"{live_server.url}/calendar?month=1.5&year=2025",
@@ -43,7 +47,8 @@ def test_calendar_float_month_does_not_crash(
 
 
 def test_explore_invalid_media_type_returns_404(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     response = authenticated_page.goto(
         f"{live_server.url}/explore/invalidtype",
@@ -52,7 +57,8 @@ def test_explore_invalid_media_type_returns_404(
 
 
 def test_media_detail_nonexistent_does_not_crash(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     response = authenticated_page.goto(
         f"{live_server.url}/details/tmdb/movie/999999/Nonexistent",
@@ -61,7 +67,8 @@ def test_media_detail_nonexistent_does_not_crash(
 
 
 def test_list_detail_nonexistent_returns_404(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     response = authenticated_page.goto(
         f"{live_server.url}/list/999999",
@@ -70,7 +77,8 @@ def test_list_detail_nonexistent_returns_404(
 
 
 def test_medialist_invalid_type_returns_404(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     response = authenticated_page.goto(
         f"{live_server.url}/medialist/invalidtype",
@@ -79,7 +87,8 @@ def test_medialist_invalid_type_returns_404(
 
 
 def test_settings_pages_all_load(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     for path in [
         "/settings/account",
@@ -93,7 +102,8 @@ def test_settings_pages_all_load(
 
 
 def test_search_with_special_characters(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     search = authenticated_page.locator("#global-search")
     search.click()
@@ -106,10 +116,15 @@ def test_search_with_special_characters(
 
 
 def test_backlog_save_with_empty_score(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
+        score=5,
     )
     authenticated_page.reload()
 
@@ -128,7 +143,9 @@ def test_backlog_save_with_empty_score(
 
 
 def test_list_detail_invalid_page_param(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     lst = create_list(test_user, "Page Test")
     response = authenticated_page.goto(
@@ -139,7 +156,9 @@ def test_list_detail_invalid_page_param(
 
 
 def test_list_detail_negative_page(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     lst = create_list(test_user, "Page Test")
     response = authenticated_page.goto(
@@ -149,10 +168,15 @@ def test_list_detail_negative_page(
 
 
 def test_backlog_save_score_above_max(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
+        score=5,
     )
     authenticated_page.reload()
 
@@ -175,10 +199,15 @@ def test_backlog_save_score_above_max(
 
 
 def test_backlog_save_negative_score(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
+        score=5,
     )
     authenticated_page.reload()
 
@@ -201,10 +230,14 @@ def test_backlog_save_negative_score(
 
 
 def test_backlog_save_start_after_end(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -228,10 +261,14 @@ def test_backlog_save_start_after_end(
 
 
 def test_double_click_quick_complete(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -246,10 +283,15 @@ def test_double_click_quick_complete(
 
 
 def test_medialist_export_csv(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     create_movie(
-        test_user, "550", "Fight Club", Status.COMPLETED.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.COMPLETED.value,
     )
     authenticated_page.goto(f"{live_server.url}/medialist/movie")
     export_link = authenticated_page.locator("a[href*='/export/']").first
@@ -261,7 +303,8 @@ def test_medialist_export_csv(
 
 
 def test_non_integer_list_id_does_not_crash(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     response = authenticated_page.goto(
         f"{live_server.url}/list/abc",
@@ -270,7 +313,9 @@ def test_non_integer_list_id_does_not_crash(
 
 
 def test_empty_list_name_submission(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/lists")
     new_btn = authenticated_page.get_by_role("button", name="New List")
@@ -288,17 +333,21 @@ def test_empty_list_name_submission(
         from lists.models import CustomList
 
         assert not CustomList.objects.filter(
-            name="", owner=test_user,
+            name="",
+            owner=test_user,
         ).exists()
 
 
 def test_duplicate_username(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     from django.contrib.auth import get_user_model
 
     get_user_model().objects.create_user(
-        username="existing_user", password="pass12345",
+        username="existing_user",
+        password="pass12345",
     )
 
     authenticated_page.goto(f"{live_server.url}/settings/account")
@@ -314,10 +363,14 @@ def test_duplicate_username(
 
 
 def test_progress_beyond_max(
-    authenticated_page: Page, test_user,
+    authenticated_page: Page,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 

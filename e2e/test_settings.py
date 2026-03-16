@@ -11,7 +11,8 @@ def test_account_page_loads(authenticated_page: Page, live_server):
 
 
 def test_preferences_page_has_save_button(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
     expect(
@@ -20,7 +21,9 @@ def test_preferences_page_has_save_button(
 
 
 def test_preferences_toggle_persists(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
@@ -41,7 +44,8 @@ def test_preferences_toggle_persists(
 
 
 def test_settings_navigation_between_sections(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/account")
 
@@ -54,7 +58,8 @@ def test_settings_navigation_between_sections(
 
 
 def test_import_page_shows_import_sources(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/import")
     found = sum(
@@ -73,7 +78,8 @@ def test_export_page_loads(authenticated_page: Page, live_server):
 
 
 def test_color_scheme_changes_theme_live(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
@@ -89,7 +95,9 @@ def test_color_scheme_changes_theme_live(
 
 
 def test_color_scheme_persists_after_save(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
@@ -103,7 +111,8 @@ def test_color_scheme_persists_after_save(
         )
 
         authenticated_page.get_by_role(
-            "button", name="Save Preferences",
+            "button",
+            name="Save Preferences",
         ).click()
         authenticated_page.wait_for_load_state("networkidle")
 
@@ -114,7 +123,8 @@ def test_color_scheme_persists_after_save(
 
 
 def test_all_preference_toggles_exist(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
     for name in [
@@ -124,13 +134,15 @@ def test_all_preference_toggles_exist(
         "hide_completed_recommendations",
         "hide_zero_rating",
     ]:
-        assert (
-            authenticated_page.locator(f"input[name='{name}']").count() > 0
-        ), f"Toggle {name} not found"
+        assert authenticated_page.locator(f"input[name='{name}']").count() > 0, (
+            f"Toggle {name} not found"
+        )
 
 
 def test_date_format_dropdown_persists(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
@@ -142,7 +154,8 @@ def test_date_format_dropdown_persists(
             date_select.select_option(new_value)
 
             authenticated_page.get_by_role(
-                "button", name="Save Preferences",
+                "button",
+                name="Save Preferences",
             ).click()
             authenticated_page.wait_for_load_state("networkidle")
 
@@ -151,7 +164,9 @@ def test_date_format_dropdown_persists(
 
 
 def test_media_type_disable_toggle(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
@@ -169,7 +184,8 @@ def test_media_type_disable_toggle(
         )
 
         authenticated_page.get_by_role(
-            "button", name="Save Preferences",
+            "button",
+            name="Save Preferences",
         ).click()
         authenticated_page.wait_for_load_state("networkidle")
 
@@ -178,7 +194,9 @@ def test_media_type_disable_toggle(
 
 
 def test_account_username_change(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/account")
 
@@ -194,7 +212,8 @@ def test_account_username_change(
 
 
 def test_notifications_page_loads(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/notifications")
     expect(authenticated_page).to_have_url(
@@ -203,7 +222,8 @@ def test_notifications_page_loads(
 
 
 def test_all_settings_subpages_load(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     for path in [
         "/settings/about",
@@ -215,16 +235,21 @@ def test_all_settings_subpages_load(
 
 
 def test_media_type_reorder_up(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
     items = authenticated_page.locator("[data-media-type]")
     if items.count() >= 2:
         second_type = items.nth(1).get_attribute("data-media-type")
-        up_btn = items.nth(1).locator(
-            "button",
-        ).first
+        up_btn = (
+            items.nth(1)
+            .locator(
+                "button",
+            )
+            .first
+        )
         up_btn.click()
 
         first_type = items.nth(0).get_attribute("data-media-type")
@@ -232,16 +257,21 @@ def test_media_type_reorder_up(
 
 
 def test_media_type_reorder_down(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
     items = authenticated_page.locator("[data-media-type]")
     if items.count() >= 2:
         first_type = items.nth(0).get_attribute("data-media-type")
-        down_btn = items.nth(0).locator(
-            "button",
-        ).last
+        down_btn = (
+            items.nth(0)
+            .locator(
+                "button",
+            )
+            .last
+        )
         down_btn.click()
 
         second_type = items.nth(1).get_attribute("data-media-type")
@@ -249,7 +279,8 @@ def test_media_type_reorder_down(
 
 
 def test_password_change_form_exists(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/account")
 
@@ -265,7 +296,8 @@ def test_password_change_form_exists(
 
 
 def test_password_change_wrong_old_password(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/account")
 
@@ -285,7 +317,8 @@ def test_password_change_wrong_old_password(
 
 
 def test_clear_search_cache(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/advanced")
 
@@ -298,7 +331,9 @@ def test_clear_search_cache(
 
 
 def test_regenerate_token(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/integrations")
 
@@ -314,7 +349,8 @@ def test_regenerate_token(
 
 
 def test_notifications_page_has_form(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/notifications")
     url_field = authenticated_page.locator(
@@ -325,7 +361,8 @@ def test_notifications_page_has_form(
 
 
 def test_refresh_relationships_button(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
@@ -338,7 +375,9 @@ def test_refresh_relationships_button(
 
 
 def test_time_format_dropdown(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
@@ -350,7 +389,8 @@ def test_time_format_dropdown(
             time_select.select_option(new_value)
 
             authenticated_page.get_by_role(
-                "button", name="Save Preferences",
+                "button",
+                name="Save Preferences",
             ).click()
             authenticated_page.wait_for_load_state("networkidle")
 

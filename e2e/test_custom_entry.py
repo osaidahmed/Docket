@@ -4,7 +4,8 @@ from app.models import Item
 
 
 def test_create_entry_page_has_form(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/create")
     expect(authenticated_page.locator("input[name='title']")).to_be_visible()
@@ -17,7 +18,9 @@ def test_create_entry_page_has_form(
 
 
 def test_create_movie_entry(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/create")
 
@@ -39,7 +42,8 @@ def test_create_movie_entry(
 
 
 def test_add_by_link_page_loads(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/add_by_link")
     expect(
@@ -48,11 +52,13 @@ def test_add_by_link_page_loads(
 
 
 def test_add_by_link_empty_submission(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/add_by_link")
     submit = authenticated_page.get_by_role(
-        "button", name="Process Links",
+        "button",
+        name="Process Links",
     )
     if submit.is_visible():
         submit.click()

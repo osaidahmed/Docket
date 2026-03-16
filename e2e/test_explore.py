@@ -4,7 +4,8 @@ from playwright.sync_api import Page, expect
 
 
 def test_explore_has_media_type_links(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/explore")
     expect(
@@ -16,7 +17,8 @@ def test_explore_has_media_type_links(
 
 
 def test_explore_type_page_loads(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/explore/movie")
     expect(authenticated_page).to_have_url(
@@ -25,7 +27,8 @@ def test_explore_type_page_loads(
 
 
 def test_explore_invalid_type_returns_404(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     response = authenticated_page.goto(
         f"{live_server.url}/explore/invalidtype",
@@ -34,7 +37,8 @@ def test_explore_invalid_type_returns_404(
 
 
 def test_explore_media_type_navigation(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/explore")
     type_link = authenticated_page.locator("a[href*='/explore/']").first
@@ -45,14 +49,17 @@ def test_explore_media_type_navigation(
 
 
 def test_explore_type_page_has_content(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/explore/movie")
     expect(authenticated_page.locator("main")).to_be_visible()
 
 
 def test_mobile_viewport_hides_sidebar(
-    page, live_server, test_user,
+    page,
+    live_server,
+    test_user,
 ):
     from e2e.conftest import login
 

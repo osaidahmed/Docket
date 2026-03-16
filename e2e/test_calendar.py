@@ -5,7 +5,8 @@ from playwright.sync_api import Page, expect
 
 
 def test_calendar_has_month_navigation(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/calendar")
     expect(
@@ -17,7 +18,8 @@ def test_calendar_has_month_navigation(
 
 
 def test_calendar_next_month_changes_url(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/calendar")
     authenticated_page.locator("a[href*='month=']").last.click()
@@ -27,7 +29,8 @@ def test_calendar_next_month_changes_url(
 
 
 def test_calendar_prev_month(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/calendar")
     authenticated_page.locator("a[href*='month=']").first.click()
@@ -37,7 +40,8 @@ def test_calendar_prev_month(
 
 
 def test_calendar_has_export_link(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/calendar")
     export_input = authenticated_page.locator("input[readonly]").first
@@ -47,7 +51,8 @@ def test_calendar_has_export_link(
 
 
 def test_calendar_view_toggle_to_list(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/calendar")
     list_link = authenticated_page.locator("a[href*='view=list']").first
@@ -59,7 +64,8 @@ def test_calendar_view_toggle_to_list(
 
 
 def test_calendar_view_toggle_to_grid(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/calendar?view=list")
     grid_link = authenticated_page.locator("a[href*='view=grid']").first
@@ -71,7 +77,8 @@ def test_calendar_view_toggle_to_grid(
 
 
 def test_calendar_today_button(
-    authenticated_page: Page, live_server,
+    authenticated_page: Page,
+    live_server,
 ):
     authenticated_page.goto(
         f"{live_server.url}/calendar?month=1&year=2020",

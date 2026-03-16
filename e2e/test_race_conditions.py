@@ -1,12 +1,14 @@
-import re
-
 from app.models import Movie, Status
 from e2e.conftest import create_list, create_movie, login
 
 
 def test_concurrent_backlog_save_same_media(live_server, test_user, browser):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
+        score=5,
     )
 
     ctx1 = browser.new_context()
@@ -48,7 +50,10 @@ def test_concurrent_backlog_save_same_media(live_server, test_user, browser):
 
 def test_concurrent_status_change(live_server, test_user, browser):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
 
     ctx1 = browser.new_context()
@@ -87,7 +92,10 @@ def test_concurrent_status_change(live_server, test_user, browser):
 
 def test_concurrent_pin_toggle(live_server, test_user, browser):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.PLANNING.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.PLANNING.value,
     )
 
     ctx1 = browser.new_context()
@@ -117,7 +125,9 @@ def test_concurrent_pin_toggle(live_server, test_user, browser):
 
 
 def test_list_item_toggle_rapid_fire(
-    authenticated_page, live_server, test_user,
+    authenticated_page,
+    live_server,
+    test_user,
 ):
     from app.models import Item, MediaTypes, Sources
 
@@ -157,7 +167,10 @@ def test_list_item_toggle_rapid_fire(
 
 def test_quick_complete_duplicate(live_server, test_user, browser):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
 
     ctx1 = browser.new_context()
@@ -181,9 +194,13 @@ def test_quick_complete_duplicate(live_server, test_user, browser):
 
         movie.refresh_from_db()
         assert movie.status == Status.COMPLETED.value
-        assert Movie.objects.filter(
-            item=movie.item, user=test_user,
-        ).count() == 1
+        assert (
+            Movie.objects.filter(
+                item=movie.item,
+                user=test_user,
+            ).count()
+            == 1
+        )
 
     ctx1.close()
     ctx2.close()

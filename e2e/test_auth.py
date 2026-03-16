@@ -49,7 +49,9 @@ def test_logout_clears_session(authenticated_page: Page, live_server):
 
 
 def test_login_redirects_back_to_requested_page(
-    page: Page, live_server, test_user,
+    page: Page,
+    live_server,
+    test_user,
 ):
     page.goto(f"{live_server.url}/statistics")
     expect(page).to_have_url(re.compile(r".*/accounts/login/.*next=.*statistics"))

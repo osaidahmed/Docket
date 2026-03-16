@@ -1,5 +1,3 @@
-import re
-
 from playwright.sync_api import Page, expect
 
 from app.models import Status
@@ -7,10 +5,16 @@ from e2e.conftest import create_movie
 
 
 def test_htmx_500_on_backlog_save(
-    authenticated_page: Page, test_user, live_server,
+    authenticated_page: Page,
+    test_user,
+    live_server,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
+        score=5,
     )
     authenticated_page.reload()
 
@@ -35,10 +39,15 @@ def test_htmx_500_on_backlog_save(
 
 
 def test_htmx_network_error_on_toggle_pin(
-    authenticated_page: Page, test_user, live_server,
+    authenticated_page: Page,
+    test_user,
+    live_server,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.PLANNING.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.PLANNING.value,
     )
     authenticated_page.reload()
 
@@ -61,10 +70,15 @@ def test_htmx_network_error_on_toggle_pin(
 
 
 def test_htmx_500_on_quick_complete(
-    authenticated_page: Page, test_user, live_server,
+    authenticated_page: Page,
+    test_user,
+    live_server,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -87,10 +101,15 @@ def test_htmx_500_on_quick_complete(
 
 
 def test_page_reload_after_failed_htmx(
-    authenticated_page: Page, test_user, live_server,
+    authenticated_page: Page,
+    test_user,
+    live_server,
 ):
     create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
     )
     authenticated_page.reload()
 
@@ -114,10 +133,16 @@ def test_page_reload_after_failed_htmx(
 
 
 def test_htmx_empty_response_on_score_update(
-    authenticated_page: Page, test_user, live_server,
+    authenticated_page: Page,
+    test_user,
+    live_server,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.COMPLETED.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.COMPLETED.value,
+        score=5,
     )
     authenticated_page.goto(
         f"{live_server.url}/details/tmdb/movie/550/Fight-Club",

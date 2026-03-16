@@ -7,10 +7,15 @@ from e2e.conftest import create_list, create_movie
 
 
 def test_full_media_lifecycle(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.PLANNING.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.PLANNING.value,
     )
 
     authenticated_page.goto(f"{live_server.url}/")
@@ -43,7 +48,9 @@ def test_full_media_lifecycle(
 
 
 def test_list_management_journey(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     lst = create_list(test_user, "Journey List", "For testing")
 
@@ -75,7 +82,9 @@ def test_list_management_journey(
 
 
 def test_preferences_affect_home(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
@@ -89,7 +98,8 @@ def test_preferences_affect_home(
     )
 
     authenticated_page.get_by_role(
-        "button", name="Save Preferences",
+        "button",
+        name="Save Preferences",
     ).click()
     authenticated_page.wait_for_load_state("networkidle")
 
@@ -100,7 +110,9 @@ def test_preferences_affect_home(
 
 
 def test_disable_media_type_hides_in_explore(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     authenticated_page.goto(f"{live_server.url}/settings/preferences")
 
@@ -114,7 +126,8 @@ def test_disable_media_type_hides_in_explore(
     )
 
     authenticated_page.get_by_role(
-        "button", name="Save Preferences",
+        "button",
+        name="Save Preferences",
     ).click()
     authenticated_page.wait_for_load_state("networkidle")
 
@@ -126,10 +139,15 @@ def test_disable_media_type_hides_in_explore(
 
 
 def test_track_delete_retrack(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.COMPLETED.value,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.COMPLETED.value,
     )
     movie_id = movie.id
 
@@ -158,10 +176,16 @@ def test_track_delete_retrack(
 
 
 def test_edit_score_then_verify_on_detail(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     movie = create_movie(
-        test_user, "550", "Fight Club", Status.IN_PROGRESS.value, score=5,
+        test_user,
+        "550",
+        "Fight Club",
+        Status.IN_PROGRESS.value,
+        score=5,
     )
     authenticated_page.goto(f"{live_server.url}/")
 

@@ -12,7 +12,9 @@ def test_statistics_page_loads(authenticated_page: Page, live_server):
 
 
 def test_statistics_with_data(
-    authenticated_page: Page, live_server, test_user,
+    authenticated_page: Page,
+    live_server,
+    test_user,
 ):
     create_movie(test_user, "550", "Fight Club", Status.COMPLETED.value, score=9)
     create_movie(test_user, "551", "Inception", Status.COMPLETED.value, score=8)
