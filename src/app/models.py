@@ -436,27 +436,31 @@ class TV(Media):
             self.item.fetch_releases(delay=True)
 
     @property
+    def _non_special_seasons(self):
+        if not hasattr(self, "_cached_non_special"):
+            self._cached_non_special = [
+                s for s in self.seasons.all() if s.item.season_number != 0
+            ]
+        return self._cached_non_special
+
+    @property
     def progress(self):
         """Return the total episodes watched for the TV show."""
-        return sum(
-            season.progress
-            for season in self.seasons.all()
-            if season.item.season_number != 0
-        )
+        return sum(s.progress for s in self._non_special_seasons)
 
     @property
     def last_watched(self):
         """Return the latest watched episode in SxxExx format."""
         watched_episodes = [
             {
-                "season": season.item.season_number,
-                "episode": episode.item.episode_number,
-                "end_date": episode.end_date,
+                "season": s.item.season_number,
+                "episode": ep.item.episode_number,
+                "end_date": ep.end_date,
             }
-            for season in self.seasons.all()
-            if hasattr(season, "episodes") and season.item.season_number != 0
-            for episode in season.episodes.all()
-            if episode.end_date is not None
+            for s in self._non_special_seasons
+            if hasattr(s, "episodes")
+            for ep in s.episodes.all()
+            if ep.end_date is not None
         ]
 
         if not watched_episodes:
@@ -473,9 +477,9 @@ class TV(Media):
     def progressed_at(self):
         """Return the date when the last episode was watched."""
         dates = [
-            season.progressed_at
-            for season in self.seasons.all()
-            if season.progressed_at and season.item.season_number != 0
+            s.progressed_at
+            for s in self._non_special_seasons
+            if s.progressed_at
         ]
         return max(dates) if dates else None
 
@@ -483,9 +487,7 @@ class TV(Media):
     def start_date(self):
         """Return the date of the first episode watched."""
         dates = [
-            season.start_date
-            for season in self.seasons.all()
-            if season.start_date and season.item.season_number != 0
+            s.start_date for s in self._non_special_seasons if s.start_date
         ]
         return min(dates) if dates else None
 
@@ -493,9 +495,7 @@ class TV(Media):
     def end_date(self):
         """Return the date of the last episode watched."""
         dates = [
-            season.end_date
-            for season in self.seasons.all()
-            if season.end_date and season.item.season_number != 0
+            s.end_date for s in self._non_special_seasons if s.end_date
         ]
         return max(dates) if dates else None
 
@@ -758,34 +758,29 @@ class Season(Media):
         return sorted_episodes[0].item.episode_number
 
     @property
+    def _episode_dates(self):
+        if not hasattr(self, "_cached_episode_dates"):
+            self._cached_episode_dates = [
+                ep.end_date
+                for ep in self.episodes.all()
+                if ep.end_date is not None
+            ]
+        return self._cached_episode_dates
+
+    @property
     def progressed_at(self):
         """Return the date when the last episode was watched."""
-        dates = [
-            episode.end_date
-            for episode in self.episodes.all()
-            if episode.end_date is not None
-        ]
-        return max(dates) if dates else None
+        return max(self._episode_dates) if self._episode_dates else None
 
     @property
     def start_date(self):
         """Return the date of the first episode watched."""
-        dates = [
-            episode.end_date
-            for episode in self.episodes.all()
-            if episode.end_date is not None
-        ]
-        return min(dates) if dates else None
+        return min(self._episode_dates) if self._episode_dates else None
 
     @property
     def end_date(self):
         """Return the date of the last episode watched."""
-        dates = [
-            episode.end_date
-            for episode in self.episodes.all()
-            if episode.end_date is not None
-        ]
-        return max(dates) if dates else None
+        return max(self._episode_dates) if self._episode_dates else None
 
     def increase_progress(self):
         """Watch the next episode of the season."""
