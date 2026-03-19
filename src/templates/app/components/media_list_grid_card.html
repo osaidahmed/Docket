@@ -13,9 +13,9 @@
     </div>
     <a href="{{ media.item|media_url }}">
       <img alt="{{ media }}"
-           class="lazyload w-full aspect-2/3 {% if media.item.image != IMG_NONE %}object-cover{% endif %}"
-           data-src="{{ media.item.image }}"
-           src="{{ IMG_NONE }}">
+           loading="lazy"
+           class="w-full aspect-2/3 {% if media.item.image != IMG_NONE %}object-cover{% endif %}"
+           src="{{ media.item.image }}">
     </a>
 
     {% if media.next_event and not media.next_event.is_max_datetime %}

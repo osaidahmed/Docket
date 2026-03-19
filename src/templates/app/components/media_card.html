@@ -8,9 +8,9 @@
 <div class="relative">
   <a href="{{ item|media_url }}">
     <img alt="{{ title }}"
-         class="lazyload w-full {% if from_grid %}aspect-2/3{% else %}h-48{% endif %} bg-input {% if item.image != IMG_NONE %}object-cover{% endif %}"
-         data-src="{{ item.image }}"
-         src="{{ IMG_NONE }}">
+         loading="lazy"
+         class="w-full {% if from_grid %}aspect-2/3{% else %}h-48{% endif %} bg-input {% if item.image != IMG_NONE %}object-cover{% endif %}"
+         src="{{ item.image }}">
   </a>
 
   {% if media.status %}

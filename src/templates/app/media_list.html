@@ -351,9 +351,9 @@
                         data-instance-id="{{ media.id }}">
                       <td class="p-2 relative">
                         <img alt="{{ media.item }}"
-                             class="lazyload min-w-10 w-10 h-10 object-cover rounded-md"
-                             data-src="{{ media.item.image }}"
-                             src="{{ IMG_NONE }}">
+                             loading="lazy"
+                             class="min-w-10 w-10 h-10 object-cover rounded-md"
+                             src="{{ media.item.image }}">
                       </td>
                       <td class="p-2 pe-8 font-medium">
                         <a href="{{ media.item|media_url }}"

@@ -93,15 +93,21 @@ class ProviderAPIError(Exception):
     """Exception raised when a provider API fails to respond."""
 
     def __init__(self, provider, error, details=None):
-        """Initialize the exception with the provider name."""
+        """Initialize the exception with the provider name or status code."""
         self.provider = provider
-        self.status_code = error.response.status_code
+        if isinstance(error, int):
+            self.status_code = error
+            log_text = details or ""
+        else:
+            self.status_code = error.response.status_code
+            log_text = error.response.text
+
         try:
             provider = Sources(provider).label
         except ValueError:
             provider = provider.title()
 
-        logger.error("%s error: %s", provider, error.response.text)
+        logger.error("%s error: %s", provider, log_text)
 
         message = (
             f"There was an error contacting the {provider} API "
@@ -114,29 +120,9 @@ class ProviderAPIError(Exception):
 
 
 def raise_not_found_error(provider, media_id, media_type="item"):
-    """
-    Raise a 404 ProviderAPIError for when a media item is not found.
-
-    Args:
-        provider: The provider source value (e.g., Sources.COMICVINE.value)
-        media_id: The media ID that was not found
-        media_type: The type of media (e.g., "comic", "game", "book")
-    """
+    """Raise a 404 ProviderAPIError for when a media item is not found."""
     error_msg = f"{media_type.capitalize()} with ID {media_id} not found"
-    logger.error("%s: %s", provider, error_msg)
-
-    # Create a mock 404 error response
-    mock_response = type(
-        "obj",
-        (object,),
-        {
-            "status_code": 404,
-            "text": error_msg,
-        },
-    )()
-    mock_error = requests.exceptions.HTTPError(response=mock_response)
-
-    raise ProviderAPIError(provider, mock_error, error_msg)
+    raise ProviderAPIError(provider, 404, error_msg)
 
 
 MAX_RETRIES = 3
@@ -203,11 +189,10 @@ def _execute_request(method, url, params, data, headers):
 
 
 def _connection_error(provider, error):
-    mock_response = type("obj", (object,), {"status_code": 503, "text": str(error)})()
     return ProviderAPIError(
         provider,
-        requests.exceptions.HTTPError(response=mock_response),
-        "Connection failed — the provider may be temporarily unavailable",
+        503,
+        f"Connection failed — the provider may be temporarily unavailable: {error}",
     )
 
 

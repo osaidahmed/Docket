@@ -4,9 +4,9 @@
     x-data="{ trackOpen: false }">
   <td class="p-2 relative">
     <img alt="{{ media }}"
-         class="lazyload min-w-10 w-10 h-10 object-cover rounded-md parent-hover-tap:hidden"
-         data-src="{{ media.item.image }}"
-         src="{{ IMG_NONE }}">
+         loading="lazy"
+         class="min-w-10 w-10 h-10 object-cover rounded-md parent-hover-tap:hidden"
+         src="{{ media.item.image }}">
     <button class="w-10 h-10 bg-accent hover:bg-accent-hover text-white rounded-md transition-colors items-center justify-center hidden cursor-pointer parent-hover-tap:flex"
             hx-get="{% media_view_url 'track_modal' media.item %}"
             hx-vals='{"return_url": "{{ request.get_full_path|urlencode }}", "instance_id": "{{ media.id }}"}'

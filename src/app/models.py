@@ -312,7 +312,7 @@ class Media(models.Model):
 
     def __str__(self):
         """Return the title of the media."""
-        return self.item.__str__()
+        return str(self.item)
 
     def save(self, *args, **kwargs):
         """Save the media instance."""
@@ -1100,7 +1100,7 @@ class Episode(models.Model):
 
     def __str__(self):
         """Return the season and episode number."""
-        return self.item.__str__()
+        return str(self.item)
 
     def save(self, *args, **kwargs):
         """Save the episode instance."""

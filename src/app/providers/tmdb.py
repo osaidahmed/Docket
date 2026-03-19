@@ -533,10 +533,7 @@ def fetch_and_cache_seasons(media_id, season_numbers, tv_data):
                     f"Season {season_number} not found in {Sources.TMDB.label} "
                     f"with ID {media_id}"
                 )
-                not_found_response = requests.Response()
-                not_found_response.status_code = 404
-                not_found_error = type("Error", (), {"response": not_found_response})
-                raise services.ProviderAPIError(msg, error=not_found_error, details=msg)
+                raise services.ProviderAPIError(msg, 404, msg)
 
             season_data = process_season(response[season_key])
             season_data = enrich_season_with_tv_data(
@@ -890,13 +887,4 @@ def episode(media_id, season_number, episode_number):
         f"Episode {episode_number} not found in season {season_number} "
         f"for {Sources.TMDB.label} with ID {media_id}"
     )
-    # Create a new response object with 404 status
-    not_found_response = requests.Response()
-    not_found_response.status_code = 404
-    # Set the error attribute to match what ProviderAPIError expects
-    not_found_error = type("Error", (), {"response": not_found_response})
-    raise services.ProviderAPIError(
-        Sources.TMDB.value,
-        error=not_found_error,
-        details=msg,
-    )
+    raise services.ProviderAPIError(Sources.TMDB.value, 404, msg)

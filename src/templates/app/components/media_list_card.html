@@ -17,9 +17,9 @@
     <div class="shrink-0">
       <a href="{{ media.item|media_url }}">
         <img alt="{{ media }}"
-             class="lazyload w-16 h-24 object-cover rounded shadow-md bg-input"
-             data-src="{{ media.item.image }}"
-             src="{{ IMG_NONE }}">
+             loading="lazy"
+             class="w-16 h-24 object-cover rounded shadow-md bg-input"
+             src="{{ media.item.image }}">
       </a>
     </div>
 

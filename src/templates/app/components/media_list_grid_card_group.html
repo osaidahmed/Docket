@@ -30,9 +30,9 @@
       {% for sub in group.group_items %}
         <a href="{{ sub.item|media_url }}"
            class="flex items-center gap-3 p-2 rounded-md hover:bg-input transition-colors">
-          <img class="lazyload w-10 h-14 object-cover rounded"
-               data-src="{{ sub.item.image }}"
-               src="{{ IMG_NONE }}"
+          <img loading="lazy"
+               class="w-10 h-14 object-cover rounded"
+               src="{{ sub.item.image }}"
                alt="{{ sub }}">
           <div class="min-w-0 flex-1">
             <p class="text-sm font-medium text-white line-clamp-1">{{ sub }}</p>

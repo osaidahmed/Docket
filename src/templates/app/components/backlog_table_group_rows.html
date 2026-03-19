@@ -5,9 +5,9 @@
     @click="groupOpen = !groupOpen">
   <td class="p-2">
     <img alt="{{ media }}"
-         class="lazyload min-w-10 w-10 h-10 object-cover rounded-md"
-         data-src="{{ media.item.image }}"
-         src="{{ IMG_NONE }}">
+         loading="lazy"
+         class="min-w-10 w-10 h-10 object-cover rounded-md"
+         src="{{ media.item.image }}">
   </td>
   <td class="p-2 pe-8 font-medium">
     <div class="flex items-center gap-2">
@@ -104,9 +104,9 @@
       x-data="{ trackOpen: false }">
     <td class="p-2 pl-6">
       <img alt="{{ sub }}"
-           class="lazyload min-w-8 w-8 h-8 object-cover rounded-md"
-           data-src="{{ sub.item.image }}"
-           src="{{ IMG_NONE }}">
+           loading="lazy"
+           class="min-w-8 w-8 h-8 object-cover rounded-md"
+           src="{{ sub.item.image }}">
     </td>
     <td class="p-2 pe-8 font-medium">
       <a href="{{ sub.item|media_url }}"
