@@ -789,12 +789,13 @@ class Season(Media):
 
     def increase_progress(self):
         """Watch the next episode of the season."""
-        season_metadata = providers.services.get_media_metadata(
-            MediaTypes.SEASON.value,
+        tv_with_seasons = providers.services.get_media_metadata(
+            "tv_with_seasons",
             self.item.media_id,
             self.item.source,
             [self.item.season_number],
         )
+        season_metadata = tv_with_seasons[f"season/{self.item.season_number}"]
         episodes = season_metadata["episodes"]
 
         if self.progress == 0:
@@ -809,19 +810,32 @@ class Season(Media):
         now = timezone.now().replace(second=0, microsecond=0)
 
         if next_episode_number:
-            self.watch(next_episode_number, now)
+            self.watch(next_episode_number, now, tv_with_seasons)
         else:
             logger.info("No more episodes to watch.")
 
-    def watch(self, episode_number, end_date):
+    def watch(self, episode_number, end_date, tv_metadata=None):
         """Create or add a repeat to an episode of the season."""
-        item = self.get_episode_item(episode_number)
+        if tv_metadata is None:
+            tv_metadata = providers.services.get_media_metadata(
+                "tv_with_seasons",
+                self.item.media_id,
+                self.item.source,
+                [self.item.season_number],
+            )
 
-        episode = Episode.objects.create(
+        season_key = f"season/{self.item.season_number}"
+        season_data = tv_metadata.get(season_key, tv_metadata)
+        item = self.get_episode_item(episode_number, season_data)
+
+        episode = Episode(
             related_season=self,
             item=item,
             end_date=end_date,
         )
+        episode._tv_metadata = tv_metadata
+        episode.save()
+
         logger.info(
             "%s created successfully.",
             episode,
@@ -1093,12 +1107,14 @@ class Episode(models.Model):
         super().save(*args, **kwargs)
 
         season_number = self.item.season_number
-        tv_with_seasons_metadata = providers.services.get_media_metadata(
-            "tv_with_seasons",
-            self.item.media_id,
-            self.item.source,
-            [season_number],
-        )
+        tv_with_seasons_metadata = getattr(self, "_tv_metadata", None)
+        if tv_with_seasons_metadata is None:
+            tv_with_seasons_metadata = providers.services.get_media_metadata(
+                "tv_with_seasons",
+                self.item.media_id,
+                self.item.source,
+                [season_number],
+            )
         season_metadata = tv_with_seasons_metadata[f"season/{season_number}"]
         max_progress = season_metadata["max_progress"]
 

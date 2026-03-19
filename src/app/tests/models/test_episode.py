@@ -44,8 +44,15 @@ class EpisodeModel(TestCase):
             notes="",
         )
 
-    def test_episode_save(self):
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_episode_save(self, mock_get_metadata):
         """Test the custom save method of the Episode model."""
+        mock_get_metadata.return_value = {
+            "season/1": {"max_progress": 24, "episodes": []},
+            "related": {"seasons": [{"season_number": 1}]},
+            "next_episode_season": None,
+        }
+
         for i in range(1, 25):
             item_episode = Item.objects.create(
                 media_id="1668",
@@ -279,3 +286,80 @@ class EpisodeStatusTests(TestCase):
         self.tv.refresh_from_db()
         # Ongoing show should NOT be marked as completed
         self.assertNotEqual(self.tv.status, Status.COMPLETED.value)
+
+
+class EpisodeMetadataPassthroughTests(TestCase):
+    """Test that Episode.save() uses _tv_metadata when provided."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="meta_test", password="12345"
+        )
+        cls.tv_item = Item.objects.create(
+            media_id="999",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.TV.value,
+            title="Meta Show",
+            image="http://example.com/image.jpg",
+        )
+        cls.tv = TV.objects.create(
+            item=cls.tv_item, user=cls.user, status=Status.PLANNING.value
+        )
+        cls.season_item = Item.objects.create(
+            media_id="999",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            title="Meta Show",
+            image="http://example.com/image.jpg",
+            season_number=1,
+        )
+        cls.season = Season.objects.create(
+            item=cls.season_item,
+            user=cls.user,
+            related_tv=cls.tv,
+            status=Status.PLANNING.value,
+        )
+        cls.episode_item = Item.objects.create(
+            media_id="999",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.EPISODE.value,
+            title="Meta Episode",
+            image="http://example.com/image.jpg",
+            season_number=1,
+            episode_number=1,
+        )
+
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_tv_metadata_skips_api_call(self, mock_get_metadata):
+        """Test that pre-set _tv_metadata skips the API call in save()."""
+        pre_fetched = {
+            "season/1": {"max_progress": 5, "episodes": []},
+            "related": {"seasons": [{"season_number": 1}]},
+        }
+
+        episode = Episode(
+            item=self.episode_item,
+            related_season=self.season,
+            end_date=timezone.now(),
+        )
+        episode._tv_metadata = pre_fetched
+        episode.save()
+
+        mock_get_metadata.assert_not_called()
+
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_no_tv_metadata_calls_api(self, mock_get_metadata):
+        """Test that without _tv_metadata, save() fetches from API."""
+        mock_get_metadata.return_value = {
+            "season/1": {"max_progress": 5, "episodes": []},
+            "related": {"seasons": [{"season_number": 1}]},
+        }
+
+        Episode.objects.create(
+            item=self.episode_item,
+            related_season=self.season,
+            end_date=timezone.now(),
+        )
+
+        mock_get_metadata.assert_called_once()
