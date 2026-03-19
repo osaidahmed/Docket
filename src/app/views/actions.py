@@ -3,7 +3,6 @@ import logging
 from decimal import Decimal, InvalidOperation
 
 from django.apps import apps
-from django.db.models import Max
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import timezone
@@ -200,6 +199,7 @@ def quick_complete(request):
     media.status = Status.COMPLETED.value
     media.save()
 
+    backlog.invalidate_archive_count(request.user)
     media = BasicMedia.objects.get_media_prefetch(request.user, media_type, instance_id)
 
     if source_context == "medialist":
@@ -351,6 +351,8 @@ def backlog_save(request):
         return _render_backlog_form_errors(request, media, source_context, form.errors)
 
     form.save()
+    if media.status != old_status:
+        backlog.invalidate_archive_count(request.user)
     is_pinned_submitted = "is_pinned" in request.POST
     _update_pin_order(request.user, media, old_is_pinned, is_pinned_submitted)
     logger.info("%s updated from backlog.", form.instance)
@@ -520,6 +522,9 @@ def bulk_action(request):
     if error:
         return error
 
+    if action in ("status", "delete"):
+        backlog.invalidate_archive_count(request.user)
+
     logger.info("Bulk %s on %d %s items.", action, len(items), media_type)
     response = HttpResponse("")
     response["HX-Refresh"] = "true"
@@ -528,15 +533,27 @@ def bulk_action(request):
 
 def _get_max_pin_order(user):
     """Get the highest pin_order across all media types for a user."""
-    values = []
-    for media_type in user.get_active_media_types():
-        model = apps.get_model(app_label="app", model_name=media_type)
-        val = model.objects.filter(user=user, pin_order__isnull=False).aggregate(
-            Max("pin_order"),
-        )["pin_order__max"]
-        if val is not None:
-            values.append(val)
-    return max(values) if values else None
+    from django.db import connection  # noqa: PLC0415
+
+    media_types = user.get_active_media_types()
+    if not media_types:
+        return None
+
+    parts = []
+    params = []
+    for mt in media_types:
+        model = apps.get_model(app_label="app", model_name=mt)
+        table = model._meta.db_table
+        parts.append(
+            f"SELECT MAX(pin_order) AS max_pin FROM {table}"
+            " WHERE user_id = %s AND pin_order IS NOT NULL",
+        )
+        params.append(user.id)
+
+    query = f"SELECT MAX(max_pin) FROM ({' UNION ALL '.join(parts)}) sub"
+    with connection.cursor() as cursor:
+        cursor.execute(query, params)
+        return cursor.fetchone()[0]
 
 
 @require_POST

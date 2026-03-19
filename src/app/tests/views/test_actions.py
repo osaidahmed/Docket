@@ -2,6 +2,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
@@ -13,6 +14,7 @@ from app.models import (
     Sources,
     Status,
 )
+from app.services import backlog
 
 
 class BacklogSaveTests(TestCase):
@@ -604,3 +606,143 @@ class BulkActionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+
+@patch("app.models.providers.services.get_media_metadata")
+@patch("app.models.Item.fetch_releases")
+class ArchiveCountCacheTests(TestCase):
+    """Test count_archive caching and invalidation."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "cache_test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        cache.clear()
+
+    def _make_movie(self, media_id, status):
+        item = Item.objects.create(
+            media_id=media_id,
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title=f"Movie {media_id}",
+            image="http://example.com/image.jpg",
+        )
+        return Movie.objects.create(item=item, user=self.user, status=status)
+
+    def test_count_archive_returns_completed_count(self, _mock_rel, mock_meta):
+        """Test count_archive counts only completed items."""
+        mock_meta.return_value = {"max_progress": 1}
+        self._make_movie("1", Status.COMPLETED.value)
+        self._make_movie("2", Status.COMPLETED.value)
+        self._make_movie("3", Status.IN_PROGRESS.value)
+
+        count = backlog.count_archive(self.user)
+
+        self.assertEqual(count, 2)
+
+    def test_count_archive_caches_result(self, _mock_rel, mock_meta):
+        """Test second call returns cached value without requerying."""
+        mock_meta.return_value = {"max_progress": 1}
+        self._make_movie("10", Status.COMPLETED.value)
+
+        first = backlog.count_archive(self.user)
+        self._make_movie("11", Status.COMPLETED.value)
+        second = backlog.count_archive(self.user)
+
+        self.assertEqual(first, 1)
+        self.assertEqual(second, 1)
+
+    def test_invalidate_clears_cache(self, _mock_rel, mock_meta):
+        """Test invalidate_archive_count forces recomputation."""
+        mock_meta.return_value = {"max_progress": 1}
+        self._make_movie("20", Status.COMPLETED.value)
+
+        first = backlog.count_archive(self.user)
+        self._make_movie("21", Status.COMPLETED.value)
+        backlog.invalidate_archive_count(self.user)
+        second = backlog.count_archive(self.user)
+
+        self.assertEqual(first, 1)
+        self.assertEqual(second, 2)
+
+    def test_count_archive_empty(self, _mock_rel, _mock_meta):
+        """Test count_archive returns 0 when no completed items."""
+        self._make_movie("30", Status.PLANNING.value)
+
+        count = backlog.count_archive(self.user)
+
+        self.assertEqual(count, 0)
+
+
+class MaxPinOrderTests(TestCase):
+    """Test _get_max_pin_order with raw SQL union."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "pin_test", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def _make_movie(self, media_id, pin_order=None):
+        item = Item.objects.create(
+            media_id=media_id,
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title=f"Pin Movie {media_id}",
+            image="http://example.com/image.jpg",
+        )
+        return Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.PLANNING.value,
+            pin_order=pin_order,
+        )
+
+    def _make_anime(self, media_id, pin_order=None):
+        item = Item.objects.create(
+            media_id=media_id,
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title=f"Pin Anime {media_id}",
+            image="http://example.com/image.jpg",
+        )
+        return Anime.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.PLANNING.value,
+            pin_order=pin_order,
+        )
+
+    def test_returns_none_when_no_pinned_items(self):
+        """Test returns None when nothing is pinned."""
+        from app.views.actions import _get_max_pin_order
+
+        self._make_movie("100")
+
+        result = _get_max_pin_order(self.user)
+
+        self.assertIsNone(result)
+
+    def test_returns_max_from_single_type(self):
+        """Test returns max pin_order from a single media type."""
+        from app.views.actions import _get_max_pin_order
+
+        self._make_movie("101", pin_order=0)
+        self._make_movie("102", pin_order=3)
+        self._make_movie("103", pin_order=1)
+
+        result = _get_max_pin_order(self.user)
+
+        self.assertEqual(result, 3)
+
+    def test_returns_max_across_types(self):
+        """Test returns max pin_order across different media types."""
+        from app.views.actions import _get_max_pin_order
+
+        self._make_movie("104", pin_order=2)
+        self._make_anime("105", pin_order=5)
+
+        result = _get_max_pin_order(self.user)
+
+        self.assertEqual(result, 5)

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from django.apps import apps
+from django.core.cache import cache
 from django.db.models import F, Window
 from django.db.models.functions import RowNumber
 from django.utils import timezone
@@ -339,8 +340,16 @@ def _append_nya_sorted_groups(groups, nya_items, backlog_statuses):
         )
 
 
+ARCHIVE_COUNT_TIMEOUT = 60
+
+
 def count_archive(user):
     """Count archive items using the same dedup as get_backlog."""
+    cache_key = f"archive_count_{user.id}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     count = 0
     for media_type in user.get_active_media_types():
         model = apps.get_model(app_label="app", model_name=media_type)
@@ -357,7 +366,14 @@ def count_archive(user):
             .values_list("status", flat=True)
         )
         count += sum(1 for s in statuses if s == Status.COMPLETED.value)
+
+    cache.set(cache_key, count, timeout=ARCHIVE_COUNT_TIMEOUT)
     return count
+
+
+def invalidate_archive_count(user):
+    """Clear cached archive count so it's recomputed on next access."""
+    cache.delete(f"archive_count_{user.id}")
 
 
 def _get_media_types_to_process(user, media_type_filter):
