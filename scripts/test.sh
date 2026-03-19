@@ -156,7 +156,7 @@ acquire_test_lock "$0 $*"
 
 cd "$ROOT_DIR"
 
-pytest_cmd="python -m pytest"
+pytest_cmd="$ROOT_DIR/.venv/bin/python -m pytest"
 
 if [ "$use_coverage" = true ]; then
   echo "running tests with coverage..."

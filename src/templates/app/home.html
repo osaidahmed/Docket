@@ -13,7 +13,12 @@
 {% block content %}
   {% if archive_open %}
     {# djlint:off #}
-    <div id="archive-page-content" x-data="{ sort: '{{ archive_sort }}', sortDir: '{{ archive_sort_dir }}', search: '{{ archive_search }}', defaultSortDirs: {score: 'desc', title: 'asc', start_date: 'asc', end_date: 'desc'}, sortLabels: { {% for value, label in archive_sort_choices %}'{{ value }}': '{{ label }}'{% if not forloop.last %}, {% endif %}{% endfor %} } }">
+    <div id="archive-page-content"
+         x-data="archiveSort"
+         data-sort="{{ archive_sort }}"
+         data-sort-dir="{{ archive_sort_dir }}"
+         data-search="{{ archive_search }}"
+         data-sort-labels='{ {% for value, label in archive_sort_choices %}"{{ value }}": "{{ label }}"{% if not forloop.last %}, {% endif %}{% endfor %} }'>
     {# djlint:on #}
 
       <form id="archive-filter-form" class="hidden">

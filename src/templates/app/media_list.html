@@ -9,19 +9,18 @@
 {% block content %}
   <h1 class="text-3xl font-bold mb-6">{{ media_type|media_type_readable_plural }}</h1>
 
-  <div x-data="{ sort: '{{ current_sort }}', sortDir: '{{ current_sort_dir }}', status: '{{ current_status }}', layout: '{{ current_layout }}', search: '{{ request.GET.search|default:'' }}', selecting: false, selected: [], lastSelected: null, defaultSortDirs: {score: 'desc', title: 'asc', progress: 'desc', status: 'asc', start_date: 'asc', end_date: 'desc'}, toggleItem(id, event) { if (event && event.shiftKey && this.lastSelected) { const all = [...document.querySelectorAll('[data-bulk-id]')].map(el => el.dataset.bulkId); const from = all.indexOf(this.lastSelected); const to = all.indexOf(id); if (from !== -1 && to !== -1) { const range = all.slice(Math.min(from, to), Math.max(from, to) + 1); range.forEach(rid => { if (!this.selected.includes(rid)) this.selected.push(rid); }); this.selected = [...this.selected]; this.lastSelected = id; return; } } this.selected = this.selected.includes(id) ? this.selected.filter(sid => sid !== id) : [...this.selected, id]; this.lastSelected = id; }, statusLabels: {
-    {% for value, label in status_choices %}
-      '{{ value }}': '{{ label }}'
-      {% if not forloop.last %},{% endif %}
-
-    {% endfor %}
-    }, sortLabels: {
-    {% for value, label in sort_choices %}
-      '{{ value }}': '{{ label }}'
-      {% if not forloop.last %},{% endif %}
-
-    {% endfor %}
-    }, activeTab: '{{ active_tab }}' }" @keydown.escape.window="if (selecting) { selecting = false; selected = []; lastSelected = null; }">
+  {# djlint:off #}
+  <div x-data="mediaList"
+       data-sort="{{ current_sort }}"
+       data-sort-dir="{{ current_sort_dir }}"
+       data-status="{{ current_status }}"
+       data-layout="{{ current_layout }}"
+       data-search="{{ request.GET.search|default:'' }}"
+       data-active-tab="{{ active_tab }}"
+       data-status-labels='{ {% for value, label in status_choices %}"{{ value }}": "{{ label }}"{% if not forloop.last %}, {% endif %}{% endfor %} }'
+       data-sort-labels='{ {% for value, label in sort_choices %}"{{ value }}": "{{ label }}"{% if not forloop.last %}, {% endif %}{% endfor %} }'
+       @keydown.escape.window="if (selecting) { selecting = false; selected = []; lastSelected = null; }">
+  {# djlint:on #}
 
     {% if supports_recommendations %}
       <div class="flex gap-2 mb-4">

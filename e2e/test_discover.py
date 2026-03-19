@@ -45,7 +45,7 @@ def test_discover_card_has_image(
     live_server,
 ):
     authenticated_page.goto(f"{live_server.url}/explore/anime?view=discover")
-    card_img = authenticated_page.locator("img[data-src]").first
+    card_img = authenticated_page.locator("img[loading='lazy']").first
     expect(card_img).to_be_visible()
 
 

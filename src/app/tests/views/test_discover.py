@@ -85,7 +85,14 @@ class DiscoverViewTests(TestCase):
         url = reverse("explore_type", kwargs={"media_type": "game"})
         self.assertEqual(self.client.get(url + "?view=discover").status_code, 200)
 
-    def test_unsupported_type_falls_back_to_browse(self):
+    @patch("app.providers.services.browse")
+    def test_unsupported_type_falls_back_to_browse(self, mock_browse):
+        mock_browse.return_value = {
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
+        }
         url = reverse("explore_type", kwargs={"media_type": "book"})
         response = self.client.get(url + "?view=discover")
         self.assertEqual(response.status_code, 200)
