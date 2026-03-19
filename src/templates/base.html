@@ -279,7 +279,8 @@
                 {# djlint:off #}
                 <div class="relative w-full max-w-2xl"
                      x-data="searchBar"
-                     data-selected-type='{"display": "{% if search_type == "all" %}All{% else %}{{ search_type|media_type_readable_plural }}{% endif %}", "value": "{{ search_type }}"}'
+                     data-selected-display="{% if search_type == 'all' %}All{% else %}{{ search_type|media_type_readable_plural }}{% endif %}"
+                     data-selected-value="{{ search_type }}"
                      data-media-types='{{ search_types }}'
                      data-url-local="{% url 'search_suggest_local' %}"
                      data-url-api="{% url 'search_suggest_api' %}"

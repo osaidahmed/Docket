@@ -746,3 +746,50 @@ class MaxPinOrderTests(TestCase):
         result = _get_max_pin_order(self.user)
 
         self.assertEqual(result, 5)
+
+
+class InvalidMediaTypeTests(TestCase):
+    """Test that invalid media types return 404 instead of crashing."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "invalid_mt", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def test_bulk_action_invalid_type_returns_404(self):
+        response = self.client.post(
+            reverse("bulk_action"),
+            {
+                "media_type": "historicalmovie",
+                "instance_ids": "1",
+                "action": "status",
+                "value": "Completed",
+            },
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_bulk_action_nonexistent_type_returns_404(self):
+        response = self.client.post(
+            reverse("bulk_action"),
+            {
+                "media_type": "nonexistent",
+                "instance_ids": "1",
+                "action": "status",
+                "value": "Completed",
+            },
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_bulk_action_item_model_returns_404(self):
+        response = self.client.post(
+            reverse("bulk_action"),
+            {
+                "media_type": "item",
+                "instance_ids": "1",
+                "action": "delete",
+            },
+        )
+        self.assertEqual(response.status_code, 404)

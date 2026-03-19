@@ -6,7 +6,7 @@ from django.core.validators import (
     MaxValueValidator,
     MinValueValidator,
 )
-from django.db import models
+from django.db import models, transaction
 from django.db.models import (
     CheckConstraint,
     IntegerField,
@@ -329,11 +329,14 @@ class Media(models.Model):
         if self.progress < 0:
             self.progress = 0
         elif self.status == Status.IN_PROGRESS.value:
-            max_progress = providers.services.get_media_metadata(
-                self.item.media_type,
-                self.item.media_id,
-                self.item.source,
-            )["max_progress"]
+            metadata = getattr(self, "_metadata", None)
+            if metadata is None:
+                metadata = providers.services.get_media_metadata(
+                    self.item.media_type,
+                    self.item.media_id,
+                    self.item.source,
+                )
+            max_progress = metadata["max_progress"]
 
             if max_progress:
                 self.progress = min(self.progress, max_progress)
@@ -347,11 +350,13 @@ class Media(models.Model):
     def process_status(self):
         """Update fields depending on the status of the media."""
         if self.status == Status.COMPLETED.value:
-            metadata = providers.services.get_media_metadata(
-                self.item.media_type,
-                self.item.media_id,
-                self.item.source,
-            )
+            metadata = getattr(self, "_metadata", None)
+            if metadata is None:
+                metadata = providers.services.get_media_metadata(
+                    self.item.media_type,
+                    self.item.media_id,
+                    self.item.source,
+                )
             self.progress = metadata.get("max_progress") or self.progress
         self.item.fetch_releases(delay=True)
 
@@ -570,7 +575,8 @@ class TV(Media):
             self.item.source,
             season_numbers,
         )
-        self._complete_seasons(season_numbers, tv_with_seasons_metadata)
+        with transaction.atomic():
+            self._complete_seasons(season_numbers, tv_with_seasons_metadata)
 
         return next_episode_season is not None
 
@@ -674,23 +680,25 @@ class Season(Media):
 
     def _on_completed(self):
         """Handle season completion: backfill, create episodes, auto-advance."""
-        self._backfill_prior_seasons()
-
         season_metadata = providers.services.get_media_metadata(
             MediaTypes.SEASON.value,
             self.item.media_id,
             self.item.source,
             [self.item.season_number],
         )
-        episodes_to_create = self.get_remaining_eps(season_metadata)
-        if episodes_to_create:
-            bulk_create_with_history(episodes_to_create, Episode)
 
-        if self.related_tv.status not in (
-            Status.COMPLETED.value,
-            Status.DROPPED.value,
-        ):
-            self.related_tv._start_next_available_season()
+        with transaction.atomic():
+            self._backfill_prior_seasons()
+
+            episodes_to_create = self.get_remaining_eps(season_metadata)
+            if episodes_to_create:
+                bulk_create_with_history(episodes_to_create, Episode)
+
+            if self.related_tv.status not in (
+                Status.COMPLETED.value,
+                Status.DROPPED.value,
+            ):
+                self.related_tv._start_next_available_season()
 
     def _on_in_progress(self):
         """Handle season starting: backfill and update TV status."""
@@ -1036,34 +1044,35 @@ class Season(Media):
         season_number = self.item.season_number
         seasons_to_create = []
 
-        for season_data in tv_metadata["related"]["seasons"]:
-            sn = season_data["season_number"]
-            if sn <= season_number or sn == 0:
-                continue
+        with transaction.atomic():
+            for season_data in tv_metadata["related"]["seasons"]:
+                sn = season_data["season_number"]
+                if sn <= season_number or sn == 0:
+                    continue
 
-            item, _ = Item.objects.get_or_create(
-                media_id=self.item.media_id,
-                source=self.item.source,
-                media_type=MediaTypes.SEASON.value,
-                season_number=sn,
-                defaults={
-                    "title": self.item.title,
-                    "image": season_data["image"],
-                },
-            )
-
-            if not Season.objects.filter(item=item, user=self.user).exists():
-                seasons_to_create.append(
-                    Season(
-                        item=item,
-                        user=self.user,
-                        related_tv=self.related_tv,
-                        status=Status.PLANNING.value,
-                    )
+                item, _ = Item.objects.get_or_create(
+                    media_id=self.item.media_id,
+                    source=self.item.source,
+                    media_type=MediaTypes.SEASON.value,
+                    season_number=sn,
+                    defaults={
+                        "title": self.item.title,
+                        "image": season_data["image"],
+                    },
                 )
 
-        if seasons_to_create:
-            bulk_create_with_history(seasons_to_create, Season)
+                if not Season.objects.filter(item=item, user=self.user).exists():
+                    seasons_to_create.append(
+                        Season(
+                            item=item,
+                            user=self.user,
+                            related_tv=self.related_tv,
+                            status=Status.PLANNING.value,
+                        )
+                    )
+
+            if seasons_to_create:
+                bulk_create_with_history(seasons_to_create, Season)
 
 
 class Episode(models.Model):
@@ -1173,11 +1182,13 @@ class Anime(Media):
     def process_status(self):
         """Prevent completion of ongoing/upcoming anime."""
         if self.status == Status.COMPLETED.value:
-            metadata = providers.services.get_media_metadata(
-                self.item.media_type,
-                self.item.media_id,
-                self.item.source,
-            )
+            metadata = getattr(self, "_metadata", None)
+            if metadata is None:
+                metadata = providers.services.get_media_metadata(
+                    self.item.media_type,
+                    self.item.media_id,
+                    self.item.source,
+                )
             is_ongoing = metadata.get("is_ongoing")
             if is_ongoing is None:
                 detail_status = metadata.get("details", {}).get("status", "")

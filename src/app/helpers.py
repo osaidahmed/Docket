@@ -10,6 +10,18 @@ from django.utils.http import url_has_allowed_host_and_scheme
 
 from app.models import BasicMedia, MediaTypes, Status
 
+VALID_MEDIA_TYPES = frozenset(MediaTypes.values)
+
+
+def get_media_model(media_type):
+    """Return the Django model for a validated media type, or raise Http404."""
+    from django.http import Http404  # noqa: PLC0415
+
+    if media_type not in VALID_MEDIA_TYPES:
+        msg = f"Invalid media type: {media_type}"
+        raise Http404(msg)
+    return apps.get_model(app_label="app", model_name=media_type)
+
 
 def minutes_to_hhmm(total_minutes):
     """Convert total minutes to HH:MM format."""

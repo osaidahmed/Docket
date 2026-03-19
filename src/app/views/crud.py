@@ -1,6 +1,5 @@
 import logging
 
-from django.apps import apps
 from django.contrib import messages
 from django.db import IntegrityError
 from django.http import HttpResponseBadRequest
@@ -165,7 +164,7 @@ def media_save(request):
                 "synopsis": metadata.get("synopsis", ""),
             },
         )
-        model = apps.get_model(app_label="app", model_name=media_type)
+        model = helpers.get_media_model(media_type)
         instance = model(item=item, user=request.user)
 
     form_class = get_form_class(media_type)
@@ -190,7 +189,7 @@ def media_delete(request):
     """Delete media data from the database."""
     instance_id = request.POST["instance_id"]
     media_type = request.POST["media_type"]
-    model = apps.get_model(app_label="app", model_name=media_type)
+    model = helpers.get_media_model(media_type)
 
     try:
         media = BasicMedia.objects.get_media(

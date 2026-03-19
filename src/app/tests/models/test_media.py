@@ -159,3 +159,87 @@ class AnimeOngoingCompletionTests(TestCase):
         self.anime.refresh_from_db()
         self.assertEqual(self.anime.status, Status.IN_PROGRESS.value)
         self.assertTrue(self.anime.caught_up)
+
+
+class MetadataPassthroughTests(TestCase):
+    """Test that _metadata attribute skips API calls in save hooks."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="meta_pass", password="12345"
+        )
+        cls.item = Item.objects.create(
+            media_id="900",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Test Anime",
+            image="http://example.com/image.jpg",
+        )
+
+    def _make_anime(self, status=Status.IN_PROGRESS.value, progress=0):
+        return Anime.objects.create(
+            item=self.item, user=self.user, status=status, progress=progress,
+        )
+
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_process_progress_uses_metadata_when_set(self, mock_meta):
+        """Pre-set _metadata prevents API call during progress change."""
+        mock_meta.return_value = {"max_progress": 12}
+        anime = self._make_anime(progress=5)
+        mock_meta.reset_mock()
+
+        anime._metadata = {"max_progress": 12}
+        anime.progress = 6
+        anime.save()
+
+        mock_meta.assert_not_called()
+        anime.refresh_from_db()
+        self.assertEqual(anime.progress, 6)
+
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_process_progress_falls_back_to_api(self, mock_meta):
+        """Without _metadata, API is called on progress change."""
+        mock_meta.return_value = {"max_progress": 12}
+        anime = self._make_anime(progress=5)
+        anime.progress = 6
+        anime.save()
+
+        mock_meta.assert_called()
+
+    @patch("app.models.Item.fetch_releases")
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_process_status_uses_metadata_when_set(self, mock_meta, _rel):
+        """Pre-set _metadata prevents API call on status completion."""
+        mock_meta.return_value = {"max_progress": 12}
+        anime = self._make_anime(progress=5)
+        mock_meta.reset_mock()
+
+        anime._metadata = {"max_progress": 12, "is_ongoing": False}
+        anime.status = Status.COMPLETED.value
+        anime.save()
+
+        mock_meta.assert_not_called()
+        anime.refresh_from_db()
+        self.assertEqual(anime.progress, 12)
+
+    @patch("app.models.Item.fetch_releases")
+    @patch("app.models.providers.services.get_media_metadata")
+    def test_process_status_falls_back_to_api(self, mock_meta, _rel):
+        """Without _metadata, API is called on status completion."""
+        mock_meta.return_value = {"max_progress": 12, "is_ongoing": False}
+        anime = self._make_anime(progress=5)
+        anime.status = Status.COMPLETED.value
+        anime.save()
+
+        mock_meta.assert_called()
+
+    @patch("app.models.Item.fetch_releases")
+    def test_process_status_non_completed_skips_metadata(self, _rel):
+        """Status change to non-COMPLETED doesn't need metadata at all."""
+        anime = self._make_anime()
+        anime.status = Status.PAUSED.value
+        anime.save()
+
+        anime.refresh_from_db()
+        self.assertEqual(anime.status, Status.PAUSED.value)

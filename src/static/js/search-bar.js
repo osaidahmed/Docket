@@ -11,7 +11,10 @@ document.addEventListener("alpine:init", () => {
 
     init() {
       const el = this.$el;
-      this.selectedType = JSON.parse(el.dataset.selectedType);
+      this.selectedType = {
+        display: el.dataset.selectedDisplay,
+        value: el.dataset.selectedValue,
+      };
       this.mediaTypes = JSON.parse(el.dataset.mediaTypes);
       this._urlLocal = el.dataset.urlLocal;
       this._urlApi = el.dataset.urlApi;

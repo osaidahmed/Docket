@@ -2,7 +2,7 @@ import json
 import logging
 from decimal import Decimal, InvalidOperation
 
-from django.apps import apps
+from django.db import transaction
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import timezone
@@ -10,6 +10,7 @@ from django.views.decorators.http import require_POST
 from simple_history.utils import bulk_update_with_history
 
 from app.forms import get_form_class
+from app.helpers import get_media_model
 from app.mixins import disable_fetch_releases
 from app.models import BasicMedia, Item, Status
 from app.providers import services
@@ -75,7 +76,7 @@ def _create_media_from_search(request, status, *, caught_up=False):
         },
     )
 
-    model = apps.get_model(app_label="app", model_name=media_type)
+    model = get_media_model(media_type)
     instance = model.objects.create(
         item=item,
         user=request.user,
@@ -134,7 +135,7 @@ def quick_rewatch(request):
         kwargs["season_number"] = season_number
     item = Item.objects.get(**kwargs)
 
-    model = apps.get_model(app_label="app", model_name=media_type)
+    model = get_media_model(media_type)
     instance = model.objects.create(
         item=item, user=request.user, status=Status.PLANNING.value, is_rewatch=True
     )
@@ -316,6 +317,7 @@ def quick_catch_up(request):
         if metadata["max_progress"]:
             media.progress = metadata["max_progress"]
         media.caught_up = True
+        media._metadata = metadata
     media.save()
 
     media = BasicMedia.objects.get_media_prefetch(request.user, media_type, instance_id)
@@ -468,10 +470,17 @@ def _bulk_status(items, value):
     if value not in dict(Status.choices):
         return HttpResponseBadRequest("Invalid status.")
     now = timezone.now().replace(second=0, microsecond=0)
-    with disable_fetch_releases():
+    with transaction.atomic(), disable_fetch_releases():
         for item in items:
             item.status = value
-            if value == Status.IN_PROGRESS.value and not item.start_date:
+            if (
+                value == Status.IN_PROGRESS.value
+                and not item.start_date
+                and hasattr(type(item), "start_date")
+                and not isinstance(
+                    getattr(type(item), "start_date"), property
+                )
+            ):
                 item.start_date = now
             item.save()
     return None
@@ -505,7 +514,7 @@ def bulk_action(request):
     if not instance_ids or action not in _BULK_ACTIONS:
         return HttpResponseBadRequest("Invalid request.")
 
-    model = apps.get_model(app_label="app", model_name=media_type)
+    model = get_media_model(media_type)
     items = list(model.objects.filter(id__in=instance_ids, user=request.user))
 
     if not items:
@@ -542,7 +551,7 @@ def _get_max_pin_order(user):
     parts = []
     params = []
     for mt in media_types:
-        model = apps.get_model(app_label="app", model_name=mt)
+        model = get_media_model(mt)
         table = model._meta.db_table
         parts.append(
             f"SELECT MAX(pin_order) AS max_pin FROM {table}"
@@ -583,7 +592,7 @@ def save_pin_order(request):
     ordered_ids = json.loads(request.body)
 
     for i, entry in enumerate(ordered_ids):
-        model = apps.get_model(app_label="app", model_name=entry["media_type"])
+        model = get_media_model(entry["media_type"])
         model.objects.filter(id=entry["id"], user=request.user).update(pin_order=i)
 
     return HttpResponse(status=204)
