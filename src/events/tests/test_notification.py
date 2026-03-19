@@ -424,8 +424,11 @@ class TrackingTests(TestCase):
 
     def test_get_user_releases_disabled_media_type(self):
         """Test that disabled media types are excluded from user releases."""
-        self.user1.anime_enabled = False
-        self.user1.save()
+        pref = self.user1.get_or_create_media_pref("anime")
+        pref.enabled = False
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user1, "_pref_cache"):
+            del self.user1._pref_cache
         self.user1.notification_excluded_items.clear()
 
         target_events = self._target_events(self.anime_event, self.manga_event)

@@ -221,8 +221,11 @@ class SearchSuggestLocalViewTests(TestCase):
 
     def test_disabled_media_type_excluded(self):
         """Disabled media types are excluded from local suggestions."""
-        self.user.anime_enabled = False
-        self.user.save()
+        pref = self.user.get_or_create_media_pref("anime")
+        pref.enabled = False
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
 
         response = self.client.get(
             reverse("search_suggest_local") + "?q=Naruto",
@@ -381,8 +384,11 @@ class SearchSuggestApiViewTests(TestCase):
     @patch("app.providers.services.search_suggest_api")
     def test_disabled_types_not_searched(self, mock_suggest):
         """Disabled media types are excluded from enabled_types."""
-        self.user.anime_enabled = False
-        self.user.save()
+        pref = self.user.get_or_create_media_pref("anime")
+        pref.enabled = False
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
         mock_suggest.return_value = []
 
         self.client.get(

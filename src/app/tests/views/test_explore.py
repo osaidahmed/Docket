@@ -35,8 +35,11 @@ class ExploreViewTests(TestCase):
 
     def test_explore_shows_enabled_types_only(self):
         """Test that only enabled explorable types are shown."""
-        self.user.game_enabled = False
-        self.user.save()
+        pref = self.user.get_or_create_media_pref("game")
+        pref.enabled = False
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
 
         response = self.client.get(reverse("explore"))
 

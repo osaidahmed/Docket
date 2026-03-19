@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 
 def _get_filtered_media(user, media_type, search_query=None):
     """Return the full filtered media list (unpaginated, with max_progress)."""
-    sort_filter = getattr(user, f"{media_type}_sort")
-    status_filter = getattr(user, f"{media_type}_status") or MediaStatusChoices.ALL
+    pref = user.get_or_create_media_pref(media_type)
+    sort_filter = pref.sort
+    status_filter = pref.status_filter or MediaStatusChoices.ALL
 
     queryset = BasicMedia.objects.get_media_list(
         user=user,
@@ -115,7 +116,8 @@ def print_media(request, media_type):
     media_list = _get_filtered_media(request.user, media_type, search_query)
 
     status_filter = (
-        getattr(request.user, f"{media_type}_status") or MediaStatusChoices.ALL
+        request.user.get_or_create_media_pref(media_type).status_filter
+        or MediaStatusChoices.ALL
     )
 
     context = {

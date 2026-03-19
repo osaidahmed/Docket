@@ -223,7 +223,9 @@ def _update_preferences_from_post(user, post_data, all_types):
 
     media_types_checked = post_data.getlist("media_types_checkboxes")
     for media_type in all_types:
-        setattr(user, f"{media_type}_enabled", media_type in media_types_checked)
+        pref = user.get_or_create_media_pref(media_type)
+        pref.enabled = media_type in media_types_checked
+        pref.save(update_fields=["enabled"])
 
     order_json = post_data.get("media_type_order", "")
     if order_json:
@@ -268,11 +270,14 @@ def preferences(request):
             ordered.append(mt)
             seen.add(mt)
 
+    enabled_types = set(request.user.get_enabled_media_types())
+
     return render(
         request,
         "users/preferences.html",
         {
             "media_types": ordered,
+            "enabled_types": enabled_types,
             "quick_watch_date_choices": QuickWatchDateChoices.choices,
             "home_truncation_choices": HomeTruncationChoices.choices,
             "date_format_choices": DateFormatChoices.choices,

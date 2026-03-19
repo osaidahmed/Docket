@@ -141,6 +141,56 @@ class TimeFormatChoices(models.TextChoices):
     HOUR_12 = "g:i A", "2:30 PM (12-hour)"
 
 
+PER_TYPE_FIELDS = {"enabled", "layout", "sort", "status"}
+
+PER_TYPE_LAYOUT_DEFAULTS = {
+    "anime": "table",
+    "manga": "table",
+}
+
+BUILTIN_MEDIA_TYPES = frozenset(
+    {"tv", "season", "movie", "anime", "manga", "game", "book", "comic", "boardgame"},
+)
+
+
+class UserMediaPreference(models.Model):
+    """Per-media-type preferences (layout, sort, status filter, enabled)."""
+
+    user = models.ForeignKey(
+        "User",
+        on_delete=models.CASCADE,
+        related_name="media_preferences",
+    )
+    media_type = models.CharField(max_length=20)
+    enabled = models.BooleanField(default=True)
+    layout = models.CharField(
+        max_length=20,
+        choices=LayoutChoices.choices,
+        default=LayoutChoices.GRID,
+    )
+    sort = models.CharField(
+        max_length=20,
+        choices=MediaSortChoices.choices,
+        default=MediaSortChoices.SCORE,
+    )
+    status_filter = models.CharField(
+        max_length=20,
+        choices=MediaStatusChoices.choices,
+        default=MediaStatusChoices.ALL,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "media_type"],
+                name="unique_user_media_pref",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.media_type}"
+
+
 class User(AbstractUser):
     """Custom user model."""
 
@@ -168,168 +218,6 @@ class User(AbstractUser):
         max_length=2,
         default=HomeTruncationChoices.ALL,
         choices=HomeTruncationChoices.choices,
-    )
-
-    # Media type preferences: TV Shows
-    tv_enabled = models.BooleanField(default=True)
-    tv_layout = models.CharField(
-        max_length=20,
-        default=LayoutChoices.GRID,
-        choices=LayoutChoices.choices,
-    )
-    tv_sort = models.CharField(
-        max_length=20,
-        default=MediaSortChoices.SCORE,
-        choices=MediaSortChoices.choices,
-    )
-    tv_status = models.CharField(
-        max_length=20,
-        default=MediaStatusChoices.ALL,
-        choices=MediaStatusChoices.choices,
-    )
-
-    # Media type preferences: TV Seasons
-    season_enabled = models.BooleanField(default=True)
-    season_layout = models.CharField(
-        max_length=20,
-        default=LayoutChoices.GRID,
-        choices=LayoutChoices.choices,
-    )
-    season_sort = models.CharField(
-        max_length=20,
-        default=MediaSortChoices.SCORE,
-        choices=MediaSortChoices.choices,
-    )
-    season_status = models.CharField(
-        max_length=20,
-        default=MediaStatusChoices.ALL,
-        choices=MediaStatusChoices.choices,
-    )
-
-    # Media type preferences: Movies
-    movie_enabled = models.BooleanField(default=True)
-    movie_layout = models.CharField(
-        max_length=20,
-        default=LayoutChoices.GRID,
-        choices=LayoutChoices.choices,
-    )
-    movie_sort = models.CharField(
-        max_length=20,
-        default=MediaSortChoices.SCORE,
-        choices=MediaSortChoices.choices,
-    )
-    movie_status = models.CharField(
-        max_length=20,
-        default=MediaStatusChoices.ALL,
-        choices=MediaStatusChoices.choices,
-    )
-
-    # Media type preferences: Anime
-    anime_enabled = models.BooleanField(default=True)
-    anime_layout = models.CharField(
-        max_length=20,
-        default=LayoutChoices.TABLE,
-        choices=LayoutChoices.choices,
-    )
-    anime_sort = models.CharField(
-        max_length=20,
-        default=MediaSortChoices.SCORE,
-        choices=MediaSortChoices.choices,
-    )
-    anime_status = models.CharField(
-        max_length=20,
-        default=MediaStatusChoices.ALL,
-        choices=MediaStatusChoices.choices,
-    )
-
-    # Media type preferences: Manga
-    manga_enabled = models.BooleanField(default=True)
-    manga_layout = models.CharField(
-        max_length=20,
-        default=LayoutChoices.TABLE,
-        choices=LayoutChoices.choices,
-    )
-    manga_sort = models.CharField(
-        max_length=20,
-        default=MediaSortChoices.SCORE,
-        choices=MediaSortChoices.choices,
-    )
-    manga_status = models.CharField(
-        max_length=20,
-        default=MediaStatusChoices.ALL,
-        choices=MediaStatusChoices.choices,
-    )
-
-    # Media type preferences: Games
-    game_enabled = models.BooleanField(default=True)
-    game_layout = models.CharField(
-        max_length=20,
-        default=LayoutChoices.GRID,
-        choices=LayoutChoices.choices,
-    )
-    game_sort = models.CharField(
-        max_length=20,
-        default=MediaSortChoices.SCORE,
-        choices=MediaSortChoices.choices,
-    )
-    game_status = models.CharField(
-        max_length=20,
-        default=MediaStatusChoices.ALL,
-        choices=MediaStatusChoices.choices,
-    )
-
-    # Media type preferences: Books
-    book_enabled = models.BooleanField(default=True)
-    book_layout = models.CharField(
-        max_length=20,
-        default=LayoutChoices.GRID,
-        choices=LayoutChoices.choices,
-    )
-    book_sort = models.CharField(
-        max_length=20,
-        default=MediaSortChoices.SCORE,
-        choices=MediaSortChoices.choices,
-    )
-    book_status = models.CharField(
-        max_length=20,
-        default=MediaStatusChoices.ALL,
-        choices=MediaStatusChoices.choices,
-    )
-
-    # Media type preferences: Comics
-    comic_enabled = models.BooleanField(default=True)
-    comic_layout = models.CharField(
-        max_length=20,
-        default=LayoutChoices.GRID,
-        choices=LayoutChoices.choices,
-    )
-    comic_sort = models.CharField(
-        max_length=20,
-        default=MediaSortChoices.SCORE,
-        choices=MediaSortChoices.choices,
-    )
-    comic_status = models.CharField(
-        max_length=20,
-        default=MediaStatusChoices.ALL,
-        choices=MediaStatusChoices.choices,
-    )
-
-    # Media type preferences: Board Games
-    boardgame_enabled = models.BooleanField(default=True)
-    boardgame_layout = models.CharField(
-        max_length=20,
-        default=LayoutChoices.GRID,
-        choices=LayoutChoices.choices,
-    )
-    boardgame_sort = models.CharField(
-        max_length=20,
-        default=MediaSortChoices.SCORE,
-        choices=MediaSortChoices.choices,
-    )
-    boardgame_status = models.CharField(
-        max_length=20,
-        default=MediaStatusChoices.ALL,
-        choices=MediaStatusChoices.choices,
     )
 
     # Media type ordering
@@ -505,62 +393,6 @@ class User(AbstractUser):
                 condition=models.Q(home_truncation__in=HomeTruncationChoices.values),
             ),
             models.CheckConstraint(
-                name="tv_layout_valid",
-                condition=models.Q(tv_layout__in=LayoutChoices.values),
-            ),
-            models.CheckConstraint(
-                name="season_layout_valid",
-                condition=models.Q(season_layout__in=LayoutChoices.values),
-            ),
-            models.CheckConstraint(
-                name="movie_layout_valid",
-                condition=models.Q(movie_layout__in=LayoutChoices.values),
-            ),
-            models.CheckConstraint(
-                name="anime_layout_valid",
-                condition=models.Q(anime_layout__in=LayoutChoices.values),
-            ),
-            models.CheckConstraint(
-                name="manga_layout_valid",
-                condition=models.Q(manga_layout__in=LayoutChoices.values),
-            ),
-            models.CheckConstraint(
-                name="game_layout_valid",
-                condition=models.Q(game_layout__in=LayoutChoices.values),
-            ),
-            models.CheckConstraint(
-                name="book_layout_valid",
-                condition=models.Q(book_layout__in=LayoutChoices.values),
-            ),
-            models.CheckConstraint(
-                name="tv_sort_valid",
-                condition=models.Q(tv_sort__in=MediaSortChoices.values),
-            ),
-            models.CheckConstraint(
-                name="season_sort_valid",
-                condition=models.Q(season_sort__in=MediaSortChoices.values),
-            ),
-            models.CheckConstraint(
-                name="movie_sort_valid",
-                condition=models.Q(movie_sort__in=MediaSortChoices.values),
-            ),
-            models.CheckConstraint(
-                name="anime_sort_valid",
-                condition=models.Q(anime_sort__in=MediaSortChoices.values),
-            ),
-            models.CheckConstraint(
-                name="manga_sort_valid",
-                condition=models.Q(manga_sort__in=MediaSortChoices.values),
-            ),
-            models.CheckConstraint(
-                name="game_sort_valid",
-                condition=models.Q(game_sort__in=MediaSortChoices.values),
-            ),
-            models.CheckConstraint(
-                name="book_sort_valid",
-                condition=models.Q(book_sort__in=MediaSortChoices.values),
-            ),
-            models.CheckConstraint(
                 name="calendar_layout_valid",
                 condition=models.Q(calendar_layout__in=CalendarLayoutChoices.values),
             ),
@@ -577,42 +409,56 @@ class User(AbstractUser):
                 condition=models.Q(list_detail_status__in=MediaStatusChoices.values),
             ),
             models.CheckConstraint(
-                name="tv_status_valid",
-                condition=models.Q(tv_status__in=MediaStatusChoices.values),
-            ),
-            models.CheckConstraint(
-                name="season_status_valid",
-                condition=models.Q(season_status__in=MediaStatusChoices.values),
-            ),
-            models.CheckConstraint(
-                name="movie_status_valid",
-                condition=models.Q(movie_status__in=MediaStatusChoices.values),
-            ),
-            models.CheckConstraint(
-                name="anime_status_valid",
-                condition=models.Q(anime_status__in=MediaStatusChoices.values),
-            ),
-            models.CheckConstraint(
-                name="manga_status_valid",
-                condition=models.Q(manga_status__in=MediaStatusChoices.values),
-            ),
-            models.CheckConstraint(
-                name="game_status_valid",
-                condition=models.Q(game_status__in=MediaStatusChoices.values),
-            ),
-            models.CheckConstraint(
-                name="book_status_valid",
-                condition=models.Q(book_status__in=MediaStatusChoices.values),
-            ),
-            models.CheckConstraint(
                 name="quick_watch_date_valid",
                 condition=models.Q(quick_watch_date__in=QuickWatchDateChoices.values),
             ),
         ]
 
+    @staticmethod
+    def _parse_per_type_field(field_name):
+        """Parse 'tv_layout' → ('tv', 'layout'). Returns None if not per-type."""
+        for suffix in PER_TYPE_FIELDS:
+            if field_name.endswith(f"_{suffix}"):
+                media_type = field_name[: -(len(suffix) + 1)]
+                if media_type and media_type in BUILTIN_MEDIA_TYPES:
+                    return media_type, suffix
+        return None
+
+    def get_media_pref(self, media_type):
+        """Return the UserMediaPreference for this media type, or None."""
+        if not hasattr(self, "_pref_cache"):
+            self._pref_cache = {
+                p.media_type: p for p in self.media_preferences.all()
+            }
+        return self._pref_cache.get(media_type)
+
+    def get_or_create_media_pref(self, media_type):
+        """Return the UserMediaPreference, creating with defaults if missing."""
+        pref = self.get_media_pref(media_type)
+        if pref is None:
+            defaults = {
+                "layout": PER_TYPE_LAYOUT_DEFAULTS.get(
+                    media_type, LayoutChoices.GRID,
+                ),
+            }
+            pref, _ = UserMediaPreference.objects.get_or_create(
+                user=self, media_type=media_type, defaults=defaults,
+            )
+            if hasattr(self, "_pref_cache"):
+                self._pref_cache[media_type] = pref
+        return pref
+
     def _is_valid_preference(self, field_name, new_value):
         if field_name == "last_search_type":
             return new_value in VALID_SEARCH_TYPES
+        parsed = self._parse_per_type_field(field_name)
+        if parsed:
+            _, attr = parsed
+            pref_attr = "status_filter" if attr == "status" else attr
+            field = UserMediaPreference._meta.get_field(pref_attr)
+            if hasattr(field, "choices") and field.choices:
+                return new_value in {c[0] for c in field.choices}
+            return True
         field = self._meta.get_field(field_name)
         if not (hasattr(field, "choices") and field.choices):
             return True
@@ -620,6 +466,10 @@ class User(AbstractUser):
 
     def update_preference(self, field_name, new_value):
         """Update user preference if the new value is valid and different."""
+        parsed = self._parse_per_type_field(field_name)
+        if parsed:
+            return self._update_per_type_preference(parsed, new_value)
+
         if new_value is None or not self._is_valid_preference(field_name, new_value):
             return getattr(self, field_name)
 
@@ -627,6 +477,25 @@ class User(AbstractUser):
         if new_value != current_value:
             setattr(self, field_name, new_value)
             self.save(update_fields=[field_name])
+        return new_value
+
+    def _update_per_type_preference(self, parsed, new_value):
+        """Update a per-media-type preference field."""
+        media_type, attr = parsed
+        pref_attr = "status_filter" if attr == "status" else attr
+        pref = self.get_or_create_media_pref(media_type)
+        current = getattr(pref, pref_attr)
+
+        if new_value is None or not self._is_valid_preference(
+            f"{media_type}_{attr}", new_value,
+        ):
+            return current
+
+        if new_value != current:
+            setattr(pref, pref_attr, new_value)
+            pref.save(update_fields=[pref_attr])
+            if hasattr(self, "_pref_cache"):
+                self._pref_cache[media_type] = pref
         return new_value
 
     def update_home_type_filter(self, raw_param):
@@ -669,13 +538,19 @@ class User(AbstractUser):
     def get_enabled_media_types(self):
         """Return a list of enabled media type values based on user preferences."""
         skip = {MediaTypes.EPISODE.value, MediaTypes.SEASON.value}
+        if not hasattr(self, "_pref_cache"):
+            self._pref_cache = {
+                p.media_type: p for p in self.media_preferences.all()
+            }
+
         ordered = []
         seen = set()
         for mt in list(self.media_type_order or []) + list(MediaTypes.values):
             if mt in skip or mt in seen:
                 continue
             seen.add(mt)
-            if getattr(self, f"{mt}_enabled", False):
+            pref = self._pref_cache.get(mt)
+            if pref is None or pref.enabled:
                 ordered.append(mt)
         return ordered
 

@@ -86,19 +86,14 @@ class UserUpdatePreferenceTests(TestCase):
         self.assertEqual(self.user.home_sort, HomeSortChoices.UPCOMING)
 
     def test_update_preference_boolean_field(self):
-        """Test update_preference with a boolean field."""
-        # Set initial value
-        self.user.tv_enabled = True
-        self.user.save()
+        """Test update_preference with a per-type enabled field."""
+        self.user.get_or_create_media_pref("tv")
 
-        # Call update_preference with new value
         result = self.user.update_preference(field_name="tv_enabled", new_value=False)
 
-        # Should return new value
         self.assertEqual(result, False)
-        # Should change the value
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.tv_enabled, False)
+        pref = self.user.media_preferences.get(media_type="tv")
+        self.assertFalse(pref.enabled)
 
     def test_update_preference_last_search_type_valid(self):
         """Test update_preference with last_search_type and valid value."""
@@ -440,11 +435,7 @@ class UserMediaTypeOrderTests(TestCase):
         result = self.user.get_enabled_media_types()
 
         skip = {MediaTypes.EPISODE.value, MediaTypes.SEASON.value}
-        expected = [
-            mt
-            for mt in MediaTypes.values
-            if mt not in skip and getattr(self.user, f"{mt}_enabled", False)
-        ]
+        expected = [mt for mt in MediaTypes.values if mt not in skip]
         self.assertEqual(result, expected)
 
     def test_custom_order_respected(self):
@@ -474,7 +465,13 @@ class UserMediaTypeOrderTests(TestCase):
 
     def test_disabled_types_excluded_from_custom_order(self):
         """Disabled types don't appear even if in custom order."""
-        self.user.game_enabled = False
+        from users.models import UserMediaPreference  # noqa: PLC0415
+
+        pref = self.user.get_or_create_media_pref(MediaTypes.GAME.value)
+        pref.enabled = False
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
         self.user.media_type_order = [
             MediaTypes.GAME.value,
             MediaTypes.TV.value,

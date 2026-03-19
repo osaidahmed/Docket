@@ -189,8 +189,8 @@ def test_media_type_disable_toggle(
         ).click()
         authenticated_page.wait_for_load_state("networkidle")
 
-        test_user.refresh_from_db()
-        assert test_user.boardgame_enabled is False
+        pref = test_user.media_preferences.get(media_type="boardgame")
+        assert pref.enabled is False
 
 
 def test_account_username_change(

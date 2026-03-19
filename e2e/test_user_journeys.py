@@ -105,8 +105,8 @@ def test_preferences_affect_home(
 
     authenticated_page.goto(f"{live_server.url}/")
 
-    test_user.refresh_from_db()
-    assert test_user.boardgame_enabled is False
+    pref = test_user.media_preferences.get(media_type="boardgame")
+    assert pref.enabled is False
 
 
 def test_disable_media_type_hides_in_explore(

@@ -276,13 +276,11 @@
                   </button>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer">
-                  {% with enabled_field=media_type|add:"_enabled" %}
                     <input class="sr-only peer"
                            type="checkbox"
                            name="media_types_checkboxes"
                            value="{{ media_type }}"
-                           {% if user|get_attr:enabled_field %}checked{% endif %}>
-                  {% endwith %}
+                           {% if media_type in enabled_types %}checked{% endif %}>
                   <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-px after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-accent">
                   </div>
                 </label>

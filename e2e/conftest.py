@@ -31,12 +31,14 @@ def test_user(transactional_db):
     # ensure previous test's DB flush is visible to this connection
     connection.ensure_connection()
 
+    from users.models import BUILTIN_MEDIA_TYPES, UserMediaPreference
+
     User = get_user_model()
     user = User.objects.create_user(username="e2etest", password="e2epass12345")
-    for field in user._meta.get_fields():
-        if field.name.endswith("_enabled") and hasattr(field, "default"):
-            setattr(user, field.name, True)
-    user.save()
+    for mt in BUILTIN_MEDIA_TYPES:
+        UserMediaPreference.objects.get_or_create(
+            user=user, media_type=mt, defaults={"enabled": True},
+        )
     return user
 
 
@@ -79,10 +81,12 @@ def create_list(user, name, description=""):
 
 
 def create_second_user(transactional_db=None):
+    from users.models import BUILTIN_MEDIA_TYPES, UserMediaPreference
+
     User = get_user_model()
     user = User.objects.create_user(username="user_b", password="pass12345")
-    for field in user._meta.get_fields():
-        if field.name.endswith("_enabled") and hasattr(field, "default"):
-            setattr(user, field.name, True)
-    user.save()
+    for mt in BUILTIN_MEDIA_TYPES:
+        UserMediaPreference.objects.get_or_create(
+            user=user, media_type=mt, defaults={"enabled": True},
+        )
     return user

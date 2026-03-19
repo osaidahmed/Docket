@@ -71,8 +71,11 @@ class ProcessMovieTests(TestCase):
         mock_meta.side_effect = _get_media_metadata_side_effect
         mock_movie.return_value = MOVIE_METADATA
         ids = {"tmdb_id": "603", "imdb_id": None, "tvdb_id": None}
-        self.user.anime_enabled = False
-        self.user.save()
+        pref = self.user.get_or_create_media_pref("anime")
+        pref.enabled = False
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
 
         self.processor._process_movie(self.played_payload, self.user, ids)
 
@@ -92,8 +95,11 @@ class ProcessMovieTests(TestCase):
             "max_progress": 1,
         }
         ids = {"tmdb_id": None, "imdb_id": "tt1234567", "tvdb_id": None}
-        self.user.anime_enabled = False
-        self.user.save()
+        pref = self.user.get_or_create_media_pref("anime")
+        pref.enabled = False
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
 
         self.processor._process_movie(self.played_payload, self.user, ids)
 
@@ -105,8 +111,11 @@ class ProcessMovieTests(TestCase):
     def test_process_movie_imdb_fallback_no_results(self, mock_find):
         mock_find.return_value = {"movie_results": []}
         ids = {"tmdb_id": None, "imdb_id": "tt9999999", "tvdb_id": None}
-        self.user.anime_enabled = False
-        self.user.save()
+        pref = self.user.get_or_create_media_pref("anime")
+        pref.enabled = False
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
 
         self.processor._process_movie(self.played_payload, self.user, ids)
 
@@ -114,8 +123,11 @@ class ProcessMovieTests(TestCase):
 
     def test_process_movie_no_ids(self):
         ids = {"tmdb_id": None, "imdb_id": None, "tvdb_id": None}
-        self.user.anime_enabled = False
-        self.user.save()
+        pref = self.user.get_or_create_media_pref("anime")
+        pref.enabled = False
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
 
         self.processor._process_movie(self.played_payload, self.user, ids)
 
@@ -134,8 +146,11 @@ class ProcessMovieTests(TestCase):
         }
 
         ids = {"tmdb_id": None, "imdb_id": "tt1234567", "tvdb_id": None}
-        self.user.anime_enabled = True
-        self.user.save()
+        pref = self.user.get_or_create_media_pref("anime")
+        pref.enabled = True
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
 
         with patch.object(
             self.processor, "_fetch_mapping_data", return_value=mapping_data
@@ -160,8 +175,11 @@ class ProcessMovieTests(TestCase):
         }
 
         ids = {"tmdb_id": "10494", "imdb_id": None, "tvdb_id": None}
-        self.user.anime_enabled = True
-        self.user.save()
+        pref = self.user.get_or_create_media_pref("anime")
+        pref.enabled = True
+        pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
 
         with patch.object(
             self.processor, "_fetch_mapping_data", return_value=mapping_data

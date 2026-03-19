@@ -35,10 +35,13 @@ class MediaManagerTestBase(TestCase):
 
     @classmethod
     def _create_user(cls):
+        from users.models import UserMediaPreference  # noqa: PLC0415
+
         user = get_user_model().objects.create_user(username="test", password="12345")
         for media_type in MediaTypes.values:
-            setattr(user, f"{media_type.lower()}_enabled", True)
-        user.save()
+            UserMediaPreference.objects.get_or_create(
+                user=user, media_type=media_type, defaults={"enabled": True},
+            )
         return user
 
     @classmethod

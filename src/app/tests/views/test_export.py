@@ -86,8 +86,9 @@ class ExportMediaViewTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_export_respects_status_filter(self):
-        self.user.movie_status = Status.COMPLETED.value
-        self.user.save(update_fields=["movie_status"])
+        pref = self.user.get_or_create_media_pref("movie")
+        pref.status_filter = Status.COMPLETED.value
+        pref.save(update_fields=["status_filter"])
 
         response = self.client.get(
             reverse("export_media", args=["movie"]) + "?format=json"
@@ -115,8 +116,9 @@ class ExportMediaViewTests(TestCase):
         )
 
     def test_export_empty_list(self):
-        self.user.movie_status = Status.PAUSED.value
-        self.user.save(update_fields=["movie_status"])
+        pref = self.user.get_or_create_media_pref("movie")
+        pref.status_filter = Status.PAUSED.value
+        pref.save(update_fields=["status_filter"])
 
         response = self.client.get(
             reverse("export_media", args=["movie"]) + "?format=json"
@@ -125,8 +127,9 @@ class ExportMediaViewTests(TestCase):
         self.assertEqual(len(data), 0)
 
     def test_export_csv_empty_returns_empty_body(self):
-        self.user.movie_status = Status.PAUSED.value
-        self.user.save(update_fields=["movie_status"])
+        pref = self.user.get_or_create_media_pref("movie")
+        pref.status_filter = Status.PAUSED.value
+        pref.save(update_fields=["status_filter"])
 
         response = self.client.get(
             reverse("export_media", args=["movie"]) + "?format=csv"
@@ -258,8 +261,9 @@ class PrintMediaViewTests(TestCase):
         self.assertEqual(response.context["total_count"], 3)
 
     def test_print_media_respects_status_filter(self):
-        self.user.movie_status = Status.COMPLETED.value
-        self.user.save(update_fields=["movie_status"])
+        pref = self.user.get_or_create_media_pref("movie")
+        pref.status_filter = Status.COMPLETED.value
+        pref.save(update_fields=["status_filter"])
 
         response = self.client.get(reverse("print_media", args=["movie"]))
         self.assertEqual(response.context["total_count"], 2)

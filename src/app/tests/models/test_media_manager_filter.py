@@ -89,9 +89,12 @@ class MediaManagerFilterTests(MediaManagerTestBase):
             self.assertIn(expected.value, media_types)
 
     def test_get_media_types_to_process_disabled(self):
-        self.user.anime_enabled = False
-        self.user.manga_enabled = False
-        self.user.save()
+        for mt in ["anime", "manga"]:
+            pref = self.user.get_or_create_media_pref(mt)
+            pref.enabled = False
+            pref.save(update_fields=["enabled"])
+        if hasattr(self.user, "_pref_cache"):
+            del self.user._pref_cache
 
         media_types = backlog._get_media_types_to_process(self.user, None)
         self.assertNotIn(MediaTypes.ANIME.value, media_types)

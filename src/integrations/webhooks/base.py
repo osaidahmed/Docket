@@ -70,7 +70,7 @@ class BaseWebhookProcessor:
             logger.warning("No TVDB ID found for TMDB ID: %s", media_id)
             return
 
-        if user.anime_enabled:
+        if user.get_or_create_media_pref("anime").enabled:
             mapping_data = self._fetch_mapping_data()
             mal_id, episode_offset = self._get_mal_id_from_tvdb(
                 mapping_data, int(tvdb_id), season_number, episode_number
@@ -96,7 +96,7 @@ class BaseWebhookProcessor:
         tmdb_id = ids["tmdb_id"]
         imdb_id = ids["imdb_id"]
 
-        if user.anime_enabled:
+        if user.get_or_create_media_pref("anime").enabled:
             mal_id = self._detect_anime_movie(ids)
             if mal_id:
                 self._handle_anime(mal_id, 1, payload, user)

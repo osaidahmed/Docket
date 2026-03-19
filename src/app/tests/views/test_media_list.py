@@ -82,10 +82,10 @@ class MediaListViewTests(TestCase):
 
         self.assertEqual(response.context["media_list"].paginator.count, 2)
 
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.movie_status, Status.COMPLETED.value)
-        self.assertEqual(self.user.movie_sort, "score")
-        self.assertEqual(self.user.movie_layout, "table")
+        pref = self.user.media_preferences.get(media_type=MediaTypes.MOVIE.value)
+        self.assertEqual(pref.status_filter, Status.COMPLETED.value)
+        self.assertEqual(pref.sort, "score")
+        self.assertEqual(pref.layout, "table")
 
     def test_media_list_htmx_request(self):
         """Test the media list view with HTMX request."""
