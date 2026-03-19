@@ -61,31 +61,107 @@ class ServicesTests(TestCase):
         self.assertEqual(kwargs["data"], {"form_data": "value"})
         self.assertIn("timeout", kwargs)
 
-    @patch("app.providers.services.api_request")
-    def test_request_error_handling_rate_limit(self, mock_api_request):
-        """Test the request_error_handling function with rate limiting."""
-        mock_response = MagicMock()
-        mock_response.status_code = 429  # Too many requests
-        mock_response.headers = {"Retry-After": "5"}
+    @patch("app.providers.services.time.sleep")
+    @patch("app.providers.services._execute_request")
+    def test_rate_limit_retry_succeeds(self, mock_execute, mock_sleep):
+        """Test that 429 is retried and succeeds on second attempt."""
+        mock_429 = MagicMock()
+        mock_429.status_code = 429
+        mock_429.headers = {"Retry-After": "5"}
+        error_429 = requests.exceptions.HTTPError(response=mock_429)
 
-        error = requests.exceptions.HTTPError("429 Too Many Requests")
-        error.response = mock_response
+        mock_success = MagicMock()
+        mock_success.json.return_value = {"data": "retry_success"}
 
-        mock_api_request.return_value = {"data": "retry_success"}
+        mock_execute.side_effect = [error_429, mock_success]
 
-        result = services.api_request(
-            error,
-            "TEST",
-            "GET",
-            "https://example.com/api",
-            {"param": "value"},
-            None,
-            None,
-        )
-
-        mock_api_request.assert_called_once()
+        result = services.api_request("TEST", "GET", "https://example.com/api")
 
         self.assertEqual(result, {"data": "retry_success"})
+        self.assertEqual(mock_execute.call_count, 2)
+        mock_sleep.assert_called_once_with(8)
+
+    @patch("app.providers.services.time.sleep")
+    @patch("app.providers.services._execute_request")
+    def test_rate_limit_retry_exhausted(self, mock_execute, mock_sleep):
+        """Test that 429 raises after MAX_RETRIES attempts."""
+        mock_429 = MagicMock()
+        mock_429.status_code = 429
+        mock_429.headers = {"Retry-After": "2"}
+        error_429 = requests.exceptions.HTTPError(response=mock_429)
+
+        mock_execute.side_effect = error_429
+
+        with self.assertRaises(requests.exceptions.HTTPError):
+            services.api_request("TEST", "GET", "https://example.com/api")
+
+        self.assertEqual(mock_execute.call_count, services.MAX_RETRIES)
+        self.assertEqual(mock_sleep.call_count, services.MAX_RETRIES - 1)
+
+    @patch("app.providers.services.time.sleep")
+    @patch("app.providers.services._execute_request")
+    def test_rate_limit_uses_retry_after_header(self, mock_execute, mock_sleep):
+        """Test that retry wait uses Retry-After when larger than backoff."""
+        mock_429 = MagicMock()
+        mock_429.status_code = 429
+        mock_429.headers = {"Retry-After": "30"}
+        error_429 = requests.exceptions.HTTPError(response=mock_429)
+
+        mock_success = MagicMock()
+        mock_success.json.return_value = {"data": "ok"}
+        mock_execute.side_effect = [error_429, mock_success]
+
+        services.api_request("TEST", "GET", "https://example.com/api")
+
+        mock_sleep.assert_called_once_with(33)
+
+    @patch("app.providers.services._execute_request")
+    def test_non_429_http_error_raises_immediately(self, mock_execute):
+        """Test that non-429 HTTP errors raise without retrying."""
+        mock_500 = MagicMock()
+        mock_500.status_code = 500
+        error_500 = requests.exceptions.HTTPError(response=mock_500)
+
+        mock_execute.side_effect = error_500
+
+        with self.assertRaises(requests.exceptions.HTTPError):
+            services.api_request("TEST", "GET", "https://example.com/api")
+
+        self.assertEqual(mock_execute.call_count, 1)
+
+    @patch("app.providers.services._execute_request")
+    def test_connection_error_raises_provider_api_error(self, mock_execute):
+        """Test that connection errors are wrapped in ProviderAPIError."""
+        mock_execute.side_effect = requests.exceptions.ConnectionError("refused")
+
+        with self.assertRaises(services.ProviderAPIError):
+            services.api_request("TEST", "GET", "https://example.com/api")
+
+        self.assertEqual(mock_execute.call_count, 1)
+
+    @patch("app.providers.services._execute_request")
+    def test_timeout_error_raises_provider_api_error(self, mock_execute):
+        """Test that timeout errors are wrapped in ProviderAPIError."""
+        mock_execute.side_effect = requests.exceptions.Timeout("timed out")
+
+        with self.assertRaises(services.ProviderAPIError):
+            services.api_request("TEST", "GET", "https://example.com/api")
+
+        self.assertEqual(mock_execute.call_count, 1)
+
+    @patch("app.providers.services._execute_request")
+    def test_xml_response_format(self, mock_execute):
+        """Test that XML response format parses correctly."""
+        mock_response = MagicMock()
+        mock_response.text = "<root><item>test</item></root>"
+        mock_execute.return_value = mock_response
+
+        result = services.api_request(
+            "TEST", "GET", "https://example.com/api", response_format="xml"
+        )
+
+        self.assertEqual(result.tag, "root")
+        self.assertEqual(result.find("item").text, "test")
 
     @patch("app.providers.igdb.cache.delete")
     def test_handle_error_igdb_unauthorized(

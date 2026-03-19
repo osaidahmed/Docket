@@ -139,6 +139,9 @@ def raise_not_found_error(provider, media_id, media_type="item"):
     raise ProviderAPIError(provider, mock_error, error_msg)
 
 
+MAX_RETRIES = 3
+
+
 def api_request(
     provider,
     method,
@@ -148,45 +151,42 @@ def api_request(
     headers=None,
     response_format="json",
 ):
-    """Make a request to the API and return the response.
+    """Make a request to the API and return the response."""
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = _execute_request(method, url, params, data, headers)
+            return _parse_response(response, response_format)
+        except requests.exceptions.HTTPError as error:
+            _handle_http_error(error, attempt)
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        ) as error:
+            logger.exception("Connection error for %s", provider)
+            raise _connection_error(provider, error) from error
 
-    Args:
-        provider: Provider identifier for error messages
-        method: HTTP method ("GET" or "POST")
-        url: Request URL
-        params: Query params for GET, JSON body for POST
-        data: Raw data for POST
-        headers: Request headers
-        response_format: "json" (default) or "xml" for XML parsing
 
-    Returns:
-        Parsed JSON dict or ElementTree for XML
-    """
-    try:
-        response = _execute_request(method, url, params, data, headers)
-        if response_format == "xml":
-            return ElementTree.fromstring(response.text)
-        return response.json()
+def _parse_response(response, response_format):
+    if response_format == "xml":
+        return ElementTree.fromstring(response.text)
+    return response.json()
 
-    except requests.exceptions.HTTPError as error:
-        if error.response.status_code == requests.codes.too_many_requests:
-            seconds_to_wait = int(error.response.headers.get("Retry-After", 5))
-            logger.warning("Rate limited, waiting %s seconds", seconds_to_wait)
-            time.sleep(seconds_to_wait + 3)
-            return api_request(
-                provider,
-                method,
-                url,
-                params,
-                data,
-                headers,
-                response_format,
-            )
+
+def _handle_http_error(error, attempt):
+    """Handle HTTP errors, retrying on 429 with exponential backoff."""
+    if error.response.status_code != requests.codes.too_many_requests:
         raise error from None
-
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as error:
-        logger.exception("Connection error for %s", provider)
-        raise _connection_error(provider, error) from error
+    if attempt == MAX_RETRIES:
+        raise error from None
+    seconds_to_wait = int(error.response.headers.get("Retry-After", 5))
+    wait_time = max(seconds_to_wait + 3, 5 * (2 ** (attempt - 1)))
+    logger.warning(
+        "Rate limited, waiting %s seconds (attempt %d/%d)",
+        wait_time,
+        attempt,
+        MAX_RETRIES,
+    )
+    time.sleep(wait_time)
 
 
 def _execute_request(method, url, params, data, headers):
