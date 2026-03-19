@@ -5,8 +5,12 @@ from django.test import TestCase
 from app.providers import services
 
 
-def _section_cfg(key="trending", provider="anilist_trending",
-                 section_type="ranked_carousel", limit=10):
+def _section_cfg(
+    key="trending",
+    provider="anilist_trending",
+    section_type="ranked_carousel",
+    limit=10,
+):
     return {
         "key": key,
         "label": key.replace("_", " ").title(),
@@ -16,8 +20,9 @@ def _section_cfg(key="trending", provider="anilist_trending",
     }
 
 
-def _browse_cfg(key="now_playing", category="now_playing",
-                section_type="card_grid", limit=12):
+def _browse_cfg(
+    key="now_playing", category="now_playing", section_type="card_grid", limit=12
+):
     return {
         "key": key,
         "label": key.replace("_", " ").title(),
@@ -32,7 +37,8 @@ class ResolveSectionFetcherTests(TestCase):
     def test_anilist_trending(self, mock_fn):
         mock_fn.return_value = {"results": []}
         fetcher = services._resolve_section_fetcher(
-            "anime", _section_cfg(provider="anilist_trending"),
+            "anime",
+            _section_cfg(provider="anilist_trending"),
         )
         fetcher(1)
         mock_fn.assert_called_once_with("anime", 1, 10)
@@ -41,7 +47,8 @@ class ResolveSectionFetcherTests(TestCase):
     def test_anilist_recently_updated(self, mock_fn):
         mock_fn.return_value = {"results": []}
         fetcher = services._resolve_section_fetcher(
-            "anime", _section_cfg(provider="anilist_recently_updated"),
+            "anime",
+            _section_cfg(provider="anilist_recently_updated"),
         )
         fetcher(2)
         mock_fn.assert_called_once_with("anime", 2, 10)
@@ -50,7 +57,8 @@ class ResolveSectionFetcherTests(TestCase):
     def test_anilist_upcoming(self, mock_fn):
         mock_fn.return_value = {"results": []}
         fetcher = services._resolve_section_fetcher(
-            "anime", _section_cfg(provider="anilist_upcoming"),
+            "anime",
+            _section_cfg(provider="anilist_upcoming"),
         )
         fetcher(1)
         mock_fn.assert_called_once_with("anime", 1, 10)
@@ -59,7 +67,8 @@ class ResolveSectionFetcherTests(TestCase):
     def test_anilist_schedule(self, mock_fn):
         mock_fn.return_value = []
         fetcher = services._resolve_section_fetcher(
-            "anime", _section_cfg(provider="anilist_schedule"),
+            "anime",
+            _section_cfg(provider="anilist_schedule"),
         )
         fetcher(1)
         mock_fn.assert_called_once_with(1, 10)
@@ -68,7 +77,8 @@ class ResolveSectionFetcherTests(TestCase):
     def test_jikan_schedule(self, mock_fn):
         mock_fn.return_value = []
         fetcher = services._resolve_section_fetcher(
-            "anime", _section_cfg(provider="jikan_schedule"),
+            "anime",
+            _section_cfg(provider="jikan_schedule"),
         )
         fetcher(1)
         mock_fn.assert_called_once_with(limit=10)
@@ -77,7 +87,8 @@ class ResolveSectionFetcherTests(TestCase):
     def test_mangaupdates(self, mock_fn):
         mock_fn.return_value = {"results": []}
         fetcher = services._resolve_section_fetcher(
-            "manga", _section_cfg(provider="mangaupdates_releases"),
+            "manga",
+            _section_cfg(provider="mangaupdates_releases"),
         )
         fetcher(1)
         mock_fn.assert_called_once_with("releases", 1)
@@ -86,7 +97,8 @@ class ResolveSectionFetcherTests(TestCase):
     def test_spotlight_uses_tmdb_discover(self, mock_fn):
         mock_fn.return_value = {"results": []}
         cfg = _browse_cfg(
-            key="spotlight", category="trending",
+            key="spotlight",
+            category="trending",
             section_type="spotlight_carousel",
         )
         fetcher = services._resolve_section_fetcher("movie", cfg)
@@ -132,9 +144,11 @@ class DiscoverSectionsTests(TestCase):
 
         def side_effect(media_type, cfg):
             if cfg["key"] == "failing":
+
                 def fail(page):
                     msg = "API error"
                     raise Exception(msg)  # noqa: TRY002
+
                 return fail
             return MagicMock(return_value={"results": []})
 
@@ -150,7 +164,9 @@ class DiscoverSectionPageTests(TestCase):
         expected = {"results": [{"title": "Test"}]}
         mock_resolver.return_value = MagicMock(return_value=expected)
         result = services.discover_section_page(
-            "anime", _section_cfg(), 2,
+            "anime",
+            _section_cfg(),
+            2,
         )
         self.assertEqual(result, expected)
 

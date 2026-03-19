@@ -54,6 +54,15 @@ class HomeGroupChoices(models.TextChoices):
     STATUS = "status", "Status"
 
 
+class ArchiveSortChoices(models.TextChoices):
+    """Choices for archive page sort options."""
+
+    SCORE = "score", "Score"
+    TITLE = "title", "Title"
+    START_DATE = "start_date", "Start Date"
+    END_DATE = "end_date", "End Date"
+
+
 class MediaSortChoices(models.TextChoices):
     """Choices for media list sort options."""
 
@@ -147,6 +156,12 @@ class User(AbstractUser):
         max_length=20,
         default=HomeSortChoices.UPCOMING,
         choices=HomeSortChoices.choices,
+    )
+
+    archive_sort = models.CharField(
+        max_length=20,
+        default=ArchiveSortChoices.END_DATE,
+        choices=ArchiveSortChoices.choices,
     )
 
     home_truncation = models.CharField(
@@ -480,6 +495,10 @@ class User(AbstractUser):
             models.CheckConstraint(
                 name="home_sort_valid",
                 condition=models.Q(home_sort__in=HomeSortChoices.values),
+            ),
+            models.CheckConstraint(
+                name="archive_sort_valid",
+                condition=models.Q(archive_sort__in=ArchiveSortChoices.values),
             ),
             models.CheckConstraint(
                 name="home_truncation_valid",

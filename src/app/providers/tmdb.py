@@ -202,9 +202,7 @@ def _browse_tmdb(
     cache_timeout=None,
 ):
     """Core TMDB browse logic shared by browse() and browse_for_discover()."""
-    cache_key = (
-        f"{cache_prefix}_{Sources.TMDB.value}_{media_type}_{category}_{page}"
-    )
+    cache_key = f"{cache_prefix}_{Sources.TMDB.value}_{media_type}_{category}_{page}"
     data = cache.get(cache_key)
 
     if data is None:
@@ -214,7 +212,10 @@ def _browse_tmdb(
 
         try:
             response = services.api_request(
-                Sources.TMDB.value, "GET", url, params=params,
+                Sources.TMDB.value,
+                "GET",
+                url,
+                params=params,
             )
         except requests.exceptions.HTTPError as error:
             handle_error(error)
@@ -225,7 +226,11 @@ def _browse_tmdb(
         ]
 
         data = helpers.format_search_response(
-            page, 20, response["total_results"], results, max_pages=500,
+            page,
+            20,
+            response["total_results"],
+            results,
+            max_pages=500,
         )
         cache.set(cache_key, data, timeout=cache_timeout)
 

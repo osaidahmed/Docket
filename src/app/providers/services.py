@@ -421,9 +421,7 @@ def discover_sections(media_type):
     results = {}
     with ThreadPoolExecutor(max_workers=len(sections_config)) as executor:
         futures = {
-            executor.submit(_resolve_section_fetcher(media_type, cfg), 1): cfg[
-                "key"
-            ]
+            executor.submit(_resolve_section_fetcher(media_type, cfg), 1): cfg["key"]
             for cfg in sections_config
         }
         for future in as_completed(futures, timeout=DISCOVER_TIMEOUT):

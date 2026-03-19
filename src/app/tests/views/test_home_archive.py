@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -494,4 +495,228 @@ class ArchiveViewTests(TestCase):
     def test_archive_type_filter_chip_links_preserve_view(self):
         """Type filter chips on archive page keep view=archive in URL."""
         response = self.client.get(self._archive_url())
-        self.assertContains(response, "?view=archive&type=all")
+        self.assertContains(response, "view=archive")
+        self.assertContains(response, "type=all")
+
+    # --- Sort tests ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_default_sort_is_end_date_desc(self, mock_meta):
+        """Archive defaults to end_date descending."""
+        mock_meta.return_value = {"max_progress": None}
+        for i, title in enumerate(["Alpha", "Beta", "Gamma"]):
+            item = Item.objects.create(
+                media_id=f"sort-{i}",
+                source=Sources.TMDB,
+                media_type=MediaTypes.MOVIE,
+                title=title,
+            )
+            Movie.objects.create(
+                item=item,
+                user=self.user,
+                status=Status.COMPLETED.value,
+                end_date=date(2024, 1, i + 1),
+            )
+
+        response = self.client.get(self._archive_url())
+        titles = [m.item.title for m in response.context["archive"]]
+        self.assertEqual(titles, ["Gamma", "Beta", "Alpha"])
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_sort_by_title(self, mock_meta):
+        """Sort=title orders alphabetically ascending."""
+        mock_meta.return_value = {"max_progress": None}
+        for title in ["Cherry", "Apple", "Banana"]:
+            item = Item.objects.create(
+                media_id=f"sort-title-{title}",
+                source=Sources.TMDB,
+                media_type=MediaTypes.MOVIE,
+                title=title,
+            )
+            Movie.objects.create(
+                item=item,
+                user=self.user,
+                status=Status.COMPLETED.value,
+            )
+
+        response = self.client.get(self._archive_url() + "&sort=title")
+        titles = [m.item.title for m in response.context["archive"]]
+        self.assertEqual(titles, ["Apple", "Banana", "Cherry"])
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_sort_by_score(self, mock_meta):
+        """Sort=score orders by score descending."""
+        mock_meta.return_value = {"max_progress": None}
+        for i, (title, score) in enumerate([("Low", 3), ("Mid", 7), ("High", 10)]):
+            item = Item.objects.create(
+                media_id=f"sort-score-{i}",
+                source=Sources.TMDB,
+                media_type=MediaTypes.MOVIE,
+                title=title,
+            )
+            Movie.objects.create(
+                item=item,
+                user=self.user,
+                status=Status.COMPLETED.value,
+                score=score,
+            )
+
+        response = self.client.get(self._archive_url() + "&sort=score")
+        titles = [m.item.title for m in response.context["archive"]]
+        self.assertEqual(titles, ["High", "Mid", "Low"])
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_sort_direction_toggle(self, mock_meta):
+        """sort_dir=asc reverses the default direction."""
+        mock_meta.return_value = {"max_progress": None}
+        for i, title in enumerate(["First", "Second", "Third"]):
+            item = Item.objects.create(
+                media_id=f"sort-dir-{i}",
+                source=Sources.TMDB,
+                media_type=MediaTypes.MOVIE,
+                title=title,
+            )
+            Movie.objects.create(
+                item=item,
+                user=self.user,
+                status=Status.COMPLETED.value,
+                end_date=date(2024, 1, i + 1),
+            )
+
+        response = self.client.get(self._archive_url() + "&sort=end_date&sort_dir=asc")
+        titles = [m.item.title for m in response.context["archive"]]
+        self.assertEqual(titles, ["First", "Second", "Third"])
+
+    def test_archive_sort_persists_as_preference(self):
+        """Sort choice is saved to archive_sort user field."""
+        self.client.get(self._archive_url() + "&sort=title")
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.archive_sort, "title")
+
+    def test_archive_invalid_sort_falls_back_to_default(self):
+        """Invalid sort param uses the saved preference."""
+        self.client.get(self._archive_url() + "&sort=invalid_field")
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.archive_sort, "end_date")
+
+    # --- Search tests ---
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_search_filters_by_title(self, mock_meta):
+        """Search filters archive by item title."""
+        mock_meta.return_value = {"max_progress": None}
+        for title in ["The Matrix", "Inception", "Interstellar"]:
+            item = Item.objects.create(
+                media_id=f"search-{title}",
+                source=Sources.TMDB,
+                media_type=MediaTypes.MOVIE,
+                title=title,
+            )
+            Movie.objects.create(
+                item=item,
+                user=self.user,
+                status=Status.COMPLETED.value,
+            )
+
+        response = self.client.get(self._archive_url() + "&search=matrix")
+        self.assertEqual(len(response.context["archive"]), 1)
+        self.assertEqual(response.context["archive"][0].item.title, "The Matrix")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_search_case_insensitive(self, mock_meta):
+        """Search is case-insensitive."""
+        mock_meta.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="search-case",
+            source=Sources.TMDB,
+            media_type=MediaTypes.MOVIE,
+            title="UPPERCASE Title",
+        )
+        Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+
+        response = self.client.get(self._archive_url() + "&search=uppercase")
+        self.assertEqual(len(response.context["archive"]), 1)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_search_no_results(self, mock_meta):
+        """Search with no matches returns empty archive."""
+        mock_meta.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="search-none",
+            source=Sources.TMDB,
+            media_type=MediaTypes.MOVIE,
+            title="Something",
+        )
+        Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+
+        response = self.client.get(self._archive_url() + "&search=zzzznotfound")
+        self.assertEqual(len(response.context["archive"]), 0)
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_search_with_type_filter(self, mock_meta):
+        """Search and type filter work together."""
+        mock_meta.return_value = {"max_progress": None}
+        for media_type, model, title in [
+            (MediaTypes.MOVIE, Movie, "Action Movie"),
+            (MediaTypes.ANIME, Anime, "Action Anime"),
+        ]:
+            item = Item.objects.create(
+                media_id=f"search-type-{media_type}",
+                source=Sources.TMDB if media_type == MediaTypes.MOVIE else Sources.MAL,
+                media_type=media_type,
+                title=title,
+            )
+            model.objects.create(
+                item=item,
+                user=self.user,
+                status=Status.COMPLETED.value,
+            )
+
+        response = self.client.get(self._archive_url() + "&search=action&type=movie")
+        self.assertEqual(len(response.context["archive"]), 1)
+        self.assertEqual(response.context["archive"][0].item.title, "Action Movie")
+
+    @patch("app.providers.services.get_media_metadata")
+    def test_archive_empty_search_returns_all(self, mock_meta):
+        """Empty search string returns all items."""
+        mock_meta.return_value = {"max_progress": None}
+        item = Item.objects.create(
+            media_id="search-empty",
+            source=Sources.TMDB,
+            media_type=MediaTypes.MOVIE,
+            title="Any Movie",
+        )
+        Movie.objects.create(
+            item=item,
+            user=self.user,
+            status=Status.COMPLETED.value,
+        )
+
+        response = self.client.get(self._archive_url() + "&search=")
+        self.assertEqual(len(response.context["archive"]), 1)
+
+    # --- UI presence tests ---
+
+    def test_archive_page_has_sort_dropdown(self):
+        """Archive page contains the sort dropdown."""
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, "archive-filter-form")
+        self.assertContains(response, "End Date")
+
+    def test_archive_page_has_search_input(self):
+        """Archive page contains the search input."""
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, 'placeholder="Search archive..."')
+
+    def test_archive_page_has_related_media_toggle(self):
+        """Archive page contains the related media grouping toggle."""
+        response = self.client.get(self._archive_url())
+        self.assertContains(response, "toggle_grouping")

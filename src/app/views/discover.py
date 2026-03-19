@@ -34,9 +34,7 @@ def explore_section(request, media_type, section_key):
     if not sections_config:
         return render(request, "app/partials/discover_grid_items.html", {"items": []})
 
-    section_cfg = next(
-        (s for s in sections_config if s["key"] == section_key), None
-    )
+    section_cfg = next((s for s in sections_config if s["key"] == section_key), None)
     if not section_cfg:
         return render(request, "app/partials/discover_grid_items.html", {"items": []})
 
@@ -83,9 +81,7 @@ def _build_sections(request, sections_config, sections_data):
             items = data.get("results", []) if isinstance(data, dict) else []
             items = items[: cfg["limit"]]
             if items:
-                items = helpers.enrich_items_with_user_data(
-                    request, items, "discover"
-                )
+                items = helpers.enrich_items_with_user_data(request, items, "discover")
             section["items"] = items
             section["has_next_page"] = _has_next(data)
             section["next_page"] = 2

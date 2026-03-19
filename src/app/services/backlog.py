@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from django.apps import apps
 from django.db.models import F, Window
 from django.db.models.functions import RowNumber
@@ -9,7 +11,17 @@ from app.models import BasicMedia, MediaTypes, Status
 from app.services.grouping import group_media_list
 
 
-def get_backlog(user, sort_by, media_type_filter=None, group_by="type"):
+@dataclass
+class BacklogOptions:
+    sort_by: str
+    media_type_filter: list | None = None
+    group_by: str = "type"
+    archive_sort: str = "end_date"
+    archive_sort_dir: str | None = None
+    archive_search: str | None = None
+
+
+def get_backlog(user, options):
     """Get grouped backlog items and archive."""
     backlog_statuses = [
         Status.IN_PROGRESS.value,
@@ -17,31 +29,85 @@ def get_backlog(user, sort_by, media_type_filter=None, group_by="type"):
         Status.PAUSED.value,
     ]
 
-    media_types = _get_media_types_to_process(user, media_type_filter)
+    media_types = _get_media_types_to_process(user, options.media_type_filter)
 
-    if group_by == "status":
+    if options.group_by == "status":
         groups, archive_all = _build_status_groups(
-            user, media_types, backlog_statuses, sort_by
+            user, media_types, backlog_statuses, options.sort_by
         )
     else:
         groups, archive_all = _build_type_groups(
-            user, media_types, backlog_statuses, sort_by
+            user, media_types, backlog_statuses, options.sort_by
         )
-        if not media_type_filter or len(media_type_filter) > 1:
-            groups = _extract_rewatches(groups, backlog_statuses, sort_by, user)
-        groups = _extract_not_yet_airing(groups, backlog_statuses)
+        groups = _post_process_type_groups(
+            groups, options, backlog_statuses, user
+        )
 
-    archive_all.sort(
-        key=lambda m: (
-            m.end_date is None,
-            -(m.end_date.timestamp() if m.end_date else 0),
-        ),
-    )
+    _sort_archive(archive_all, options.archive_sort, options.archive_sort_dir)
+    archive_all = _filter_archive_by_search(archive_all, options.archive_search)
+
     return {
         "groups": groups,
         "archive": archive_all,
         "archive_count": len(archive_all),
     }
+
+
+def _post_process_type_groups(groups, options, backlog_statuses, user):
+    if not options.media_type_filter or len(options.media_type_filter) > 1:
+        groups = _extract_rewatches(groups, backlog_statuses, options.sort_by, user)
+    return _extract_not_yet_airing(groups, backlog_statuses)
+
+
+def _filter_archive_by_search(items, search_query):
+    if not search_query:
+        return items
+    q = search_query.lower()
+    return [
+        m
+        for m in items
+        if q in m.item.title.lower()
+        or (m.item.english_title and q in m.item.english_title.lower())
+    ]
+
+
+_ARCHIVE_DEFAULT_DIRS = {
+    "score": "desc",
+    "title": "asc",
+    "start_date": "asc",
+    "end_date": "desc",
+}
+
+
+def _sort_archive(items, sort_by, sort_dir=None):
+    """Sort archive items by the given criteria and direction."""
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = _ARCHIVE_DEFAULT_DIRS.get(sort_by, "desc")
+    desc = sort_dir == "desc"
+
+    key_fns = {
+        "score": lambda m: (
+            m.score is None,
+            -(m.score or 0) if desc else (m.score or 0),
+        ),
+        "title": lambda m: m.item.title.lower(),
+        "start_date": lambda m: (
+            m.start_date is None,
+            -(m.start_date.timestamp() if m.start_date else 0)
+            if desc
+            else (m.start_date.timestamp() if m.start_date else 0),
+        ),
+        "end_date": lambda m: (
+            m.end_date is None,
+            -(m.end_date.timestamp() if m.end_date else 0)
+            if desc
+            else (m.end_date.timestamp() if m.end_date else 0),
+        ),
+    }
+
+    key_fn = key_fns.get(sort_by, key_fns["end_date"])
+    reverse = sort_by == "title" and desc
+    items.sort(key=key_fn, reverse=reverse)
 
 
 def _fetch_and_partition(user, media_type, backlog_statuses):

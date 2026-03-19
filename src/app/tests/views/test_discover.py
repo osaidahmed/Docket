@@ -101,7 +101,10 @@ class DiscoverViewTests(TestCase):
     @patch("app.providers.services.browse")
     def test_browse_default_view(self, mock_browse):
         mock_browse.return_value = {
-            "page": 1, "total_results": 0, "total_pages": 1, "results": [],
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
         }
         url = reverse("explore_type", kwargs={"media_type": "movie"})
         response = self.client.get(url)
@@ -110,7 +113,10 @@ class DiscoverViewTests(TestCase):
     @patch("app.providers.services.browse")
     def test_has_discover_in_context(self, mock_browse):
         mock_browse.return_value = {
-            "page": 1, "total_results": 0, "total_pages": 1, "results": [],
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
         }
         url = reverse("explore_type", kwargs={"media_type": "anime"})
         response = self.client.get(url)
@@ -119,7 +125,10 @@ class DiscoverViewTests(TestCase):
     @patch("app.providers.services.browse")
     def test_no_discover_for_book(self, mock_browse):
         mock_browse.return_value = {
-            "page": 1, "total_results": 0, "total_pages": 1, "results": [],
+            "page": 1,
+            "total_results": 0,
+            "total_pages": 1,
+            "results": [],
         }
         url = reverse("explore_type", kwargs={"media_type": "book"})
         response = self.client.get(url)

@@ -40,14 +40,17 @@ def _mock_schedule_response(schedules, has_next=True):
     }
 
 
-def _make_media(mal_id=123, romaji="Test Anime", english="Test Anime EN",
-                is_adult=False, fmt="TV"):
+def _make_media(
+    mal_id=123, romaji="Test Anime", english="Test Anime EN", is_adult=False, fmt="TV"
+):
     return {
         "id": 999,
         "idMal": mal_id,
         "title": {"romaji": romaji, "english": english},
-        "coverImage": {"large": "https://img.test/l.jpg",
-                       "extraLarge": "https://img.test/xl.jpg"},
+        "coverImage": {
+            "large": "https://img.test/l.jpg",
+            "extraLarge": "https://img.test/xl.jpg",
+        },
         "bannerImage": "https://img.test/banner.jpg",
         "description": "<b>Synopsis</b> text",
         "episodes": 12,
@@ -62,8 +65,9 @@ def _make_media(mal_id=123, romaji="Test Anime", english="Test Anime EN",
     }
 
 
-def _make_schedule_entry(mal_id=123, romaji="Test", english="Test EN",
-                         episode=5, is_adult=False, fmt="TV"):
+def _make_schedule_entry(
+    mal_id=123, romaji="Test", english="Test EN", episode=5, is_adult=False, fmt="TV"
+):
     return {
         "episode": episode,
         "airingAt": 1700000000,

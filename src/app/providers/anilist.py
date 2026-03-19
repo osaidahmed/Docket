@@ -292,9 +292,7 @@ def _recently_aired_anime(page, per_page):
         api_page += 1
         max_attempts -= 1
 
-    data = helpers.format_search_response(
-        page, per_page, 5000, results[:per_page]
-    )
+    data = helpers.format_search_response(page, per_page, 5000, results[:per_page])
     data["has_next_page"] = len(results) >= per_page
     return data
 
@@ -334,8 +332,11 @@ def airing_schedule(page=1, per_page=20):
                 "media_id": str(s["media"].get("idMal") or s["media"]["id"]),
                 "source": Sources.MAL.value,
                 "media_type": MediaTypes.ANIME.value,
-                "title": (s["media"]["title"].get("english")
-                          or s["media"]["title"].get("romaji") or ""),
+                "title": (
+                    s["media"]["title"].get("english")
+                    or s["media"]["title"].get("romaji")
+                    or ""
+                ),
                 "image": (s["media"].get("coverImage") or {}).get("large", ""),
                 "airing_at": s["airingAt"],
                 "episode": s["episode"],

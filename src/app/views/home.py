@@ -12,8 +12,10 @@ from app import config
 from app.models import BasicMedia, MediaTypes, Status
 from app.services import backlog, grouping
 from app.services import recommendations as recs_service
+from app.services.backlog import BacklogOptions, _ARCHIVE_DEFAULT_DIRS
 from app.templatetags import app_tags
 from users.models import (
+    ArchiveSortChoices,
     HomeGroupChoices,
     HomeLayoutChoices,
     HomeSortChoices,
@@ -27,25 +29,43 @@ logger = logging.getLogger(__name__)
 @require_GET
 def home(request):
     """Home page with unified backlog."""
-    sort_by = request.user.update_preference("home_sort", request.GET.get("sort"))
     layout = request.user.update_preference("home_layout", request.GET.get("layout"))
     group_by = request.user.update_preference("home_group", request.GET.get("group"))
     selected_types = request.user.update_home_type_filter(
         request.GET.get("type"),
     )
 
+    archive_open = request.GET.get("view") == "archive"
+
+    if archive_open:
+        archive_sort = request.user.update_preference(
+            "archive_sort", request.GET.get("sort")
+        )
+        archive_sort_dir = request.GET.get("sort_dir")
+        archive_search = request.GET.get("search", "")
+        sort_by = request.user.home_sort
+    else:
+        sort_by = request.user.update_preference("home_sort", request.GET.get("sort"))
+        archive_sort = request.user.archive_sort
+        archive_sort_dir = None
+        archive_search = None
+
     backlog_data = backlog.get_backlog(
         request.user,
-        sort_by,
-        selected_types or None,
-        group_by=group_by,
+        BacklogOptions(
+            sort_by=sort_by,
+            media_type_filter=selected_types or None,
+            group_by=group_by,
+            archive_sort=archive_sort,
+            archive_sort_dir=archive_sort_dir,
+            archive_search=archive_search,
+        ),
     )
 
     truncation = int(request.user.home_truncation)
     if truncation > 0 and group_by == "type":
         _apply_truncation(backlog_data["groups"], truncation)
 
-    archive_open = request.GET.get("view") == "archive"
     archive = backlog_data["archive"]
     if request.user.group_related_media:
         from app.services.backlog import (
@@ -58,8 +78,21 @@ def home(request):
 
     selected_set = set(selected_types)
     extra = f"layout={layout}&group={group_by}"
-    query_base = f"view=archive&{extra}" if archive_open else f"sort={sort_by}&{extra}"
+    if archive_open:
+        query_base = f"view=archive&sort={archive_sort}&{extra}"
+        if archive_sort_dir:
+            query_base += f"&sort_dir={archive_sort_dir}"
+        if archive_search:
+            query_base += f"&search={archive_search}"
+    else:
+        query_base = f"sort={sort_by}&{extra}"
     type_chips = _get_type_filter_choices(request.user, selected_set, query_base)
+
+    effective_archive_sort_dir = (
+        archive_sort_dir
+        if archive_sort_dir in ("asc", "desc")
+        else _ARCHIVE_DEFAULT_DIRS.get(archive_sort, "desc")
+    )
 
     context = {
         "groups": backlog_data["groups"],
@@ -77,6 +110,10 @@ def home(request):
         "show_type_headers": len(selected_types) != 1,
         "type_filter_choices": type_chips,
         "status_choices": Status.choices,
+        "archive_sort": archive_sort,
+        "archive_sort_dir": effective_archive_sort_dir,
+        "archive_sort_choices": ArchiveSortChoices.choices,
+        "archive_search": archive_search or "",
     }
     return render(request, "app/home.html", context)
 

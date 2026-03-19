@@ -1,11 +1,10 @@
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import requests
-from django.conf import settings
 from django.core.cache import cache
 from django.test import SimpleTestCase, TestCase
 
-from app.models import MediaTypes, Sources
+from app.models import Sources
 from app.providers import mangaupdates, services
 from app.providers.mangaupdates import (
     get_authors,
@@ -79,7 +78,6 @@ class HandleErrorTests(SimpleTestCase):
 
 
 class MangaUpdatesBrowseTests(TestCase):
-
     def setUp(self):
         cache.clear()
 
@@ -126,7 +124,6 @@ class MangaUpdatesBrowseTests(TestCase):
 
 
 class MangaUpdatesHelperTests(SimpleTestCase):
-
     def test_get_genres_with_list(self):
         result = get_genres([{"genre": "Action"}, {"genre": "Drama"}])
         self.assertEqual(result, ["Action", "Drama"])
