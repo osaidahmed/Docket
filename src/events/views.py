@@ -19,77 +19,72 @@ from users.models import User
 logger = logging.getLogger(__name__)
 
 
-@require_GET
-def calendar(request):
-    """Display the calendar page."""
-    # Handle view type
-    view_type = request.user.update_preference(
-        "calendar_layout",
-        request.GET.get("view"),
-    )
-
+def _parse_calendar_date(request):
+    """Parse month/year from request, falling back to today."""
     month = request.GET.get("month")
     year = request.GET.get("year")
-
     try:
         current_date = (
             date(int(year), int(month), 1) if month and year else timezone.localdate()
         )
-        month, year = current_date.month, current_date.year
+        return current_date.month, current_date.year
     except (ValueError, TypeError):
         logger.warning("Invalid month or year provided: %s, %s", month, year)
-        current_date = timezone.localdate()
-        month, year = current_date.month, current_date.year
+        today = timezone.localdate()
+        return today.month, today.year
 
-    # Calculate navigation dates
+
+def _calendar_navigation(month, year):
+    """Compute prev/next month+year and the first/last day of the month."""
     is_december = month == 12  # noqa: PLR2004
     is_january = month == 1
-
-    prev_month = 12 if is_january else month - 1
-    prev_year = year - 1 if is_january else year
-
-    next_month = 1 if is_december else month + 1
-    next_year = year + 1 if is_december else year
-
-    # Calculate date range for events
     first_day = date(year, month, 1)
     last_day = date(
         year + 1 if is_december else year,
         1 if is_december else month + 1,
         1,
     ) - timedelta(days=1)
+    return {
+        "prev_month": 12 if is_january else month - 1,
+        "prev_year": year - 1 if is_january else year,
+        "next_month": 1 if is_december else month + 1,
+        "next_year": year + 1 if is_december else year,
+        "first_day": first_day,
+        "last_day": last_day,
+    }
 
-    # Get calendar data
-    calendar_format = cal.monthcalendar(year, month)
-    month_name = cal.month_name[month]
 
-    # Get events and organize by day
-    releases = Event.objects.get_user_events(request.user, first_day, last_day)
-
+def _group_releases_by_day(releases):
+    """Group release events by their local day."""
     release_dict = {}
     for release in releases:
-        # Convert UTC datetime to user's timezone and extract day
-        local_datetime = timezone.localtime(release.datetime)
-        day = local_datetime.day
-        if day not in release_dict:
-            release_dict[day] = []
-        release_dict[day].append(release)
+        day = timezone.localtime(release.datetime).day
+        release_dict.setdefault(day, []).append(release)
+    return release_dict
 
-    # Get today's date for highlighting
-    today = timezone.localdate()
+
+@require_GET
+def calendar(request):
+    """Display the calendar page."""
+    view_type = request.user.update_preference(
+        "calendar_layout",
+        request.GET.get("view"),
+    )
+    month, year = _parse_calendar_date(request)
+    nav = _calendar_navigation(month, year)
+    releases = Event.objects.get_user_events(
+        request.user, nav["first_day"], nav["last_day"]
+    )
 
     context = {
-        "calendar": calendar_format,
+        "calendar": cal.monthcalendar(year, month),
         "month": month,
-        "month_name": month_name,
+        "month_name": cal.month_name[month],
         "year": year,
-        "prev_month": prev_month,
-        "prev_year": prev_year,
-        "next_month": next_month,
-        "next_year": next_year,
-        "release_dict": release_dict,
-        "today": today,
+        "release_dict": _group_releases_by_day(releases),
+        "today": timezone.localdate(),
         "view_type": view_type,
+        **{k: nav[k] for k in ("prev_month", "prev_year", "next_month", "next_year")},
     }
     return render(request, "events/calendar.html", context)
 

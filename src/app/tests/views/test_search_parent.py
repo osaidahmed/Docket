@@ -109,7 +109,7 @@ class SearchParentViewTests(TestCase):
         response = self.client.get(reverse("search_parent_season") + "?q=T")
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "app/components/search_parent_tv.html")
+        self.assertTemplateUsed(response, "app/components/search_parent_season.html")
         self.assertNotIn("results", response.context)
 
     def test_search_parent_season_valid_query(self):

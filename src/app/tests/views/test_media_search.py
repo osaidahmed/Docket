@@ -117,6 +117,24 @@ class MediaSearchViewTests(TestCase):
             [],
         )
 
+    def test_typed_search_empty_query_returns_blank_page(self):
+        """Empty query on a specific media type returns search page with no results."""
+        response = self.client.get(
+            reverse("search") + "?media_type=movie&q=",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "app/search.html")
+        self.assertEqual(response.context["data"]["results"], [])
+
+    def test_unified_search_empty_query_returns_blank_page(self):
+        """Empty query on unified search returns unified page with no results."""
+        response = self.client.get(
+            reverse("search") + "?media_type=all&q=",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "app/search_unified.html")
+        self.assertEqual(response.context["grouped_results"], [])
+
 
 class QuickAddViewTests(TestCase):
     """Test the quick_add view."""

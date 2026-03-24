@@ -363,6 +363,30 @@ class DownloadCalendarViewTests(TestCase):
         self.assertIn("BEGIN:VCALENDAR", content)
         self.assertIn("PRODID:-//Docket//EN", content)
 
+    def test_download_calendar_renders_vevent_for_tracked_media(self):
+        """Events for tracked media render as VEVENT entries in the .ics output."""
+        from app.models import Anime, Status
+
+        Anime.objects.create(
+            item=self.item,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+        )
+        event_dt = timezone.now() + timedelta(days=5)
+        event = Event.objects.create(
+            item=self.item,
+            content_number=3,
+            datetime=event_dt,
+        )
+
+        url = reverse("download_calendar", kwargs={"token": self.user.token})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn("BEGIN:VEVENT", content)
+        self.assertIn("END:VEVENT", content)
+        self.assertIn(str(event.id), content)
+
     def test_download_calendar_empty(self):
         url = reverse("download_calendar", kwargs={"token": self.user.token})
         response = self.client.get(url)

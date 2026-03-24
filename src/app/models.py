@@ -29,6 +29,12 @@ from app.mixins import CalendarTriggerMixin, disable_fetch_releases
 logger = logging.getLogger(__name__)
 
 
+def _aggregate_dates(seasons, field, agg_fn):
+    """Collect non-null date values from seasons and aggregate with agg_fn."""
+    dates = [getattr(s, field) for s in seasons if getattr(s, field)]
+    return agg_fn(dates) if dates else None
+
+
 class Sources(models.TextChoices):
     """Choices for the source of the item."""
 
@@ -381,6 +387,11 @@ class Media(models.Model):
         """Whether this item has a pin order set."""
         return self.pin_order is not None
 
+    def _revert_to_ongoing(self):
+        """Revert a completed title to in-progress when the content is still ongoing."""
+        self.status = Status.IN_PROGRESS.value
+        self.caught_up = True
+
     def increase_progress(self):
         """Increase the progress of the media by one."""
         self.progress += 1
@@ -423,10 +434,8 @@ class TV(Media):
 
         if self.tracker.has_changed("status"):
             if self.status == Status.COMPLETED.value:
-                is_ongoing = self._completed()
-                if is_ongoing:
-                    self.status = Status.IN_PROGRESS.value
-                    self.caught_up = True
+                if self._completed():
+                    self._revert_to_ongoing()
                     bulk_update_with_history([self], TV, fields=["status", "caught_up"])
 
             elif self.status == Status.DROPPED.value:
@@ -481,28 +490,17 @@ class TV(Media):
     @property
     def progressed_at(self):
         """Return the date when the last episode was watched."""
-        dates = [
-            s.progressed_at
-            for s in self._non_special_seasons
-            if s.progressed_at
-        ]
-        return max(dates) if dates else None
+        return _aggregate_dates(self._non_special_seasons, "progressed_at", max)
 
     @property
     def start_date(self):
         """Return the date of the first episode watched."""
-        dates = [
-            s.start_date for s in self._non_special_seasons if s.start_date
-        ]
-        return min(dates) if dates else None
+        return _aggregate_dates(self._non_special_seasons, "start_date", min)
 
     @property
     def end_date(self):
         """Return the date of the last episode watched."""
-        dates = [
-            s.end_date for s in self._non_special_seasons if s.end_date
-        ]
-        return max(dates) if dates else None
+        return _aggregate_dates(self._non_special_seasons, "end_date", max)
 
     def _complete_seasons(self, season_numbers, tv_with_seasons_metadata):
         """Complete given seasons and create their episodes."""
@@ -769,9 +767,7 @@ class Season(Media):
     def _episode_dates(self):
         if not hasattr(self, "_cached_episode_dates"):
             self._cached_episode_dates = [
-                ep.end_date
-                for ep in self.episodes.all()
-                if ep.end_date is not None
+                ep.end_date for ep in self.episodes.all() if ep.end_date is not None
             ]
         return self._cached_episode_dates
 
@@ -1196,8 +1192,7 @@ class Anime(Media):
 
             self.progress = metadata.get("max_progress") or self.progress
             if is_ongoing:
-                self.status = Status.IN_PROGRESS.value
-                self.caught_up = True
+                self._revert_to_ongoing()
         self.item.fetch_releases(delay=True)
 
 

@@ -94,59 +94,45 @@ def media_search(request):
     return render(request, "app/search.html", context)
 
 
-@require_GET
-def search_parent_tv(request):
-    """Return the search results for parent TV shows."""
+def _search_parent_media(request, model, media_type, template):
+    """Search for manual parent media (TV or Season) by title."""
     query = request.GET.get("q", "").strip()
-
     if len(query) <= 1:
-        return render(request, "app/components/search_parent_tv.html")
+        return render(request, template)
 
     logger.debug(
-        "%s - Searching for TV shows with query: %s",
+        "%s - Searching for %s with query: %s",
         request.user.username,
+        media_type,
         query,
     )
 
-    parent_tvs = TV.objects.filter(
+    results = model.objects.filter(
         Q(item__title__icontains=query) | Q(item__english_title__icontains=query),
         user=request.user,
         item__source=Sources.MANUAL.value,
-        item__media_type=MediaTypes.TV.value,
+        item__media_type=media_type,
     )[:5]
 
-    return render(
-        request,
-        "app/components/search_parent_tv.html",
-        {"results": parent_tvs, "query": query},
+    return render(request, template, {"results": results, "query": query})
+
+
+@require_GET
+def search_parent_tv(request):
+    """Return the search results for parent TV shows."""
+    return _search_parent_media(
+        request, TV, MediaTypes.TV.value, "app/components/search_parent_tv.html"
     )
 
 
 @require_GET
 def search_parent_season(request):
     """Return the search results for parent seasons."""
-    query = request.GET.get("q", "").strip()
-
-    if len(query) <= 1:
-        return render(request, "app/components/search_parent_tv.html")
-
-    logger.debug(
-        "%s - Searching for seasons with query: %s",
-        request.user.username,
-        query,
-    )
-
-    parent_seasons = Season.objects.filter(
-        Q(item__title__icontains=query) | Q(item__english_title__icontains=query),
-        user=request.user,
-        item__source=Sources.MANUAL.value,
-        item__media_type=MediaTypes.SEASON.value,
-    )[:5]
-
-    return render(
+    return _search_parent_media(
         request,
+        Season,
+        MediaTypes.SEASON.value,
         "app/components/search_parent_season.html",
-        {"results": parent_seasons, "query": query},
     )
 
 

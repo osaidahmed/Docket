@@ -497,37 +497,37 @@ class TraktImporter:
         if last_season and last_season == season_number:
             tv_obj.status = Status.COMPLETED.value
 
+    def _fetch_and_process(
+        self, endpoint, entry_type, attr_fn, *, paginated=False, pagination_key=None
+    ):
+        """Fetch data from a Trakt endpoint and process entries."""
+        logger.info("Importing %s for user %s", entry_type, self.username)
+        url = f"{self.user_base_url}/{endpoint}"
+        data = (
+            self._get_paginated_data(url, pagination_key)
+            if paginated
+            else self._make_api_request(url)
+        )
+        self._process_entries(data, entry_type, attr_fn)
+
     def process_watchlist(self):
         """Process watchlist from Trakt."""
-        logger.info("Importing watchlist for user %s", self.username)
-        data = self._make_api_request(f"{self.user_base_url}/watchlist")
-        self._process_entries(
-            data,
-            "watchlist",
-            lambda _e: {"status": Status.PLANNING.value},
+        self._fetch_and_process(
+            "watchlist", "watchlist", lambda _e: {"status": Status.PLANNING.value}
         )
 
     def process_ratings(self):
         """Process ratings from Trakt."""
-        logger.info("Importing ratings for user %s", self.username)
-        data = self._make_api_request(f"{self.user_base_url}/ratings")
-        self._process_entries(
-            data,
-            "rating",
-            lambda e: {"score": e["rating"]},
-        )
+        self._fetch_and_process("ratings", "rating", lambda e: {"score": e["rating"]})
 
     def process_comments(self):
         """Process comments from Trakt."""
-        logger.info("Importing comments for user %s", self.username)
-        data = self._get_paginated_data(
-            f"{self.user_base_url}/comments",
+        self._fetch_and_process(
             "comments",
-        )
-        self._process_entries(
-            data,
             "comment",
             lambda e: {"notes": e["comment"]["comment"]},
+            paginated=True,
+            pagination_key="comments",
         )
 
     def _process_entries(self, entries, entry_type, get_attrs):

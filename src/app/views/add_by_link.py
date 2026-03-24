@@ -32,41 +32,22 @@ def _extract_query_from_url(url):
     return query if len(query) >= _MIN_QUERY_LENGTH else None
 
 
-def _process_link(request, url, media_type):
-    """Process a single URL: extract query, search, create or skip."""
-    url = url.strip()
-    query = _extract_query_from_url(url)
-    if not query:
-        return {
-            "url": url,
-            "status": "failed",
-            "reason": "Could not extract title from URL",
-        }
-
+def _search_for_media(media_type, query):
+    """Search for media by query, returning the best result or None."""
     try:
         data = services.search(media_type, query, page=1)
     except Exception:
         logger.exception("API search failed for query '%s'", query)
-        return {
-            "url": url,
-            "query": query,
-            "status": "failed",
-            "reason": "API search failed",
-        }
+        return None, "API search failed"
 
     results = data.get("results", [])
     if not results:
-        return {
-            "url": url,
-            "query": query,
-            "status": "failed",
-            "reason": "No results found",
-        }
+        return None, "No results found"
+    return results[0], None
 
-    best = results[0]
-    media_id = str(best["media_id"])
-    source = best["source"]
 
+def _track_or_update_media(request, media_type, media_id, source, url):
+    """Track new media or update existing entry's link. Returns result dict."""
     existing = (
         BasicMedia.objects.filter_media(request.user, media_id, media_type, source)
         .select_related("item")
@@ -74,14 +55,11 @@ def _process_link(request, url, media_type):
     )
 
     if existing:
-        link_updated = False
-        if not existing.link and url:
+        link_updated = not existing.link and bool(url)
+        if link_updated:
             existing.link = url
             existing.save(update_fields=["link"])
-            link_updated = True
         return {
-            "url": url,
-            "query": query,
             "status": "already_tracked",
             "title": existing.item.title,
             "image": existing.item.image,
@@ -111,14 +89,28 @@ def _process_link(request, url, media_type):
         status=Status.PLANNING.value,
         link=url,
     )
+    return {"status": "added", "title": item.title, "image": item.image}
 
-    return {
-        "url": url,
-        "query": query,
-        "status": "added",
-        "title": item.title,
-        "image": item.image,
-    }
+
+def _process_link(request, url, media_type):
+    """Process a single URL: extract query, search, create or skip."""
+    url = url.strip()
+    query = _extract_query_from_url(url)
+    if not query:
+        return {
+            "url": url,
+            "status": "failed",
+            "reason": "Could not extract title from URL",
+        }
+
+    best, error = _search_for_media(media_type, query)
+    if error:
+        return {"url": url, "query": query, "status": "failed", "reason": error}
+
+    result = _track_or_update_media(
+        request, media_type, str(best["media_id"]), best["source"], url
+    )
+    return {"url": url, "query": query, **result}
 
 
 def _get_media_type_choices(user):

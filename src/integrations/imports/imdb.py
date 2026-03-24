@@ -314,7 +314,7 @@ class IMDBImporter:
             if min_rating <= rating <= max_rating:
                 return rating
         except (ValueError, TypeError):
-            pass
+            logger.debug("Could not parse rating: %s", rating_str)
 
         return None
 

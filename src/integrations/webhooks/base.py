@@ -198,19 +198,22 @@ class BaseWebhookProcessor:
 
         return None, None
 
-    def _get_mal_id_from_tmdb_movie(self, mapping_data, tmdb_movie_id):
-        """Find MAL ID from TMDB movie mapping."""
+    def _find_mal_id_in_mapping(self, mapping_data, field, value):
+        """Find MAL ID from mapping data by matching a field value."""
         for entry in mapping_data.values():
-            if entry.get("tmdb_movie_id") == tmdb_movie_id and "mal_id" in entry:
+            if entry.get(field) == value and "mal_id" in entry:
                 return self._parse_mal_id(entry["mal_id"])
         return None
 
+    def _get_mal_id_from_tmdb_movie(self, mapping_data, tmdb_movie_id):
+        """Find MAL ID from TMDB movie mapping."""
+        return self._find_mal_id_in_mapping(
+            mapping_data, "tmdb_movie_id", tmdb_movie_id
+        )
+
     def _get_mal_id_from_imdb(self, mapping_data, imdb_id):
         """Find MAL ID from IMDB ID mapping."""
-        for entry in mapping_data.values():
-            if entry.get("imdb_id") == imdb_id and "mal_id" in entry:
-                return self._parse_mal_id(entry["mal_id"])
-        return None
+        return self._find_mal_id_in_mapping(mapping_data, "imdb_id", imdb_id)
 
     def _parse_mal_id(self, mal_id):
         """Parse MAL ID from potentially comma-separated string."""

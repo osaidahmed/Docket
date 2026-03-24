@@ -12,7 +12,7 @@ from app import config
 from app.models import BasicMedia, MediaTypes, Status
 from app.services import backlog, grouping
 from app.services import recommendations as recs_service
-from app.services.backlog import BacklogOptions, _ARCHIVE_DEFAULT_DIRS
+from app.services.backlog import _ARCHIVE_DEFAULT_DIRS, BacklogOptions
 from app.templatetags import app_tags
 from users.models import (
     ArchiveSortChoices,
@@ -26,67 +26,34 @@ from users.models import (
 logger = logging.getLogger(__name__)
 
 
-@require_GET
-def home(request):
-    """Home page with unified backlog."""
-    layout = request.user.update_preference("home_layout", request.GET.get("layout"))
-    group_by = request.user.update_preference("home_group", request.GET.get("group"))
-    selected_types = request.user.update_home_type_filter(
-        request.GET.get("type"),
-    )
-
+def _resolve_home_params(request):
+    """Parse preferences and build type chip query for the home page."""
+    user = request.user
+    layout = user.update_preference("home_layout", request.GET.get("layout"))
+    group_by = user.update_preference("home_group", request.GET.get("group"))
+    selected_types = user.update_home_type_filter(request.GET.get("type"))
     archive_open = request.GET.get("view") == "archive"
+    shared_qs = f"layout={layout}&group={group_by}"
 
     if archive_open:
-        archive_sort = request.user.update_preference(
-            "archive_sort", request.GET.get("sort")
-        )
+        archive_sort = user.update_preference("archive_sort", request.GET.get("sort"))
         archive_sort_dir = request.GET.get("sort_dir")
         archive_search = request.GET.get("search", "")
-        sort_by = request.user.home_sort
-    else:
-        sort_by = request.user.update_preference("home_sort", request.GET.get("sort"))
-        archive_sort = request.user.archive_sort
-        archive_sort_dir = None
-        archive_search = None
-
-    backlog_data = backlog.get_backlog(
-        request.user,
-        BacklogOptions(
-            sort_by=sort_by,
-            media_type_filter=selected_types or None,
-            group_by=group_by,
-            archive_sort=archive_sort,
-            archive_sort_dir=archive_sort_dir,
-            archive_search=archive_search,
-        ),
-    )
-
-    truncation = int(request.user.home_truncation)
-    if truncation > 0 and group_by == "type":
-        _apply_truncation(backlog_data["groups"], truncation)
-
-    archive = backlog_data["archive"]
-    if request.user.group_related_media:
-        from app.services.backlog import (
-            _apply_grouping_to_backlog_items,
-        )
-
-        archive = _apply_grouping_to_backlog_items(archive, request.user)
-    if not archive_open:
-        archive = archive[:20]
-
-    selected_set = set(selected_types)
-    extra = f"layout={layout}&group={group_by}"
-    if archive_open:
-        query_base = f"view=archive&sort={archive_sort}&{extra}"
+        sort_by = user.home_sort
+        query_base = f"view=archive&sort={archive_sort}&{shared_qs}"
         if archive_sort_dir:
             query_base += f"&sort_dir={archive_sort_dir}"
         if archive_search:
             query_base += f"&search={archive_search}"
     else:
-        query_base = f"sort={sort_by}&{extra}"
-    type_chips = _get_type_filter_choices(request.user, selected_set, query_base)
+        sort_by = user.update_preference("home_sort", request.GET.get("sort"))
+        archive_sort = user.archive_sort
+        archive_sort_dir = None
+        archive_search = None
+        query_base = f"sort={sort_by}&{shared_qs}"
+
+    selected_set = set(selected_types)
+    type_chips = _get_type_filter_choices(user, selected_set, query_base)
 
     effective_archive_sort_dir = (
         archive_sort_dir
@@ -94,26 +61,65 @@ def home(request):
         else _ARCHIVE_DEFAULT_DIRS.get(archive_sort, "desc")
     )
 
+    return {
+        "selected_types": selected_types,
+        "selected_set": selected_set,
+        "type_chips": type_chips,
+        "archive_open": archive_open,
+        "effective_archive_sort_dir": effective_archive_sort_dir,
+        "options": BacklogOptions(
+            sort_by=sort_by,
+            media_type_filter=selected_types or None,
+            group_by=group_by,
+            archive_sort=archive_sort,
+            archive_sort_dir=archive_sort_dir,
+            archive_search=archive_search,
+        ),
+        "context_vars": {
+            "current_sort": sort_by,
+            "sort_choices": HomeSortChoices.choices,
+            "current_layout": layout,
+            "layout_choices": HomeLayoutChoices.choices,
+            "current_group": group_by,
+            "group_choices": HomeGroupChoices.choices,
+            "archive_sort": archive_sort,
+            "archive_sort_choices": ArchiveSortChoices.choices,
+            "archive_search": archive_search or "",
+        },
+    }
+
+
+@require_GET
+def home(request):
+    """Home page with unified backlog."""
+    params = _resolve_home_params(request)
+    backlog_data = backlog.get_backlog(request.user, params["options"])
+    group_by = params["options"].group_by
+
+    truncation = int(request.user.home_truncation)
+    if truncation > 0 and group_by == "type":
+        _apply_truncation(backlog_data["groups"], truncation)
+
+    archive = backlog_data["archive"]
+    if request.user.group_related_media:
+        from app.services.backlog import _apply_grouping_to_backlog_items
+
+        archive = _apply_grouping_to_backlog_items(archive, request.user)
+    if not params["archive_open"]:
+        archive = archive[:20]
+
     context = {
         "groups": backlog_data["groups"],
         "archive": archive,
         "archive_count": backlog_data["archive_count"],
-        "archive_open": archive_open,
-        "current_sort": sort_by,
-        "sort_choices": HomeSortChoices.choices,
-        "current_layout": layout,
-        "layout_choices": HomeLayoutChoices.choices,
-        "current_group": group_by,
-        "group_choices": HomeGroupChoices.choices,
-        "selected_types": selected_set,
-        "selected_types_csv": ",".join(selected_types),
-        "show_type_headers": len(selected_types) != 1,
-        "type_filter_choices": type_chips,
+        "archive_open": params["archive_open"],
+        "selected_types": params["selected_set"],
+        "selected_types_csv": ",".join(params["selected_types"]),
+        "show_type_headers": len(params["selected_types"]) != 1,
+        "type_filter_choices": params["type_chips"],
         "status_choices": Status.choices,
-        "archive_sort": archive_sort,
-        "archive_sort_dir": effective_archive_sort_dir,
-        "archive_sort_choices": ArchiveSortChoices.choices,
-        "archive_search": archive_search or "",
+        "archive_sort_dir": params["effective_archive_sort_dir"],
+        **params["context_vars"],
     }
     return render(request, "app/home.html", context)
 

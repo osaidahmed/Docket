@@ -591,7 +591,7 @@ def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_
         for future in as_completed(futures, timeout=SUGGEST_API_TIMEOUT):
             _collect_suggest_results(future, futures[future], seen_keys, all_results)
     except TimeoutError:
-        pass
+        logger.debug("Search suggest timed out after %ss", SUGGEST_API_TIMEOUT)
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
 

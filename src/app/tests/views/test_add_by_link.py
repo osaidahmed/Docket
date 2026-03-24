@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from app.models import Anime, Item, MediaTypes, Sources, Status
-from app.views.add_by_link import _extract_query_from_url
+from app.views.add_by_link import _extract_query_from_url, _search_for_media
 
 
 class ExtractQueryTests(TestCase):
@@ -291,3 +291,66 @@ class AddByLinkViewTests(TestCase):
             },
         )
         self.assertIn("error", response.context)
+
+
+class SearchForMediaTests(TestCase):
+    """Test the _search_for_media helper directly."""
+
+    @patch(_SEARCH, side_effect=ConnectionError("provider down"))
+    def test_api_exception_returns_error(self, _mock):
+        """When the provider API raises, return None with an error message."""
+        result, error = _search_for_media("anime", "one punch man")
+        self.assertIsNone(result)
+        self.assertEqual(error, "API search failed")
+
+    @patch(_SEARCH, return_value=MOCK_SEARCH_RESULT)
+    def test_successful_search_returns_best_match(self, _mock):
+        """First result is returned when search succeeds."""
+        result, error = _search_for_media("anime", "one punch man")
+        self.assertIsNone(error)
+        self.assertEqual(result["media_id"], "21")
+
+    @patch(_SEARCH, return_value=MOCK_EMPTY_SEARCH)
+    def test_empty_results_returns_no_results_error(self, _mock):
+        """When provider returns zero results, return a clear error."""
+        result, error = _search_for_media("anime", "xyznonexistent")
+        self.assertIsNone(result)
+        self.assertEqual(error, "No results found")
+
+
+class ExtractQueryEdgeCaseTests(TestCase):
+    """Edge cases for URL query extraction."""
+
+    def test_malformed_url_returns_none(self):
+        """A URL that causes urlparse to raise ValueError returns None."""
+        self.assertIsNone(_extract_query_from_url("http://[invalid"))
+
+    def test_whitespace_only_slug(self):
+        """A path whose slug becomes empty after cleanup returns None."""
+        self.assertIsNone(_extract_query_from_url("https://example.com/---"))
+
+    def test_single_char_slug_returns_none(self):
+        """A slug shorter than _MIN_QUERY_LENGTH returns None."""
+        self.assertIsNone(_extract_query_from_url("https://example.com/v/x"))
+
+
+class AddByLinkAPIFailureTests(TestCase):
+    """Test the full view when the provider API fails."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "test_api_fail", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    @patch(_SEARCH, side_effect=ConnectionError("timeout"))
+    def test_api_failure_reports_failed_with_reason(self, _mock):
+        """When provider API raises, the result shows 'API search failed'."""
+        response = self.client.post(
+            reverse("add_by_link_process"),
+            {"media_type": "anime", "links": "https://hianime.to/watch/one-punch-man-100"},
+        )
+        self.assertEqual(response.context["failed_count"], 1)
+        self.assertIn("API search failed", response.context["failed"][0]["reason"])
