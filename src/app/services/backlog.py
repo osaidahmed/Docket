@@ -40,9 +40,7 @@ def get_backlog(user, options):
         groups, archive_all = _build_type_groups(
             user, media_types, backlog_statuses, options.sort_by
         )
-        groups = _post_process_type_groups(
-            groups, options, backlog_statuses, user
-        )
+        groups = _post_process_type_groups(groups, options, backlog_statuses, user)
 
     _sort_archive(archive_all, options.archive_sort, options.archive_sort_dir)
     archive_all = _filter_archive_by_search(archive_all, options.archive_search)

@@ -477,9 +477,7 @@ def _bulk_status(items, value):
                 value == Status.IN_PROGRESS.value
                 and not item.start_date
                 and hasattr(type(item), "start_date")
-                and not isinstance(
-                    getattr(type(item), "start_date"), property
-                )
+                and not isinstance(type(item).start_date, property)
             ):
                 item.start_date = now
             item.save()

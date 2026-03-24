@@ -126,10 +126,14 @@ class PreferencesToggleRoundTripTests(TestCase):
     def test_disable_single_type(self):
         """Disabling one type keeps all others enabled."""
         all_types = [
-            MediaTypes.TV.value, MediaTypes.MOVIE.value,
-            MediaTypes.ANIME.value, MediaTypes.MANGA.value,
-            MediaTypes.GAME.value, MediaTypes.BOOK.value,
-            MediaTypes.COMIC.value, MediaTypes.BOARDGAME.value,
+            MediaTypes.TV.value,
+            MediaTypes.MOVIE.value,
+            MediaTypes.ANIME.value,
+            MediaTypes.MANGA.value,
+            MediaTypes.GAME.value,
+            MediaTypes.BOOK.value,
+            MediaTypes.COMIC.value,
+            MediaTypes.BOARDGAME.value,
         ]
         self._post_preferences(all_types)
 
@@ -145,10 +149,14 @@ class PreferencesToggleRoundTripTests(TestCase):
     def test_enable_all_then_disable_all_except_one(self):
         """Can disable all types except one."""
         all_types = [
-            MediaTypes.TV.value, MediaTypes.MOVIE.value,
-            MediaTypes.ANIME.value, MediaTypes.MANGA.value,
-            MediaTypes.GAME.value, MediaTypes.BOOK.value,
-            MediaTypes.COMIC.value, MediaTypes.BOARDGAME.value,
+            MediaTypes.TV.value,
+            MediaTypes.MOVIE.value,
+            MediaTypes.ANIME.value,
+            MediaTypes.MANGA.value,
+            MediaTypes.GAME.value,
+            MediaTypes.BOOK.value,
+            MediaTypes.COMIC.value,
+            MediaTypes.BOARDGAME.value,
         ]
         self._post_preferences(all_types)
         self._post_preferences([MediaTypes.TV.value])
@@ -173,7 +181,8 @@ class PreferencesToggleRoundTripTests(TestCase):
     def test_multiple_save_cycles_preserve_state(self):
         """Saving the same preferences multiple times doesn't corrupt state."""
         checked = [
-            MediaTypes.TV.value, MediaTypes.ANIME.value,
+            MediaTypes.TV.value,
+            MediaTypes.ANIME.value,
             MediaTypes.MANGA.value,
         ]
         for _ in range(3):
@@ -195,9 +204,13 @@ class PreferencesToggleRoundTripTests(TestCase):
         response = self.client.get(reverse("preferences"))
         enabled = self._get_enabled_from_response(response)
         for mt in [
-            MediaTypes.TV.value, MediaTypes.MOVIE.value,
-            MediaTypes.ANIME.value, MediaTypes.MANGA.value,
-            MediaTypes.GAME.value, MediaTypes.BOOK.value,
-            MediaTypes.COMIC.value, MediaTypes.BOARDGAME.value,
+            MediaTypes.TV.value,
+            MediaTypes.MOVIE.value,
+            MediaTypes.ANIME.value,
+            MediaTypes.MANGA.value,
+            MediaTypes.GAME.value,
+            MediaTypes.BOOK.value,
+            MediaTypes.COMIC.value,
+            MediaTypes.BOARDGAME.value,
         ]:
             self.assertIn(mt, enabled, f"{mt} should be enabled by default")

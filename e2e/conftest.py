@@ -37,7 +37,9 @@ def test_user(transactional_db):
     user = User.objects.create_user(username="e2etest", password="e2epass12345")
     for mt in BUILTIN_MEDIA_TYPES:
         UserMediaPreference.objects.get_or_create(
-            user=user, media_type=mt, defaults={"enabled": True},
+            user=user,
+            media_type=mt,
+            defaults={"enabled": True},
         )
     return user
 
@@ -87,6 +89,8 @@ def create_second_user(transactional_db=None):
     user = User.objects.create_user(username="user_b", password="pass12345")
     for mt in BUILTIN_MEDIA_TYPES:
         UserMediaPreference.objects.get_or_create(
-            user=user, media_type=mt, defaults={"enabled": True},
+            user=user,
+            media_type=mt,
+            defaults={"enabled": True},
         )
     return user

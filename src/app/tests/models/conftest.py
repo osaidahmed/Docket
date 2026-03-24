@@ -40,7 +40,9 @@ class MediaManagerTestBase(TestCase):
         user = get_user_model().objects.create_user(username="test", password="12345")
         for media_type in MediaTypes.values:
             UserMediaPreference.objects.get_or_create(
-                user=user, media_type=media_type, defaults={"enabled": True},
+                user=user,
+                media_type=media_type,
+                defaults={"enabled": True},
             )
         return user
 

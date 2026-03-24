@@ -465,8 +465,6 @@ class UserMediaTypeOrderTests(TestCase):
 
     def test_disabled_types_excluded_from_custom_order(self):
         """Disabled types don't appear even if in custom order."""
-        from users.models import UserMediaPreference  # noqa: PLC0415
-
         pref = self.user.get_or_create_media_pref(MediaTypes.GAME.value)
         pref.enabled = False
         pref.save(update_fields=["enabled"])

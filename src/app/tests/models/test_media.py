@@ -179,7 +179,10 @@ class MetadataPassthroughTests(TestCase):
 
     def _make_anime(self, status=Status.IN_PROGRESS.value, progress=0):
         return Anime.objects.create(
-            item=self.item, user=self.user, status=status, progress=progress,
+            item=self.item,
+            user=self.user,
+            status=status,
+            progress=progress,
         )
 
     @patch("app.models.providers.services.get_media_metadata")

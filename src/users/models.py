@@ -427,9 +427,7 @@ class User(AbstractUser):
     def get_media_pref(self, media_type):
         """Return the UserMediaPreference for this media type, or None."""
         if not hasattr(self, "_pref_cache"):
-            self._pref_cache = {
-                p.media_type: p for p in self.media_preferences.all()
-            }
+            self._pref_cache = {p.media_type: p for p in self.media_preferences.all()}
         return self._pref_cache.get(media_type)
 
     def get_or_create_media_pref(self, media_type):
@@ -438,11 +436,14 @@ class User(AbstractUser):
         if pref is None:
             defaults = {
                 "layout": PER_TYPE_LAYOUT_DEFAULTS.get(
-                    media_type, LayoutChoices.GRID,
+                    media_type,
+                    LayoutChoices.GRID,
                 ),
             }
             pref, _ = UserMediaPreference.objects.get_or_create(
-                user=self, media_type=media_type, defaults=defaults,
+                user=self,
+                media_type=media_type,
+                defaults=defaults,
             )
             if hasattr(self, "_pref_cache"):
                 self._pref_cache[media_type] = pref
@@ -487,7 +488,8 @@ class User(AbstractUser):
         current = getattr(pref, pref_attr)
 
         if new_value is None or not self._is_valid_preference(
-            f"{media_type}_{attr}", new_value,
+            f"{media_type}_{attr}",
+            new_value,
         ):
             return current
 
@@ -539,9 +541,7 @@ class User(AbstractUser):
         """Return a list of enabled media type values based on user preferences."""
         skip = {MediaTypes.EPISODE.value, MediaTypes.SEASON.value}
         if not hasattr(self, "_pref_cache"):
-            self._pref_cache = {
-                p.media_type: p for p in self.media_preferences.all()
-            }
+            self._pref_cache = {p.media_type: p for p in self.media_preferences.all()}
 
         ordered = []
         seen = set()
