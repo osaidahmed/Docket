@@ -2,6 +2,7 @@
 
 import logging
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.apps import apps
 from django.conf import settings
@@ -101,49 +102,64 @@ class _FrequencyData:
 _ACTIVE_STATUSES = {Status.IN_PROGRESS.value, Status.PLANNING.value}
 
 
+PROGRESS_BATCH = 10
+MAX_WORKERS = 5
+
+
+def _fetch_one(media):
+    try:
+        metadata = provider_services.get_media_metadata(
+            media.item.media_type,
+            media.item.media_id,
+            media.item.source,
+        )
+    except Exception:  # noqa: BLE001
+        logger.debug(
+            "Failed to fetch metadata for %s/%s",
+            media.item.media_type,
+            media.item.media_id,
+        )
+        return media, None
+    return media, metadata
+
+
+def _process_item(data, media, metadata):
+    genres = metadata.get("genres") or []
+    for genre in genres:
+        data.genre_freq[genre] += 1
+
+    is_active = media.status in _ACTIVE_STATUSES
+    for rec in metadata.get("related", {}).get("recommendations", []):
+        key = (str(rec["media_id"]), rec["source"])
+        data.rec_details[key] = rec
+        data.full_freq[key] += 1
+        if is_active:
+            data.active_freq[key] += 1
+        for genre in genres:
+            data.genre_recs[genre][key] += 1
+
+
 def _collect_frequencies(processable, progress_key):
     data = _FrequencyData()
     total = len(processable)
+    completed = 0
 
-    for i, media in enumerate(processable):
-        try:
-            metadata = provider_services.get_media_metadata(
-                media.item.media_type,
-                media.item.media_id,
-                media.item.source,
-            )
-        except Exception:  # noqa: BLE001
-            logger.debug(
-                "Failed to fetch metadata for %s/%s",
-                media.item.media_type,
-                media.item.media_id,
-            )
-            cache.set(
-                progress_key,
-                {"current": i + 1, "total": total},
-                PROGRESS_TIMEOUT,
-            )
-            continue
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(_fetch_one, m): m for m in processable}
+        for future in as_completed(futures):
+            media, metadata = future.result()
+            completed += 1
 
-        genres = metadata.get("genres") or []
-        for genre in genres:
-            data.genre_freq[genre] += 1
+            if metadata:
+                _process_item(data, media, metadata)
 
-        is_active = media.status in _ACTIVE_STATUSES
-        for rec in metadata.get("related", {}).get("recommendations", []):
-            key = (str(rec["media_id"]), rec["source"])
-            data.rec_details[key] = rec
-            data.full_freq[key] += 1
-            if is_active:
-                data.active_freq[key] += 1
-            for genre in genres:
-                data.genre_recs[genre][key] += 1
+            if completed % PROGRESS_BATCH == 0 or completed == total:
+                cache.set(
+                    progress_key,
+                    {"current": completed, "total": total},
+                    PROGRESS_TIMEOUT,
+                )
 
-        cache.set(
-            progress_key,
-            {"current": i + 1, "total": total},
-            PROGRESS_TIMEOUT,
-        )
     return data
 
 
