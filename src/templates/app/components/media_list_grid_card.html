@@ -5,7 +5,10 @@
      data-bulk-id="{{ media.id }}"
      x-data="{ trackOpen: false, listsOpen: false, historyOpen: false }">
   <div class="relative">
-    <div x-show="selecting" @click.stop class="absolute top-2 left-2 z-30">
+    <div x-show="selecting"
+         x-cloak
+         @click.stop
+         class="absolute top-2 left-2 z-30">
       <input type="checkbox"
              :checked="selected.includes('{{ media.id }}')"
              @click="toggleItem('{{ media.id }}', $event)"
@@ -227,6 +230,7 @@
 
   {# Track Modal #}
   <div x-show="trackOpen"
+       x-cloak
        @keydown.escape.window="trackOpen = false"
        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="w-152 max-h-[90vh] px-4 md:px-0 relative z-60"
@@ -237,6 +241,7 @@
 
   {# Lists Modal #}
   <div x-show="listsOpen"
+       x-cloak
        @keydown.escape.window="listsOpen = false"
        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="w-96 max-h-[90vh] px-4 md:px-0 relative z-60"
@@ -247,6 +252,7 @@
 
   {# History Modal #}
   <div x-show="historyOpen"
+       x-cloak
        @keydown.escape.window="historyOpen = false"
        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="w-96 max-h-[90vh] px-4 md:px-0 relative z-60"

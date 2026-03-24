@@ -37,6 +37,7 @@
 
         {# Track Modal #}
         <div x-show="trackOpen"
+             x-cloak
              @keydown.escape.window="trackOpen = false"
              class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div class="w-152 max-h-[90vh] px-4 md:px-0 relative z-60"
@@ -96,6 +97,7 @@
               <div class="w-4 h-4" :class="{ 'rotate-180': open }">{% include "app/icons/chevron-down.svg" %}</div>
             </button>
             <div x-show="open"
+                 x-cloak
                  x-transition:enter="transition ease-out duration-200"
                  x-transition:enter-start="opacity-0 transform scale-95"
                  x-transition:enter-end="opacity-100 transform scale-100"
@@ -227,6 +229,7 @@
               </div>
 
               <div x-show="showRatingPopup"
+                   x-cloak
                    @click.outside="showRatingPopup = false; isHovering = false"
                    class="absolute left-0 top-full mt-2 p-3 bg-card rounded-lg shadow-lg z-10 w-[250px] border border-gray-700"
                    @mouseenter="isHovering = true"
@@ -279,6 +282,7 @@
 
               {# Track Modal #}
               <div x-show="trackOpen"
+                   x-cloak
                    @keydown.escape.window="trackOpen = false"
                    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                 <div class="w-152 max-h-[90vh] px-4 md:px-0 relative z-60"
@@ -328,7 +332,7 @@
                 Show Repeats ({{ user_medias|length|add:"-1" }})
               </button>
 
-              <div x-show="showRepeats" class="space-y-2 mt-4">
+              <div x-show="showRepeats" x-cloak class="space-y-2 mt-4">
                 {% for user_media in user_medias|slice:"1:" %}
                   <div class="bg-card p-4 rounded-lg">
                     <div class="flex items-center justify-between mb-2">
@@ -356,6 +360,7 @@
                         </button>
 
                         <div x-show="trackOpen"
+                             x-cloak
                              @keydown.escape.window="trackOpen = false"
                              class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                           <div class="w-152 max-h-[90vh] px-4 md:px-0 relative z-60"
@@ -427,6 +432,7 @@
                     @click="listsOpen = true">{% include "app/icons/list-add.svg" with classes="w-4 h-4" %}</button>
 
             <div x-show="listsOpen"
+                 x-cloak
                  @keydown.escape.window="listsOpen = false"
                  class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div class="w-96 max-h-[90vh] px-4 md:px-0 relative z-60"
@@ -447,6 +453,7 @@
                     @click="historyOpen = true">{% include "app/icons/history.svg" with classes="w-4 h-4" %}</button>
 
             <div x-show="historyOpen"
+                 x-cloak
                  @keydown.escape.window="historyOpen = false"
                  class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div class="w-96 max-h-[90vh] px-4 md:px-0 relative z-60"
@@ -602,6 +609,7 @@
                             </button>
 
                             <div x-show="listsOpen"
+                                 x-cloak
                                  @keydown.escape.window="listsOpen = false"
                                  class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                               <div class="w-96 max-h-[90vh] px-4 md:px-0 relative z-60"
@@ -623,6 +631,7 @@
                               {% include "app/icons/history.svg" with classes="w-4 h-4" %}
                             </button>
                             <div x-show="historyOpen"
+                                 x-cloak
                                  @keydown.escape.window="historyOpen = false"
                                  class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                               <div class="w-96 max-h-[90vh] px-4 md:px-0 relative z-60"

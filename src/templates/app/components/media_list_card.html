@@ -8,7 +8,10 @@
   {% endif %}
   , confirmDrop: false, confirmUntrack: false, showRatingPopup: false, rating: {{ media.score|default:'null' }}, hoverRating: null, isHovering: false }">
   <div class="flex items-start p-4 gap-4">
-    <div x-show="selecting" class="flex items-center shrink-0" @click.stop>
+    <div x-show="selecting"
+         x-cloak
+         class="flex items-center shrink-0"
+         @click.stop>
       <input type="checkbox"
              :checked="selected.includes('{{ media.id }}')"
              @click="toggleItem('{{ media.id }}', $event)"
@@ -186,7 +189,7 @@
                 Untrack
               </button>
             </div>
-            <div x-show="confirmUntrack" class="flex items-center gap-2">
+            <div x-show="confirmUntrack" x-cloak class="flex items-center gap-2">
               <span class="text-sm text-gray-400">Untrack this?</span>
               <button type="button"
                       @click="confirmUntrack = false"
@@ -209,7 +212,10 @@
     </div>
   </div>
 
-  <div x-show="editing" x-transition class="border-t border-gray-700 p-4">
+  <div x-show="editing"
+       x-cloak
+       x-transition
+       class="border-t border-gray-700 p-4">
     <form hx-post="{% url 'backlog_save' %}"
           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
           hx-target="#medialist-card-{{ media.item.media_type }}-{{ media.id }}"
@@ -374,7 +380,7 @@
               Untrack
             </button>
           </div>
-          <div x-show="confirmUntrack" class="flex items-center gap-2">
+          <div x-show="confirmUntrack" x-cloak class="flex items-center gap-2">
             <span class="text-sm text-gray-400">Untrack this?</span>
             <button type="button"
                     @click="confirmUntrack = false"
@@ -400,7 +406,7 @@
               Drop
             </button>
           </div>
-          <div x-show="confirmDrop" class="flex items-center gap-2">
+          <div x-show="confirmDrop" x-cloak class="flex items-center gap-2">
             <span class="text-sm text-gray-400">Drop this?</span>
             <button type="button"
                     @click="confirmDrop = false"

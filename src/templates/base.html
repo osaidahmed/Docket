@@ -40,9 +40,12 @@
 
     <script defer src="{% static 'js/libraries/htmx-2.0.4.min.js' %}"></script>
     <script defer src="{% static 'js/libraries/sortable-1.15.6.min.js' %}"></script>
-    <script defer src="{% static 'js/search-bar.js' %}{% get_static_file_mtime 'js/search-bar.js' %}"></script>
-    <script defer src="{% static 'js/media-list.js' %}{% get_static_file_mtime 'js/media-list.js' %}"></script>
-    <script defer src="{% static 'js/archive-sort.js' %}{% get_static_file_mtime 'js/archive-sort.js' %}"></script>
+    <script defer
+            src="{% static 'js/search-bar.js' %}{% get_static_file_mtime 'js/search-bar.js' %}"></script>
+    <script defer
+            src="{% static 'js/media-list.js' %}{% get_static_file_mtime 'js/media-list.js' %}"></script>
+    <script defer
+            src="{% static 'js/archive-sort.js' %}{% get_static_file_mtime 'js/archive-sort.js' %}"></script>
     <script defer src="{% static 'js/libraries/alpinejs-3.14.9.min.js' %}"></script>
 
     <link rel="apple-touch-icon"
@@ -75,6 +78,7 @@
 
         {# Mobile menu overlay #}
         <div x-show="isMobileMenuOpen"
+             x-cloak
              class="fixed inset-0 bg-black/50 z-30 lg:hidden"
              @click="isMobileMenuOpen = false"></div>
 

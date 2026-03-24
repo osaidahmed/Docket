@@ -3,7 +3,7 @@
 <tbody x-data="{ groupOpen: false }">
   <tr class="hover:bg-input transition-colors cursor-pointer"
       @click="groupOpen = !groupOpen">
-    <td x-show="selecting" class="p-2" @click.stop></td>
+    <td x-show="selecting" x-cloak class="p-2" @click.stop></td>
     <td class="p-2 relative">
       <img alt="{{ group.item }}"
            loading="lazy"

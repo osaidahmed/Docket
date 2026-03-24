@@ -105,6 +105,7 @@
           <form class="flex items-center"
                 method="post"
                 x-show="usePrivateImport"
+                x-cloak
                 action="{% url 'trakt_oauth' %}">
             {% csrf_token %}
             <input type="hidden" name="frequency" x-model="importFrequency">
@@ -197,6 +198,7 @@
           <form class="flex items-center"
                 method="post"
                 x-show="usePrivateImport"
+                x-cloak
                 action="{% url 'import_anilist_oauth' %}">
             {% csrf_token %}
             <input type="hidden" name="frequency" x-model="importFrequency">
@@ -488,7 +490,8 @@
                   {% endif %}
 
                   <div class="mt-2 space-y-1 text-sm bg-card p-3 rounded overflow-x-auto break-words"
-                       x-show="showDetails">
+                       x-show="showDetails"
+                       x-cloak>
                     <div class="text-xs space-y-1 text-red-400">
                       {% for error in result.errors.splitlines %}<div>{{ error }}</div>{% endfor %}
                     </div>

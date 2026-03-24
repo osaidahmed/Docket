@@ -21,161 +21,24 @@
          data-sort-labels='{ {% for value, label in archive_sort_choices %}"{{ value }}": "{{ label }}"{% if not forloop.last %}, {% endif %}{% endfor %} }'>
     {# djlint:on #}
 
-      <form id="archive-filter-form" class="hidden">
-        <input type="hidden" name="view" value="archive">
-        <input type="hidden" name="sort" x-model="sort">
-        <input type="hidden" name="sort_dir" x-model="sortDir">
-        <input type="hidden" name="search" x-model="search">
-        <input type="hidden" name="layout" value="{{ current_layout }}">
-        <input type="hidden" name="group" value="{{ current_group }}">
-        {% if selected_types_csv %}
-          <input type="hidden" name="type" value="{{ selected_types_csv }}">
-        {% endif %}
-      </form>
+    <form id="archive-filter-form" class="hidden">
+      <input type="hidden" name="view" value="archive">
+      <input type="hidden" name="sort" x-model="sort">
+      <input type="hidden" name="sort_dir" x-model="sortDir">
+      <input type="hidden" name="search" x-model="search">
+      <input type="hidden" name="layout" value="{{ current_layout }}">
+      <input type="hidden" name="group" value="{{ current_group }}">
+      {% if selected_types_csv %}<input type="hidden" name="type" value="{{ selected_types_csv }}">{% endif %}
+    </form>
 
-      <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-        <h1 class="text-3xl font-bold text-center w-full sm:w-auto">Archive</h1>
-        <div class="flex items-center gap-2">
-          {# Related Media Grouping Toggle #}
-          <button hx-post="{% url 'toggle_grouping' %}"
-                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                  hx-swap="none"
-                  class="p-2 rounded-md cursor-pointer transition-colors {% if request.user.group_related_media %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
-                  title="{% if request.user.group_related_media %}Ungroup related items{% else %}Group related items{% endif %}"
-                  type="button">{% include "app/icons/layers.svg" with classes="w-4 h-4" %}</button>
-
-          {# Sort Dropdown #}
-          <div class="relative" x-data="{ open: false }">
-            <button @click="open = !open"
-                    @click.outside="open = false"
-                    class="flex items-center gap-2 px-4 py-2 bg-input hover:bg-highlight rounded-md transition-colors cursor-pointer"
-                    type="button">
-              {% include "app/icons/arrows-up-down.svg" with classes="w-4 h-4" %}
-              <span class="text-sm font-medium" x-text="sortLabels[sort] || sort"></span>
-              <span x-text="sortDir === 'asc' ? '↑' : '↓'" class="text-sm"></span>
-              {% include "app/icons/chevron-down.svg" with classes="w-4 h-4 text-gray-400" %}
-            </button>
-            <div x-show="open"
-                 x-cloak
-                 x-transition:enter="transition ease-out duration-100"
-                 x-transition:enter-start="transform opacity-0 scale-95"
-                 x-transition:enter-end="transform opacity-100 scale-100"
-                 x-transition:leave="transition ease-in duration-75"
-                 x-transition:leave-start="transform opacity-100 scale-100"
-                 x-transition:leave-end="transform opacity-0 scale-95"
-                 class="absolute right-0 mt-2 py-1 w-48 bg-input rounded-md shadow-lg overflow-hidden z-10 border border-gray-700">
-              {% for value, label in archive_sort_choices %}
-                <button hx-get="{% url 'home' %}"
-                        hx-include="#archive-filter-form"
-                        :hx-vals="JSON.stringify({sort: '{{ value }}', sort_dir: sort === '{{ value }}' ? (sortDir === 'asc' ? 'desc' : 'asc') : defaultSortDirs['{{ value }}']})"
-                        hx-target="#archive-list"
-                        hx-select="#archive-list"
-                        hx-swap="outerHTML"
-                        class="flex items-center justify-between w-full px-4 py-2 text-left text-sm transition-colors cursor-pointer"
-                        :class="sort === '{{ value }}' ? 'bg-accent text-white font-medium' : 'text-gray-300 hover:bg-highlight hover:text-white'"
-                        @click="if (sort === '{{ value }}') { sortDir = sortDir === 'asc' ? 'desc' : 'asc' } else { sort = '{{ value }}'; sortDir = defaultSortDirs['{{ value }}']; } open = false"
-                        type="button">
-                  <span>{{ label }}</span>
-                  <template x-if="sort === '{{ value }}'">
-                    <span x-text="sortDir === 'asc' ? '↑' : '↓'" class="ml-2"></span>
-                  </template>
-                </button>
-              {% endfor %}
-            </div>
-          </div>
-
-          {# Layout Toggle #}
-          <div class="flex rounded-md overflow-hidden border border-gray-700"
-               hx-boost="true"
-               hx-select="#archive-page-content"
-               hx-target="#archive-page-content"
-               hx-swap="outerHTML">
-            <a href="{% url 'home' %}?view=archive&sort={{ archive_sort }}&sort_dir={{ archive_sort_dir }}{% if archive_search %}&search={{ archive_search }}{% endif %}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=cards&group={{ current_group }}"
-               class="p-2 cursor-pointer transition-colors {% if current_layout == 'cards' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
-               title="Cards View">{% include "app/icons/list.svg" with classes="w-4 h-4" %}</a>
-            <a href="{% url 'home' %}?view=archive&sort={{ archive_sort }}&sort_dir={{ archive_sort_dir }}{% if archive_search %}&search={{ archive_search }}{% endif %}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=grid&group={{ current_group }}"
-               class="p-2 cursor-pointer transition-colors {% if current_layout == 'grid' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
-               title="Grid View">{% include "app/icons/four-square.svg" with classes="w-4 h-4" %}</a>
-            <a href="{% url 'home' %}?view=archive&sort={{ archive_sort }}&sort_dir={{ archive_sort_dir }}{% if archive_search %}&search={{ archive_search }}{% endif %}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=table&group={{ current_group }}"
-               class="p-2 cursor-pointer transition-colors {% if current_layout == 'table' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
-               title="Table View">{% include "app/icons/table.svg" with classes="w-4 h-4" %}</a>
-          </div>
-        </div>
-      </div>
-
-      {# Search Input #}
-      <div class="relative mb-4">
-        <input placeholder="Search archive..."
-               class="w-full py-2 pl-10 pr-4 bg-input rounded-md text-white focus:outline-none focus:ring-2 focus:ring-accent appearance-none"
-               type="text"
-               x-model="search"
-               hx-get="{% url 'home' %}"
-               hx-trigger="keyup changed delay:300ms, search"
-               hx-target="#archive-list"
-               hx-select="#archive-list"
-               hx-swap="outerHTML"
-               hx-include="#archive-filter-form"
-               hx-indicator="#archive-search-indicator">
-        {% include "app/icons/magnifying-glass.svg" with classes="w-6 h-6 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" %}
-        <div id="archive-search-indicator"
-             class="htmx-indicator absolute right-3 top-1/2 transform -translate-y-1/2">
-          <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-accent-hover"></div>
-        </div>
-      </div>
-
-      {# Type Filter Chips #}
-      <div class="flex flex-wrap gap-2 mb-6"
-           hx-boost="true"
-           hx-select="#archive-page-content"
-           hx-target="#archive-page-content"
-           hx-swap="outerHTML">
-        <a href="{% url 'home' %}?view=archive&sort={{ archive_sort }}&sort_dir={{ archive_sort_dir }}{% if archive_search %}&search={{ archive_search }}{% endif %}&type=all&layout={{ current_layout }}&group={{ current_group }}"
-           class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if not selected_types %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
-          All
-        </a>
-        {% for chip in type_filter_choices %}
-          <a href="{{ chip.toggle_url }}"
-             class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if chip.value in selected_types %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
-            {{ chip.label }}
-          </a>
-        {% endfor %}
-      </div>
-
-      {# Archive List #}
-      {% include "app/components/archive_list.html" %}
-    </div>
-  {% else %}
     <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-      <h1 class="text-3xl font-bold text-center w-full sm:w-auto">Backlog</h1>
-      <div class="flex items-center gap-3">
-        {# Layout Toggle #}
-        <div class="flex rounded-md overflow-hidden border border-gray-700">
-          <a href="{% url 'home' %}?sort={{ current_sort }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=cards&group={{ current_group }}"
-             class="p-2 cursor-pointer transition-colors {% if current_layout == 'cards' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
-             title="Cards View">{% include "app/icons/list.svg" with classes="w-4 h-4" %}</a>
-          <a href="{% url 'home' %}?sort={{ current_sort }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=grid&group={{ current_group }}"
-             class="p-2 cursor-pointer transition-colors {% if current_layout == 'grid' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
-             title="Grid View">{% include "app/icons/four-square.svg" with classes="w-4 h-4" %}</a>
-          <a href="{% url 'home' %}?sort={{ current_sort }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=table&group={{ current_group }}"
-             class="p-2 cursor-pointer transition-colors {% if current_layout == 'table' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
-             title="Table View">{% include "app/icons/table.svg" with classes="w-4 h-4" %}</a>
-        </div>
-
-        {# Group Toggle #}
-        <div class="flex rounded-md overflow-hidden border border-gray-700">
-          <a href="{% url 'home' %}?sort={{ current_sort }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout={{ current_layout }}&group=type"
-             class="px-3 py-2 text-xs font-medium cursor-pointer transition-colors {% if current_group == 'type' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
-             title="Group by Type">Type</a>
-          <a href="{% url 'home' %}?sort={{ current_sort }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout={{ current_layout }}&group=status"
-             class="px-3 py-2 text-xs font-medium cursor-pointer transition-colors {% if current_group == 'status' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
-             title="Group by Status">Status</a>
-        </div>
-
+      <h1 class="text-3xl font-bold text-center w-full sm:w-auto">Archive</h1>
+      <div class="flex items-center gap-2">
         {# Related Media Grouping Toggle #}
         <button hx-post="{% url 'toggle_grouping' %}"
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                 hx-swap="none"
-                class="p-2 rounded-md cursor-pointer transition-colors {% if request.user.group_related_media %}bg-accent text-white{% else %}bg-input hover:bg-highlight{% endif %}"
+                class="p-2 rounded-md cursor-pointer transition-colors {% if request.user.group_related_media %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
                 title="{% if request.user.group_related_media %}Ungroup related items{% else %}Group related items{% endif %}"
                 type="button">{% include "app/icons/layers.svg" with classes="w-4 h-4" %}</button>
 
@@ -183,12 +46,15 @@
         <div class="relative" x-data="{ open: false }">
           <button @click="open = !open"
                   @click.outside="open = false"
-                  class="flex items-center gap-2 px-4 py-2 bg-input hover:bg-highlight rounded-md transition-colors cursor-pointer">
+                  class="flex items-center gap-2 px-4 py-2 bg-input hover:bg-highlight rounded-md transition-colors cursor-pointer"
+                  type="button">
             {% include "app/icons/arrows-up-down.svg" with classes="w-4 h-4" %}
-            <span class="text-sm font-medium">{{ current_sort|no_underscore|title }}</span>
+            <span class="text-sm font-medium" x-text="sortLabels[sort] || sort"></span>
+            <span x-text="sortDir === 'asc' ? '↑' : '↓'" class="text-sm"></span>
             {% include "app/icons/chevron-down.svg" with classes="w-4 h-4 text-gray-400" %}
           </button>
           <div x-show="open"
+               x-cloak
                x-transition:enter="transition ease-out duration-100"
                x-transition:enter-start="transform opacity-0 scale-95"
                x-transition:enter-end="transform opacity-100 scale-100"
@@ -196,19 +62,72 @@
                x-transition:leave-start="transform opacity-100 scale-100"
                x-transition:leave-end="transform opacity-0 scale-95"
                class="absolute right-0 mt-2 py-1 w-48 bg-input rounded-md shadow-lg overflow-hidden z-10 border border-gray-700">
-            {% for value, label in sort_choices %}
-              <a href="{% url 'home' %}?sort={{ value }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout={{ current_layout }}&group={{ current_group }}"
-                 class="block w-full px-4 py-2 text-left text-sm transition-colors {% if current_sort == value %}bg-accent text-white font-medium{% else %}text-gray-300 hover:bg-highlight hover:text-white{% endif %}">
-                {{ label }}
-              </a>
+            {% for value, label in archive_sort_choices %}
+              <button hx-get="{% url 'home' %}"
+                      hx-include="#archive-filter-form"
+                      :hx-vals="JSON.stringify({sort: '{{ value }}', sort_dir: sort === '{{ value }}' ? (sortDir === 'asc' ? 'desc' : 'asc') : defaultSortDirs['{{ value }}']})"
+                      hx-target="#archive-list"
+                      hx-select="#archive-list"
+                      hx-swap="outerHTML"
+                      class="flex items-center justify-between w-full px-4 py-2 text-left text-sm transition-colors cursor-pointer"
+                      :class="sort === '{{ value }}' ? 'bg-accent text-white font-medium' : 'text-gray-300 hover:bg-highlight hover:text-white'"
+                      @click="if (sort === '{{ value }}') { sortDir = sortDir === 'asc' ? 'desc' : 'asc' } else { sort = '{{ value }}'; sortDir = defaultSortDirs['{{ value }}']; } open = false"
+                      type="button">
+                <span>{{ label }}</span>
+                <template x-if="sort === '{{ value }}'">
+                  <span x-text="sortDir === 'asc' ? '↑' : '↓'" class="ml-2"></span>
+                </template>
+              </button>
             {% endfor %}
           </div>
+        </div>
+
+        {# Layout Toggle #}
+        <div class="flex rounded-md overflow-hidden border border-gray-700"
+             hx-boost="true"
+             hx-select="#archive-page-content"
+             hx-target="#archive-page-content"
+             hx-swap="outerHTML">
+          <a href="{% url 'home' %}?view=archive&sort={{ archive_sort }}&sort_dir={{ archive_sort_dir }}{% if archive_search %}&search={{ archive_search }}{% endif %}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=cards&group={{ current_group }}"
+             class="p-2 cursor-pointer transition-colors {% if current_layout == 'cards' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
+             title="Cards View">{% include "app/icons/list.svg" with classes="w-4 h-4" %}</a>
+          <a href="{% url 'home' %}?view=archive&sort={{ archive_sort }}&sort_dir={{ archive_sort_dir }}{% if archive_search %}&search={{ archive_search }}{% endif %}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=grid&group={{ current_group }}"
+             class="p-2 cursor-pointer transition-colors {% if current_layout == 'grid' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
+             title="Grid View">{% include "app/icons/four-square.svg" with classes="w-4 h-4" %}</a>
+          <a href="{% url 'home' %}?view=archive&sort={{ archive_sort }}&sort_dir={{ archive_sort_dir }}{% if archive_search %}&search={{ archive_search }}{% endif %}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=table&group={{ current_group }}"
+             class="p-2 cursor-pointer transition-colors {% if current_layout == 'table' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
+             title="Table View">{% include "app/icons/table.svg" with classes="w-4 h-4" %}</a>
         </div>
       </div>
     </div>
 
-    <div class="flex flex-wrap gap-2 mb-6">
-      <a href="{% url 'home' %}?sort={{ current_sort }}&type=all&layout={{ current_layout }}&group={{ current_group }}"
+    {# Search Input #}
+    <div class="relative mb-4">
+      <input placeholder="Search archive..."
+             class="w-full py-2 pl-10 pr-4 bg-input rounded-md text-white focus:outline-none focus:ring-2 focus:ring-accent appearance-none"
+             type="text"
+             x-model="search"
+             hx-get="{% url 'home' %}"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#archive-list"
+             hx-select="#archive-list"
+             hx-swap="outerHTML"
+             hx-include="#archive-filter-form"
+             hx-indicator="#archive-search-indicator">
+      {% include "app/icons/magnifying-glass.svg" with classes="w-6 h-6 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" %}
+      <div id="archive-search-indicator"
+           class="htmx-indicator absolute right-3 top-1/2 transform -translate-y-1/2">
+        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-accent-hover"></div>
+      </div>
+    </div>
+
+    {# Type Filter Chips #}
+    <div class="flex flex-wrap gap-2 mb-6"
+         hx-boost="true"
+         hx-select="#archive-page-content"
+         hx-target="#archive-page-content"
+         hx-swap="outerHTML">
+      <a href="{% url 'home' %}?view=archive&sort={{ archive_sort }}&sort_dir={{ archive_sort_dir }}{% if archive_search %}&search={{ archive_search }}{% endif %}&type=all&layout={{ current_layout }}&group={{ current_group }}"
          class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if not selected_types %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
         All
       </a>
@@ -220,154 +139,234 @@
       {% endfor %}
     </div>
 
-    {% if groups %}
-      {% for group in groups %}
-        {# Group Header #}
-        {% if current_group == "status" and group.media_type != "not_yet_airing" %}
-          <div class="flex items-center gap-2 mt-6 mb-3">
-            <h2 class="text-xl font-semibold {{ group.label|status_color }}">{{ group.label }}</h2>
-          </div>
-        {% elif show_type_headers or group.media_type == "not_yet_airing" %}
-          <div class="flex items-center gap-2 mt-6 mb-3">
-            {% if group.media_type == "rewatch" %}
-              {% include "app/icons/repeat.svg" with classes="w-5 h-5 text-gray-400" %}
-            {% elif group.media_type == "not_yet_airing" %}
-              {% include "app/icons/calendar.svg" with classes="w-5 h-5 text-gray-400" %}
-            {% else %}
-              {% icon group.media_type is_active=False extra_classes="w-5 h-5" %}
-            {% endif %}
-            <h2 class="text-xl font-semibold text-white">{{ group.label }}</h2>
-          </div>
-        {% endif %}
+    {# Archive List #}
+    {% include "app/components/archive_list.html" %}
+  </div>
+{% else %}
+  <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+    <h1 class="text-3xl font-bold text-center w-full sm:w-auto">Backlog</h1>
+    <div class="flex items-center gap-3">
+      {# Layout Toggle #}
+      <div class="flex rounded-md overflow-hidden border border-gray-700">
+        <a href="{% url 'home' %}?sort={{ current_sort }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=cards&group={{ current_group }}"
+           class="p-2 cursor-pointer transition-colors {% if current_layout == 'cards' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
+           title="Cards View">{% include "app/icons/list.svg" with classes="w-4 h-4" %}</a>
+        <a href="{% url 'home' %}?sort={{ current_sort }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=grid&group={{ current_group }}"
+           class="p-2 cursor-pointer transition-colors {% if current_layout == 'grid' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
+           title="Grid View">{% include "app/icons/four-square.svg" with classes="w-4 h-4" %}</a>
+        <a href="{% url 'home' %}?sort={{ current_sort }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout=table&group={{ current_group }}"
+           class="p-2 cursor-pointer transition-colors {% if current_layout == 'table' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
+           title="Table View">{% include "app/icons/table.svg" with classes="w-4 h-4" %}</a>
+      </div>
 
-        {% for sg in group.status_groups %}
-          <div {% if sg.truncated_at %}x-data="{ expanded: false }"{% endif %}>
-            {# Status sub-header -- only when grouping by type #}
-            {% if current_group == "type" %}
-              <h3 class="text-sm font-medium uppercase tracking-wider mb-2 {{ sg.status|status_color }}">{{ sg.status }}</h3>
-            {% endif %}
+      {# Group Toggle #}
+      <div class="flex rounded-md overflow-hidden border border-gray-700">
+        <a href="{% url 'home' %}?sort={{ current_sort }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout={{ current_layout }}&group=type"
+           class="px-3 py-2 text-xs font-medium cursor-pointer transition-colors {% if current_group == 'type' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
+           title="Group by Type">Type</a>
+        <a href="{% url 'home' %}?sort={{ current_sort }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout={{ current_layout }}&group=status"
+           class="px-3 py-2 text-xs font-medium cursor-pointer transition-colors {% if current_group == 'status' %}bg-accent text-white{% else %}bg-input text-gray-400 hover:bg-highlight hover:text-white{% endif %}"
+           title="Group by Status">Status</a>
+      </div>
 
-            {% if sg.pinned_items %}
-              {# --- Pinned section --- #}
-              <h4 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1">
-                {% include "app/icons/pin.svg" with classes="w-3 h-3" %}
-                Pinned
-              </h4>
+      {# Related Media Grouping Toggle #}
+      <button hx-post="{% url 'toggle_grouping' %}"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              hx-swap="none"
+              class="p-2 rounded-md cursor-pointer transition-colors {% if request.user.group_related_media %}bg-accent text-white{% else %}bg-input hover:bg-highlight{% endif %}"
+              title="{% if request.user.group_related_media %}Ungroup related items{% else %}Group related items{% endif %}"
+              type="button">{% include "app/icons/layers.svg" with classes="w-4 h-4" %}</button>
 
-              {% if current_layout == "grid" %}
-                {# djlint:off #}
-                <div id="pinned-list-{{ group.media_type }}-{{ sg.status|slugify }}" class="media-grid mb-3" x-data x-init="new Sortable($el, { handle: '.drag-handle', animation: 150, onEnd() { const ids = [...$el.children].map(el => ({ media_type: el.dataset.mediaType, id: parseInt(el.dataset.id) })); fetch('{% url "save_pin_order" %}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify(ids) }) } })">
-                {# djlint:on #}
-                {% for media in sg.pinned_items %}
-                  <div data-media-type="{{ media.item.media_type }}"
-                       data-id="{{ media.id }}">
-                    {% include "app/components/backlog_grid_card.html" with media=media %}
-                  </div>
-                {% endfor %}
-              </div>
-            {% elif current_layout == "table" %}
-              {% if current_group == "type" %}
-                {% include "app/components/backlog_table.html" with items=sg.pinned_items hide_type=True %}
-              {% else %}
-                {% include "app/components/backlog_table.html" with items=sg.pinned_items %}
-              {% endif %}
-            {% else %}
+      {# Sort Dropdown #}
+      <div class="relative" x-data="{ open: false }">
+        <button @click="open = !open"
+                @click.outside="open = false"
+                class="flex items-center gap-2 px-4 py-2 bg-input hover:bg-highlight rounded-md transition-colors cursor-pointer">
+          {% include "app/icons/arrows-up-down.svg" with classes="w-4 h-4" %}
+          <span class="text-sm font-medium">{{ current_sort|no_underscore|title }}</span>
+          {% include "app/icons/chevron-down.svg" with classes="w-4 h-4 text-gray-400" %}
+        </button>
+        <div x-show="open"
+             x-cloak
+             x-transition:enter="transition ease-out duration-100"
+             x-transition:enter-start="transform opacity-0 scale-95"
+             x-transition:enter-end="transform opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-75"
+             x-transition:leave-start="transform opacity-100 scale-100"
+             x-transition:leave-end="transform opacity-0 scale-95"
+             class="absolute right-0 mt-2 py-1 w-48 bg-input rounded-md shadow-lg overflow-hidden z-10 border border-gray-700">
+          {% for value, label in sort_choices %}
+            <a href="{% url 'home' %}?sort={{ value }}{% if selected_types_csv %}&type={{ selected_types_csv }}{% endif %}&layout={{ current_layout }}&group={{ current_group }}"
+               class="block w-full px-4 py-2 text-left text-sm transition-colors {% if current_sort == value %}bg-accent text-white font-medium{% else %}text-gray-300 hover:bg-highlight hover:text-white{% endif %}">
+              {{ label }}
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex flex-wrap gap-2 mb-6">
+    <a href="{% url 'home' %}?sort={{ current_sort }}&type=all&layout={{ current_layout }}&group={{ current_group }}"
+       class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if not selected_types %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+      All
+    </a>
+    {% for chip in type_filter_choices %}
+      <a href="{{ chip.toggle_url }}"
+         class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {% if chip.value in selected_types %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
+        {{ chip.label }}
+      </a>
+    {% endfor %}
+  </div>
+
+  {% if groups %}
+    {% for group in groups %}
+      {# Group Header #}
+      {% if current_group == "status" and group.media_type != "not_yet_airing" %}
+        <div class="flex items-center gap-2 mt-6 mb-3">
+          <h2 class="text-xl font-semibold {{ group.label|status_color }}">{{ group.label }}</h2>
+        </div>
+      {% elif show_type_headers or group.media_type == "not_yet_airing" %}
+        <div class="flex items-center gap-2 mt-6 mb-3">
+          {% if group.media_type == "rewatch" %}
+            {% include "app/icons/repeat.svg" with classes="w-5 h-5 text-gray-400" %}
+          {% elif group.media_type == "not_yet_airing" %}
+            {% include "app/icons/calendar.svg" with classes="w-5 h-5 text-gray-400" %}
+          {% else %}
+            {% icon group.media_type is_active=False extra_classes="w-5 h-5" %}
+          {% endif %}
+          <h2 class="text-xl font-semibold text-white">{{ group.label }}</h2>
+        </div>
+      {% endif %}
+
+      {% for sg in group.status_groups %}
+        <div {% if sg.truncated_at %}x-data="{ expanded: false }"{% endif %}>
+          {# Status sub-header -- only when grouping by type #}
+          {% if current_group == "type" %}
+            <h3 class="text-sm font-medium uppercase tracking-wider mb-2 {{ sg.status|status_color }}">{{ sg.status }}</h3>
+          {% endif %}
+
+          {% if sg.pinned_items %}
+            {# --- Pinned section --- #}
+            <h4 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+              {% include "app/icons/pin.svg" with classes="w-3 h-3" %}
+              Pinned
+            </h4>
+
+            {% if current_layout == "grid" %}
               {# djlint:off #}
-                <div id="pinned-list-{{ group.media_type }}-{{ sg.status|slugify }}" class="space-y-3 mb-3" x-data x-init="new Sortable($el, { handle: '.drag-handle', animation: 150, onEnd() { const ids = [...$el.children].map(el => ({ media_type: el.dataset.mediaType, id: parseInt(el.dataset.id) })); fetch('{% url "save_pin_order" %}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify(ids) }) } })">
+                <div id="pinned-list-{{ group.media_type }}-{{ sg.status|slugify }}" class="media-grid mb-3" x-data x-init="new Sortable($el, { handle: '.drag-handle', animation: 150, onEnd() { const ids = [...$el.children].map(el => ({ media_type: el.dataset.mediaType, id: parseInt(el.dataset.id) })); fetch('{% url "save_pin_order" %}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify(ids) }) } })">
               {# djlint:on #}
               {% for media in sg.pinned_items %}
                 <div data-media-type="{{ media.item.media_type }}"
                      data-id="{{ media.id }}">
-                  {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
+                  {% include "app/components/backlog_grid_card.html" with media=media %}
                 </div>
               {% endfor %}
             </div>
-          {% endif %}
+          {% elif current_layout == "table" %}
+            {% if current_group == "type" %}
+              {% include "app/components/backlog_table.html" with items=sg.pinned_items hide_type=True %}
+            {% else %}
+              {% include "app/components/backlog_table.html" with items=sg.pinned_items %}
+            {% endif %}
+          {% else %}
+            {# djlint:off #}
+                <div id="pinned-list-{{ group.media_type }}-{{ sg.status|slugify }}" class="space-y-3 mb-3" x-data x-init="new Sortable($el, { handle: '.drag-handle', animation: 150, onEnd() { const ids = [...$el.children].map(el => ({ media_type: el.dataset.mediaType, id: parseInt(el.dataset.id) })); fetch('{% url "save_pin_order" %}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify(ids) }) } })">
+            {# djlint:on #}
+            {% for media in sg.pinned_items %}
+              <div data-media-type="{{ media.item.media_type }}"
+                   data-id="{{ media.id }}">
+                {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
+              </div>
+            {% endfor %}
+          </div>
         {% endif %}
+      {% endif %}
 
-        {# --- Rest items with truncation --- #}
-        {% if sg.items %}
-          {% if current_layout == "grid" %}
-            <div class="media-grid mb-4">
-              {% for media in sg.items %}
-                {% if sg.truncated_at and forloop.counter > sg.truncated_at %}
-                  <div x-show="expanded"
-                       x-cloak
-                       {% if forloop.counter0 == sg.truncated_at %}id="see-all-{{ group.media_type }}-{{ sg.status|slugify }}"{% endif %}>
-                    {% if media.is_group %}
-                      {% include "app/components/media_list_grid_card_group.html" with group=media %}
-                    {% else %}
-                      {% include "app/components/backlog_grid_card.html" with media=media %}
-                    {% endif %}
-                  </div>
-                {% else %}
+      {# --- Rest items with truncation --- #}
+      {% if sg.items %}
+        {% if current_layout == "grid" %}
+          <div class="media-grid mb-4">
+            {% for media in sg.items %}
+              {% if sg.truncated_at and forloop.counter > sg.truncated_at %}
+                <div x-show="expanded"
+                     x-cloak
+                     {% if forloop.counter0 == sg.truncated_at %}id="see-all-{{ group.media_type }}-{{ sg.status|slugify }}"{% endif %}>
                   {% if media.is_group %}
                     {% include "app/components/media_list_grid_card_group.html" with group=media %}
                   {% else %}
                     {% include "app/components/backlog_grid_card.html" with media=media %}
                   {% endif %}
-                {% endif %}
-              {% endfor %}
-            </div>
-          {% elif current_layout == "table" %}
-            {% if current_group == "type" %}
-              {% include "app/components/backlog_table.html" with items=sg.items hide_type=True truncated_at=sg.truncated_at see_all_type=group.media_type see_all_status=sg.status %}
-            {% else %}
-              {% include "app/components/backlog_table.html" with items=sg.items truncated_at=sg.truncated_at see_all_type=group.media_type see_all_status=sg.status %}
-            {% endif %}
-          {% else %}
-            <div class="space-y-3 mb-4">
-              {% for media in sg.items %}
-                {% if sg.truncated_at and forloop.counter > sg.truncated_at %}
-                  <div x-show="expanded"
-                       x-cloak
-                       {% if forloop.counter0 == sg.truncated_at %}id="see-all-{{ group.media_type }}-{{ sg.status|slugify }}"{% endif %}>
-                    {% if media.is_group %}
-                      {% include "app/components/backlog_card_group.html" with media=media status_choices=status_choices %}
-                    {% else %}
-                      {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
-                    {% endif %}
-                  </div>
+                </div>
+              {% else %}
+                {% if media.is_group %}
+                  {% include "app/components/media_list_grid_card_group.html" with group=media %}
                 {% else %}
+                  {% include "app/components/backlog_grid_card.html" with media=media %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% elif current_layout == "table" %}
+          {% if current_group == "type" %}
+            {% include "app/components/backlog_table.html" with items=sg.items hide_type=True truncated_at=sg.truncated_at see_all_type=group.media_type see_all_status=sg.status %}
+          {% else %}
+            {% include "app/components/backlog_table.html" with items=sg.items truncated_at=sg.truncated_at see_all_type=group.media_type see_all_status=sg.status %}
+          {% endif %}
+        {% else %}
+          <div class="space-y-3 mb-4">
+            {% for media in sg.items %}
+              {% if sg.truncated_at and forloop.counter > sg.truncated_at %}
+                <div x-show="expanded"
+                     x-cloak
+                     {% if forloop.counter0 == sg.truncated_at %}id="see-all-{{ group.media_type }}-{{ sg.status|slugify }}"{% endif %}>
                   {% if media.is_group %}
                     {% include "app/components/backlog_card_group.html" with media=media status_choices=status_choices %}
                   {% else %}
                     {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
                   {% endif %}
+                </div>
+              {% else %}
+                {% if media.is_group %}
+                  {% include "app/components/backlog_card_group.html" with media=media status_choices=status_choices %}
+                {% else %}
+                  {% include "app/components/backlog_card.html" with media=media status_choices=status_choices %}
                 {% endif %}
-              {% endfor %}
-            </div>
-          {% endif %}
+              {% endif %}
+            {% endfor %}
+          </div>
         {% endif %}
+      {% endif %}
 
-        {% if sg.truncated_at %}
-          <button x-show="!expanded"
-                  @click="expanded = true; $nextTick(() => { const el = document.getElementById('see-all-{{ group.media_type }}-{{ sg.status|slugify }}'); if (el && el.getBoundingClientRect().top > window.innerHeight) el.scrollIntoView({ behavior: 'smooth', block: 'start' }) })"
-                  class="block w-full text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2 cursor-pointer">
-            See all
-          </button>
-          <button x-show="expanded"
-                  x-cloak
-                  @click="expanded = false"
-                  class="block w-full text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2 cursor-pointer">
-            Show less
-          </button>
-        {% endif %}
-      </div>
-    {% endfor %}
+      {% if sg.truncated_at %}
+        <button x-show="!expanded"
+                @click="expanded = true; $nextTick(() => { const el = document.getElementById('see-all-{{ group.media_type }}-{{ sg.status|slugify }}'); if (el && el.getBoundingClientRect().top > window.innerHeight) el.scrollIntoView({ behavior: 'smooth', block: 'start' }) })"
+                class="block w-full text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2 cursor-pointer">
+          See all
+        </button>
+        <button x-show="expanded"
+                x-cloak
+                @click="expanded = false"
+                class="block w-full text-center text-sm text-accent-soft hover:text-white transition-colors mt-3 py-2 cursor-pointer">
+          Show less
+        </button>
+      {% endif %}
+    </div>
   {% endfor %}
+{% endfor %}
 {% else %}
-  <div class="flex flex-col items-center justify-center py-32 px-4 bg-card rounded-lg mb-6">
-    <div class="bg-input rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-      {% include "app/icons/pulse.svg" with classes="w-8 h-8 text-gray-400" %}
-    </div>
-    <h3 class="text-xl font-semibold mb-2">No items in your backlog</h3>
-    <p class="text-gray-400 text-center max-w-md mb-4">Search for media and tap Add to start building your backlog.</p>
-    <div class="pt-4">
-      <a href="{% url 'explore' %}"
-         class="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover transition-colors">Browse Media</a>
-    </div>
+<div class="flex flex-col items-center justify-center py-32 px-4 bg-card rounded-lg mb-6">
+  <div class="bg-input rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+    {% include "app/icons/pulse.svg" with classes="w-8 h-8 text-gray-400" %}
   </div>
+  <h3 class="text-xl font-semibold mb-2">No items in your backlog</h3>
+  <p class="text-gray-400 text-center max-w-md mb-4">Search for media and tap Add to start building your backlog.</p>
+  <div class="pt-4">
+    <a href="{% url 'explore' %}"
+       class="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover transition-colors">Browse Media</a>
+  </div>
+</div>
 {% endif %}
 
 <div class="mt-10" x-data="{ archiveOpen: false }">
@@ -381,7 +380,7 @@
     </span>
   </button>
 
-  <div x-show="archiveOpen" x-transition id="archive-section">
+  <div x-show="archiveOpen" x-cloak x-transition id="archive-section">
     {% if current_layout == "grid" %}
       <div id="archive-list" class="media-grid">
         {% for media in archive %}

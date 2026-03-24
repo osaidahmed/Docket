@@ -1,6 +1,7 @@
 {% load app_tags %}
 
 <div x-show="showRatingPopup"
+     x-cloak
      @click.outside="showRatingPopup = false; isHovering = false"
      @click.stop
      class="absolute {{ popup_classes }} p-3 bg-card rounded-lg shadow-lg z-50 w-[250px] border border-gray-700"

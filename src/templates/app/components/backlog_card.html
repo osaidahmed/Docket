@@ -8,7 +8,7 @@
   {% endif %}
   , confirmDrop: false }">
   <div class="flex items-start p-4 gap-4">
-    {% if media.is_pinned %}
+    {% if media.is_pinned and media.status == Status.PLANNING.value %}
       <div class="drag-handle flex items-center cursor-grab active:cursor-grabbing shrink-0 text-gray-500 hover:text-gray-300 -ml-1">
         {% include "app/icons/grip-vertical.svg" with classes="w-5 h-5" %}
       </div>
@@ -159,7 +159,10 @@
     </div>
   </div>
 
-  <div x-show="editing" x-transition class="border-t border-gray-700 p-4">
+  <div x-show="editing"
+       x-cloak
+       x-transition
+       class="border-t border-gray-700 p-4">
     <form hx-post="{% url 'backlog_save' %}"
           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
           hx-target="#backlog-card-{{ media.item.media_type }}-{{ media.id }}"
@@ -322,7 +325,7 @@
             Drop
           </button>
         </div>
-        <div x-show="confirmDrop" class="flex items-center gap-2">
+        <div x-show="confirmDrop" x-cloak class="flex items-center gap-2">
           <span class="text-sm text-gray-400">Drop this?</span>
           <button type="button"
                   @click="confirmDrop = false"

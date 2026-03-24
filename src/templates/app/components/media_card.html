@@ -135,6 +135,7 @@
     {% include "app/components/fill_track_episode.html" with request=request media=item episode=item episode_title=title csrf_token=csrf_token TRACK_TIME=TRACK_TIME only %}
   {% else %}
     <div x-show="trackOpen"
+         x-cloak
          @keydown.escape.window="trackOpen = false"
          class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div class="w-152 max-h-[90vh] px-4 md:px-0 relative z-60"
@@ -145,6 +146,7 @@
   {% endif %}
 
   <div x-show="listsOpen"
+       x-cloak
        @keydown.escape.window="listsOpen = false"
        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="w-96 max-h-[90vh] px-4 md:px-0 relative z-60"
@@ -154,6 +156,7 @@
   </div>
 
   <div x-show="historyOpen"
+       x-cloak
        @keydown.escape.window="historyOpen = false"
        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="w-96 max-h-[90vh] px-4 md:px-0 relative z-60"
