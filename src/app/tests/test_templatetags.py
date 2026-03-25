@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
@@ -360,7 +361,7 @@ class AppTagsTests(TestCase):
                 self.fail(f"icon raised KeyError for {media_type}")
 
     def test_get_search_media_types_includes_all(self):
-        """Test that get_search_media_types returns 'All' as the first entry."""
+        """Test that get_search_media_types returns valid JSON with 'All' first."""
         mock_user = MagicMock()
         mock_user.get_enabled_media_types.return_value = [
             MediaTypes.TV.value,
@@ -368,11 +369,25 @@ class AppTagsTests(TestCase):
             MediaTypes.ANIME.value,
         ]
 
-        result = app_tags.get_search_media_types(mock_user)
+        raw = app_tags.get_search_media_types(mock_user)
+        result = json.loads(raw)
 
         self.assertEqual(result[0]["display"], "All")
         self.assertEqual(result[0]["value"], "all")
         self.assertEqual(len(result), 4)
+
+    def test_get_search_media_types_is_valid_json(self):
+        """Ensure the result is parseable JSON, preventing single-quote rendering bugs."""
+        mock_user = MagicMock()
+        mock_user.get_enabled_media_types.return_value = [
+            MediaTypes.TV.value,
+        ]
+
+        raw = app_tags.get_search_media_types(mock_user)
+        self.assertIsInstance(raw, str)
+        parsed = json.loads(raw)
+        self.assertIsInstance(parsed, list)
+        self.assertTrue(all(isinstance(entry, dict) for entry in parsed))
 
     def test_show_media_score(self):
         """Test if we should show media rating or not."""

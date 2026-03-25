@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from django import template
@@ -6,6 +7,7 @@ from django.urls import reverse
 from django.utils import formats, timezone
 from django.utils.dateparse import parse_date
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from unidecode import unidecode
 
 from app import config
@@ -207,7 +209,7 @@ def get_search_media_types(user):
         }
         for media_type in enabled_types
     )
-    return types
+    return mark_safe(json.dumps(types))
 
 
 @register.simple_tag
