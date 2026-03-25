@@ -8,6 +8,14 @@
   display: none !important;
 }
 
+@media (max-width: 1023px) {
+  @supports (height: 100dvh) {
+    aside.fixed {
+      height: 100dvh;
+    }
+  }
+}
+
 .htmx-indicator {
   display: none;
 }
@@ -22,7 +30,11 @@
 
 
 .media-grid {
-  @apply grid grid-cols-2 xs:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4;
+  @apply grid grid-cols-2 xs:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 xs:gap-4;
+}
+
+.discover-grid {
+  @apply grid grid-cols-3 xs:grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 xs:gap-4;
 }
 
 /* https://tailwindcss.com/docs/upgrade-guide#hover-styles-on-mobile */

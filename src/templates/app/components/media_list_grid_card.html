@@ -137,9 +137,9 @@
   </div>
 
   <div>
-    <div class="p-3 space-y-3">
+    <div class="p-2 xs:p-3 space-y-2 xs:space-y-3">
       <a href="{{ media.item|media_url }}"
-         class="text-sm font-semibold text-white hover:text-accent-soft transition duration-300 line-clamp-1 text-center"
+         class="text-xs xs:text-sm font-semibold text-white hover:text-accent-soft transition duration-300 line-clamp-2 text-center"
          title="{{ media }}">{{ media }}</a>
     </div>
     {% if media.status == Status.IN_PROGRESS.value %}
