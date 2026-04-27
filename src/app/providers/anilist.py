@@ -277,17 +277,7 @@ def _recently_aired_anime(page, per_page):
             _RECENTLY_AIRED_SCHEDULE,
             {"page": api_page, "perPage": 50, "end": now},
         )
-        page_data = response["data"]["Page"]
-        has_next = page_data["pageInfo"].get("hasNextPage", False)
-
-        for entry in page_data.get("airingSchedules", []):
-            item = _extract_schedule_item(entry, seen_ids)
-            if item:
-                results.append(item)
-            if len(results) >= per_page:
-                break
-
-        if not has_next:
+        if not _collect_aired_entries_page(response, results, seen_ids, per_page):
             break
         api_page += 1
         max_attempts -= 1
@@ -295,6 +285,18 @@ def _recently_aired_anime(page, per_page):
     data = helpers.format_search_response(page, per_page, 5000, results[:per_page])
     data["has_next_page"] = len(results) >= per_page
     return data
+
+
+def _collect_aired_entries_page(response, results, seen_ids, per_page):
+    """Append schedule items from one page. Return False to stop paging."""
+    page_data = response["data"]["Page"]
+    for entry in page_data.get("airingSchedules", []):
+        item = _extract_schedule_item(entry, seen_ids)
+        if item:
+            results.append(item)
+        if len(results) >= per_page:
+            return False
+    return page_data["pageInfo"].get("hasNextPage", False)
 
 
 def upcoming(media_type, page=1, per_page=24):
