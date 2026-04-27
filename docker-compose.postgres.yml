@@ -6,10 +6,12 @@ services:
     depends_on:
       - db
       - redis
+      - flaresolverr
     environment:
       - TZ=Europe/Berlin
       - SECRET=longstring
       - REDIS_URL=redis://redis:6379
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
       - DB_HOST=db
       - DB_NAME=docket
       - DB_USER=docket
@@ -35,6 +37,14 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
+
+  flaresolverr:
+    container_name: docket-flaresolverr
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+      - TZ=Europe/Berlin
 
 volumes:
   redis_data:

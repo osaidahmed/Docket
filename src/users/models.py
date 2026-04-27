@@ -226,6 +226,11 @@ class User(AbstractUser):
     # Home page default type filter (empty list = all types)
     home_default_types = models.JSONField(default=list, blank=True)
 
+    # Per-media-type external link preferences. Each value is a mapping with
+    # optional "provider" (site id from link_providers.registry) and "template"
+    # (URL string with {title}/{english_title}/{year} placeholders) keys.
+    link_preferences = models.JSONField(default=dict, blank=True)
+
     # Home page layout and grouping
     home_layout = models.CharField(
         max_length=20,

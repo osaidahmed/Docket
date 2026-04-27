@@ -8,9 +8,44 @@ from django.shortcuts import redirect
 from django.utils.encoding import iri_to_uri
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from app.models import BasicMedia, MediaTypes, Status
+from app.models import BasicMedia, Item, MediaTypes, Status
 
 VALID_MEDIA_TYPES = frozenset(MediaTypes.values)
+
+
+def resolve_item(media_id, source, media_type):
+    """Return an Item, creating or refreshing stale metadata when needed."""
+    from app.providers import services  # noqa: PLC0415
+
+    try:
+        item = Item.objects.get(
+            media_id=media_id,
+            source=source,
+            media_type=media_type,
+        )
+    except Item.DoesNotExist:
+        metadata = services.get_media_metadata(media_type, media_id, source)
+        item, _ = Item.objects.get_or_create(
+            media_id=media_id,
+            source=source,
+            media_type=media_type,
+            defaults={
+                "title": metadata["title"],
+                "english_title": metadata.get("english_title", ""),
+                "image": metadata["image"],
+                "synopsis": metadata.get("synopsis", ""),
+            },
+        )
+        return item
+
+    if not item.title or item.title == "-":
+        metadata = services.get_media_metadata(media_type, media_id, source)
+        item.title = metadata["title"]
+        item.english_title = metadata.get("english_title", "")
+        item.image = metadata["image"]
+        item.synopsis = metadata.get("synopsis", "")
+        item.save()
+    return item
 
 
 def get_media_model(media_type):

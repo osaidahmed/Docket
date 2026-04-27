@@ -10,7 +10,8 @@ from django.views.decorators.http import require_POST
 from simple_history.utils import bulk_update_with_history
 
 from app.forms import get_form_class
-from app.helpers import get_media_model
+from app.helpers import get_media_model, resolve_item
+from app.link_providers import tasks as link_tasks
 from app.mixins import disable_fetch_releases
 from app.models import BasicMedia, Item, Status
 from app.providers import services
@@ -37,32 +38,7 @@ def _create_media_from_search(request, status, *, caught_up=False):
         item_data["title"] = existing.item.title
         return _render_search_action(request, item_data, existing)
 
-    try:
-        item = Item.objects.get(
-            media_id=media_id,
-            source=source,
-            media_type=media_type,
-        )
-        if not item.title or item.title == "-":
-            metadata = services.get_media_metadata(media_type, media_id, source)
-            item.title = metadata["title"]
-            item.english_title = metadata.get("english_title", "")
-            item.image = metadata["image"]
-            item.synopsis = metadata.get("synopsis", "")
-            item.save()
-    except Item.DoesNotExist:
-        metadata = services.get_media_metadata(media_type, media_id, source)
-        item, _ = Item.objects.get_or_create(
-            media_id=media_id,
-            source=source,
-            media_type=media_type,
-            defaults={
-                "title": metadata["title"],
-                "english_title": metadata.get("english_title", ""),
-                "image": metadata["image"],
-                "synopsis": metadata.get("synopsis", ""),
-            },
-        )
+    item = resolve_item(media_id, source, media_type)
 
     recent.track_view(
         request.user.id,
@@ -83,6 +59,7 @@ def _create_media_from_search(request, status, *, caught_up=False):
         status=status,
         caught_up=caught_up,
     )
+    link_tasks.generate_link.delay(instance.pk, media_type)
 
     item_data["title"] = item.title
     return _render_search_action(request, item_data, instance)
@@ -139,6 +116,7 @@ def quick_rewatch(request):
     instance = model.objects.create(
         item=item, user=request.user, status=Status.PLANNING.value, is_rewatch=True
     )
+    link_tasks.generate_link.delay(instance.pk, media_type)
 
     if source_context == "archive":
         response = render(

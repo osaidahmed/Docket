@@ -291,6 +291,54 @@
         <input type="hidden" name="media_type_order" x-ref="orderInput" value="">
       </div>
 
+      <div class="border-t border-gray-600 my-5"></div>
+
+      {# External Links #}
+      {{ link_preferences|json_script:"link-prefs-data" }}
+      <div class="mb-5"
+           x-data="{ prefs: JSON.parse(document.getElementById('link-prefs-data').textContent), ensure(mt) { if (!this.prefs[mt]) this.prefs[mt] = { provider: '', template: '' }; return this.prefs[mt]; }, setProvider(mt, value) { this.ensure(mt).provider = value; this.sync(); }, setTemplate(mt, value) { this.ensure(mt).template = value; this.sync(); }, sync() { this.$refs.linkPrefsInput.value = JSON.stringify(this.prefs); } }"
+           x-init="sync()">
+        <div class="flex items-center mb-4">
+          {% include "app/icons/external-link.svg" with classes="w-5 h-5 text-accent-soft mr-2" %}
+          <h3 class="text-lg font-semibold">External Links</h3>
+        </div>
+        <p class="text-gray-400 mb-4 text-sm">
+          Auto-fill the external link icon on each entry. Pick a known site for one-click deep links,
+          or paste a URL template using <code class="text-gray-300">{title}</code>,
+          <code class="text-gray-300">{english_title}</code>, or <code class="text-gray-300">{year}</code> placeholders.
+          The template is also used as a fallback when the chosen site has no match.
+        </p>
+
+        <div class="space-y-2">
+          {% for row in link_pref_rows %}
+            {% with saved=link_preferences|get_item:row.media_type %}
+              <div class="p-3 bg-input rounded-md">
+                <div class="flex items-center mb-2">
+                  {% icon row.media_type is_active=False %}
+                  <span class="text-gray-200 text-sm ml-2 font-medium">{{ row.media_type|media_type_readable_plural }}</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <select @change="setProvider('{{ row.media_type }}', $event.target.value)"
+                          class="p-2 bg-card rounded-md text-white text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent-soft">
+                    <option value="" {% if not saved.provider %}selected{% endif %}>No provider</option>
+                    {% for opt in row.providers %}
+                      <option value="{{ opt.site_id }}"
+                              {% if saved.provider == opt.site_id %}selected{% endif %}>{{ opt.label }}</option>
+                    {% endfor %}
+                  </select>
+                  <input type="text"
+                         placeholder="https://example.com/?q={title}"
+                         value="{{ saved.template|default:'' }}"
+                         @input.debounce.300ms="setTemplate('{{ row.media_type }}', $event.target.value)"
+                         class="p-2 bg-card rounded-md text-white text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-accent-soft placeholder:text-gray-500">
+                </div>
+              </div>
+            {% endwith %}
+          {% endfor %}
+        </div>
+        <input type="hidden" name="link_preferences" x-ref="linkPrefsInput" value="">
+      </div>
+
       <div class="mt-5 pt-4 border-gray-600">
         <button type="submit"
                 class="flex items-center px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover transition-colors text-sm cursor-pointer">

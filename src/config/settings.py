@@ -231,6 +231,9 @@ else:
 # https://docs.djangoproject.com/en/stable/topics/cache/
 CACHE_TIMEOUT = 86400  # 24 hours
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379")
+FLARESOLVERR_URL = config(
+    "FLARESOLVERR_URL", default="http://flaresolverr:8191/v1",
+)
 KEY_PREFIX = f"{REDIS_PREFIX}" if REDIS_PREFIX else ""
 CACHES = {
     "default": {

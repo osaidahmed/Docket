@@ -13,6 +13,7 @@ from django.template.defaultfilters import pluralize
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from django_celery_beat.models import PeriodicTask
 
+from app.link_providers import registry as link_registry
 from app.models import Item, MediaTypes
 from users.forms import NotificationSettingsForm, PasswordChangeForm, UserUpdateForm
 from users.models import (
@@ -21,6 +22,7 @@ from users.models import (
     QuickWatchDateChoices,
     TimeFormatChoices,
 )
+from users.preferences_form import queue_link_backfill, update_preferences_from_post
 
 logger = logging.getLogger(__name__)
 
@@ -198,46 +200,6 @@ def test_notification(request):
     return redirect("notifications")
 
 
-def _update_preferences_from_post(user, post_data, all_types):
-    user.clickable_media_cards = "clickable_media_cards" in post_data
-    user.quick_watch_date = post_data.get(
-        "quick_watch_date",
-        QuickWatchDateChoices.CURRENT_DATE,
-    )
-    user.home_truncation = post_data.get(
-        "home_truncation",
-        HomeTruncationChoices.ALL,
-    )
-    user.progress_bar = "progress_bar" in post_data
-    user.hide_completed_recommendations = "hide_completed_recommendations" in post_data
-    user.hide_zero_rating = "hide_zero_rating" in post_data
-    user.group_related_media = "group_related_media" in post_data
-
-    color_scheme = post_data.get("color_scheme", "charcoal")
-    valid_schemes = {c[0] for c in user.COLOR_SCHEME_CHOICES}
-    if color_scheme in valid_schemes:
-        user.color_scheme = color_scheme
-
-    user.date_format = post_data.get("date_format", DateFormatChoices.ISO)
-    user.time_format = post_data.get("time_format", TimeFormatChoices.HOUR_24)
-
-    media_types_checked = post_data.getlist("media_types_checkboxes")
-    for media_type in all_types:
-        pref = user.get_or_create_media_pref(media_type)
-        pref.enabled = media_type in media_types_checked
-        pref.save(update_fields=["enabled"])
-
-    order_json = post_data.get("media_type_order", "")
-    if order_json:
-        import contextlib  # noqa: PLC0415
-        import json  # noqa: PLC0415
-
-        with contextlib.suppress(json.JSONDecodeError, TypeError):
-            user.media_type_order = json.loads(order_json)
-
-    user.save()
-
-
 @require_POST
 def refresh_relationships(request):
     """Trigger background task to refresh anime relationship data."""
@@ -259,7 +221,8 @@ def preferences(request):
         if request.user.is_demo:
             messages.error(request, "This section is view-only for demo accounts.")
             return redirect("preferences")
-        _update_preferences_from_post(request.user, request.POST, all_types)
+        update_preferences_from_post(request.user, request.POST, all_types)
+        queue_link_backfill(request.user)
         messages.success(request, "Settings updated.")
         return redirect("preferences")
 
@@ -272,6 +235,17 @@ def preferences(request):
 
     enabled_types = set(request.user.get_enabled_media_types())
 
+    link_pref_rows = [
+        {
+            "media_type": mt,
+            "providers": [
+                {"site_id": cls.site_id, "label": cls.label}
+                for cls in link_registry.get_providers_for(mt)
+            ],
+        }
+        for mt in ordered
+    ]
+
     return render(
         request,
         "users/preferences.html",
@@ -283,6 +257,8 @@ def preferences(request):
             "date_format_choices": DateFormatChoices.choices,
             "time_format_choices": TimeFormatChoices.choices,
             "color_scheme_choices": request.user.COLOR_SCHEME_CHOICES,
+            "link_pref_rows": link_pref_rows,
+            "link_preferences": request.user.link_preferences or {},
         },
     )
 

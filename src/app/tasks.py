@@ -5,6 +5,10 @@ import time
 
 from celery import shared_task
 
+# Register nested task modules with Celery's autodiscover (which only scans
+# `<app>/tasks.py`, not nested submodules).
+from app.link_providers import tasks as _link_provider_tasks  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 
