@@ -14,6 +14,8 @@ from app.services.grouping import group_media_list
 
 @dataclass
 class BacklogOptions:
+    """Options controlling how the backlog/archive views are sorted and grouped."""
+
     sort_by: str
     media_type_filter: list | None = None
     group_by: str = "type"
@@ -187,24 +189,20 @@ def _apply_pinned_and_grouping(sg, status_val, user):
 
 def _build_flat_groups(all_backlog, backlog_statuses, sort_by, user=None):
     """Build top-level groups where each status is its own group."""
-    groups = []
-    for status_val in backlog_statuses:
-        items = [m for m in all_backlog if m.status == status_val]
-        if not items:
-            continue
-        sg = {
-            "status": status_val,
-            "items": _sort_in_progress_media(items, sort_by),
+    status_groups = _build_status_subgroups(
+        all_backlog,
+        backlog_statuses,
+        sort_by,
+        user,
+    )
+    return [
+        {
+            "media_type": f"status_{sg['status']}",
+            "label": sg["status"],
+            "status_groups": [sg],
         }
-        _apply_pinned_and_grouping(sg, status_val, user)
-        groups.append(
-            {
-                "media_type": f"status_{status_val}",
-                "label": status_val,
-                "status_groups": [sg],
-            }
-        )
-    return groups
+        for sg in status_groups
+    ]
 
 
 def _append_nya_group(groups, nya_items):
@@ -469,7 +467,7 @@ def _split_pinned(status_group, user=None):
     )
 
 
-def _apply_grouping_to_backlog_items(items, user):
+def _apply_grouping_to_backlog_items(items, user):  # noqa: ARG001  user kept for parity with caller signatures
     """Apply grouping to backlog items, handling mixed media types."""
     by_type = {}
     order = []
