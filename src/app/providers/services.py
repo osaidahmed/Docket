@@ -611,27 +611,25 @@ def search_suggest_api(query, enabled_types, local_keys=None, limit=SUGGEST_API_
     """
     if not query or not query.strip():
         return []
-
-    if local_keys is None:
-        local_keys = set()
-
     tasks = _build_suggest_tasks(query, enabled_types, limit)
     if not tasks:
         return []
 
     all_results = []
-    seen_keys = set(local_keys)
+    seen_keys = set(local_keys or ())
+    _run_suggest_tasks_concurrent(tasks, seen_keys, all_results)
+    all_results = _cross_provider_dedup(all_results, enabled_types)
+    return _interleave_results(all_results, enabled_types, limit)
 
+
+def _run_suggest_tasks_concurrent(tasks, seen_keys, all_results):
+    """Submit suggest tasks to a thread pool and collect results within timeout."""
     executor = ThreadPoolExecutor(max_workers=len(tasks))
     try:
         futures = {executor.submit(fn): name for name, fn in tasks}
-
         for future in as_completed(futures, timeout=SUGGEST_API_TIMEOUT):
             _collect_suggest_results(future, futures[future], seen_keys, all_results)
     except TimeoutError:
         logger.debug("Search suggest timed out after %ss", SUGGEST_API_TIMEOUT)
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
-
-    all_results = _cross_provider_dedup(all_results, enabled_types)
-    return _interleave_results(all_results, enabled_types, limit)
