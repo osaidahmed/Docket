@@ -164,15 +164,10 @@ class SteamImporter:
         """Process a single game from Steam API response."""
         appid = str(game_data["appid"])
         name = game_data.get("name", f"Unknown Game {appid}")
-        playtime_forever = game_data.get("playtime_forever", 0)  # in minutes
-        playtime_2weeks = game_data.get("playtime_2weeks", 0)  # in minutes
 
         try:
-            # Try to match with IGDB
             igdb_game = self._match_with_igdb(name, appid)
-
             if not igdb_game:
-                # Skip games that can't be matched to IGDB
                 logger.debug(
                     "Skipping Steam game %s (appid: %s) - no IGDB match found",
                     name,
@@ -182,65 +177,66 @@ class SteamImporter:
                     f"{name} ({appid}): Couldn't find a match in {Sources.IGDB.label}",
                 )
                 return
-
-            if not helpers.should_process_media(
-                self.existing_media,
-                self.to_delete,
-                MediaTypes.GAME.value,
-                Sources.IGDB.value,
-                str(igdb_game["media_id"]),
-                self.mode,
-            ):
-                return
-
-            # Use IGDB data if found
-            item, _ = app.models.Item.objects.get_or_create(
-                media_id=str(igdb_game["media_id"]),
-                source=Sources.IGDB.value,
-                media_type=MediaTypes.GAME.value,
-                defaults={
-                    "title": igdb_game["title"],
-                    "image": igdb_game["image"],
-                },
-            )
-
-            # Determine status based on playtime
-            status = self._determine_game_status(playtime_forever, playtime_2weeks)
-
-            # Create game object
-            game = app.models.Game(
-                item=item,
-                user=self.user,
-                status=status,
-                score=None,
-                progress=playtime_forever,
-                notes="Imported from Steam",
-                start_date=None,
-                end_date=None,
-            )
-
-            self.bulk_media[MediaTypes.GAME.value].append(game)
-
+            self._persist_steam_game(game_data, igdb_game)
         except services.ProviderAPIError as e:
-            msg = str(e).lower()
-            is_not_found = "game with id" in msg and "not found" in msg
-            if not is_not_found:
-                # still raise all other errors
-                raise
-
-            logger.debug(
-                "Skipping Steam game %s (appid: %s) - IGDB not found: %s",
-                name,
-                appid,
-                e,
-            )
-            self.warnings.append(
-                f"{name} ({appid}): Couldn't find a match in {Sources.IGDB.label}"
-            )
-
+            self._handle_steam_provider_error(e, name, appid)
         except (ValueError, KeyError, TypeError) as e:
             logger.warning("Failed to process Steam game %s (%s): %s", name, appid, e)
             self.warnings.append(f"{name} ({appid}): {e!s}")
+
+    def _persist_steam_game(self, game_data, igdb_game):
+        """Check mode-filter and persist the IGDB-matched game."""
+        if not helpers.should_process_media(
+            self.existing_media,
+            self.to_delete,
+            MediaTypes.GAME.value,
+            Sources.IGDB.value,
+            str(igdb_game["media_id"]),
+            self.mode,
+        ):
+            return
+
+        item, _ = app.models.Item.objects.get_or_create(
+            media_id=str(igdb_game["media_id"]),
+            source=Sources.IGDB.value,
+            media_type=MediaTypes.GAME.value,
+            defaults={
+                "title": igdb_game["title"],
+                "image": igdb_game["image"],
+            },
+        )
+
+        playtime_forever = game_data.get("playtime_forever", 0)  # in minutes
+        playtime_2weeks = game_data.get("playtime_2weeks", 0)  # in minutes
+        status = self._determine_game_status(playtime_forever, playtime_2weeks)
+
+        game = app.models.Game(
+            item=item,
+            user=self.user,
+            status=status,
+            score=None,
+            progress=playtime_forever,
+            notes="Imported from Steam",
+            start_date=None,
+            end_date=None,
+        )
+        self.bulk_media[MediaTypes.GAME.value].append(game)
+
+    def _handle_steam_provider_error(self, error, name, appid):
+        """Warn-and-skip on IGDB not-found errors; re-raise other provider errors."""
+        msg = str(error).lower()
+        is_not_found = "game with id" in msg and "not found" in msg
+        if not is_not_found:
+            raise error
+        logger.debug(
+            "Skipping Steam game %s (appid: %s) - IGDB not found: %s",
+            name,
+            appid,
+            error,
+        )
+        self.warnings.append(
+            f"{name} ({appid}): Couldn't find a match in {Sources.IGDB.label}",
+        )
 
     def _determine_game_status(self, playtime_forever, playtime_2weeks):
         """Determine game status based on Steam playtime data.
