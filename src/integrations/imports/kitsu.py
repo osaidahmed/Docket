@@ -170,25 +170,14 @@ class KitsuImporter:
     def _process_entry(self, entry, media_type, media_lookup, mapping_lookup):
         """Process a single entry from Kitsu."""
         attributes = entry["attributes"]
-        relationship = entry["relationships"][media_type]
-
-        if relationship["data"]:
-            kitsu_id = relationship["data"]["id"]
-            kitsu_metadata = media_lookup[kitsu_id]
-        else:
-            # NSFW content are hidden, fetch from related URL
-            kitsu_metadata, mapping_lookup = self._fetch_media_from_related_url(
-                relationship,
-                media_type,
-            )
-
-        item = self._create_or_get_item(
+        kitsu_metadata, mapping_lookup = self._resolve_entry_metadata(
+            entry,
             media_type,
-            kitsu_metadata,
+            media_lookup,
             mapping_lookup,
         )
+        item = self._create_or_get_item(media_type, kitsu_metadata, mapping_lookup)
 
-        # Check if we should process this entry based on mode
         if not helpers.should_process_media(
             self.existing_media,
             self.to_delete,
@@ -201,31 +190,56 @@ class KitsuImporter:
 
         model = apps.get_model(app_label="app", model_name=media_type)
         updated_at = parse_datetime(attributes["updatedAt"])
+        self._create_kitsu_instances(
+            item,
+            model,
+            attributes,
+            kitsu_metadata,
+            updated_at,
+            media_type,
+        )
 
+    def _resolve_entry_metadata(self, entry, media_type, media_lookup, mapping_lookup):
+        """Resolve Kitsu metadata for an entry, fetching via related URL when hidden."""
+        relationship = entry["relationships"][media_type]
+        if relationship["data"]:
+            kitsu_id = relationship["data"]["id"]
+            return media_lookup[kitsu_id], mapping_lookup
+        # NSFW content are hidden, fetch from related URL
+        return self._fetch_media_from_related_url(relationship, media_type)
+
+    def _create_kitsu_instances(
+        self,
+        item,
+        model,
+        attributes,
+        kitsu_metadata,
+        updated_at,
+        media_type,
+    ):
+        """Create completed-repeat instances and the current main instance."""
         max_progress = kitsu_metadata["attributes"].get(
             "episodeCount",
         ) or kitsu_metadata["attributes"].get("chapterCount")
 
-        # Handle completed repeats
         repeats_count = attributes["reconsumeCount"]
         if attributes["reconsuming"] and repeats_count == 0:
             repeats_count = 1
 
-        if repeats_count >= 1:
-            for _ in range(repeats_count):
-                instance = model(
-                    item=item,
-                    user=self.user,
-                    score=self._get_rating(attributes["ratingTwenty"]),
-                    progress=max_progress or attributes["progress"],
-                    status=Status.COMPLETED.value,
-                    start_date=attributes["startedAt"],
-                    end_date=attributes["finishedAt"],
-                    notes=attributes["notes"] or "",
-                    is_rewatch=True,
-                )
-                instance._history_date = updated_at
-                self.bulk_media[media_type].append(instance)
+        for _ in range(repeats_count):
+            instance = model(
+                item=item,
+                user=self.user,
+                score=self._get_rating(attributes["ratingTwenty"]),
+                progress=max_progress or attributes["progress"],
+                status=Status.COMPLETED.value,
+                start_date=attributes["startedAt"],
+                end_date=attributes["finishedAt"],
+                notes=attributes["notes"] or "",
+                is_rewatch=True,
+            )
+            instance._history_date = updated_at
+            self.bulk_media[media_type].append(instance)
 
         instance = model(
             item=item,
@@ -237,10 +251,8 @@ class KitsuImporter:
             end_date=attributes["finishedAt"],
             notes=attributes["notes"] or "",
         )
-
         if attributes["reconsuming"]:
             instance.status = Status.IN_PROGRESS.value
-
         instance._history_date = updated_at
         self.bulk_media[media_type].append(instance)
 
