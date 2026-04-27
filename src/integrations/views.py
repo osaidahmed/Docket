@@ -132,25 +132,92 @@ def _handle_webhook(request, token, service_name, processor_class, payload_key=N
     return HttpResponse(status=200)
 
 
-@require_POST
-def trakt_oauth(request):
-    """Initiate Trakt OAuth2 authorization flow."""
-    return _initiate_oauth(
-        request,
-        "import_trakt_private",
-        "https://trakt.tv/oauth/authorize",
-        settings.TRAKT_API,
-    )
+_OAUTH_CONFIGS = {
+    "trakt": {
+        "auth_url": "https://trakt.tv/oauth/authorize",
+        "client_id_setting": "TRAKT_API",
+        "callback_url_name": "import_trakt_private",
+        "token_module": trakt,
+        "token_attr": "handle_oauth_callback",
+        "task_module_attr": "import_trakt",
+        "token_field": "refresh_token",
+        "source_label": "Trakt",
+        "requires_username": False,
+    },
+    "simkl": {
+        "auth_url": "https://simkl.com/oauth/authorize",
+        "client_id_setting": "SIMKL_ID",
+        "callback_url_name": "import_simkl_private",
+        "token_module": simkl,
+        "token_attr": "get_token",
+        "task_module_attr": "import_simkl",
+        "token_field": "access_token",
+        "source_label": "SIMKL",
+        "requires_username": False,
+    },
+    "anilist": {
+        "auth_url": "https://anilist.co/api/v2/oauth/authorize",
+        "client_id_setting": "ANILIST_ID",
+        "callback_url_name": "import_anilist_private",
+        "token_module": anilist,
+        "token_attr": "get_token",
+        "task_module_attr": "import_anilist",
+        "token_field": "access_token",
+        "source_label": "AniList",
+        "requires_username": True,
+    },
+}
 
 
-@require_GET
-def import_trakt_private(request):
-    """Handle Trakt OAuth2 callback and schedule private import."""
-    oauth = trakt.handle_oauth_callback(request)
-    enc_token = helpers.encrypt(oauth["refresh_token"])
-    return _handle_oauth_callback(
-        request, enc_token, oauth["username"], "Trakt", tasks.import_trakt
-    )
+def _make_oauth_view(provider_key):
+    """Build an OAuth-initiate view bound to the given provider config."""
+    cfg = _OAUTH_CONFIGS[provider_key]
+
+    @require_POST
+    def oauth_view(request):
+        return _initiate_oauth(
+            request,
+            cfg["callback_url_name"],
+            cfg["auth_url"],
+            getattr(settings, cfg["client_id_setting"]),
+        )
+
+    oauth_view.__name__ = f"{provider_key}_oauth"
+    oauth_view.__doc__ = f"Initiate {cfg['source_label']} OAuth2 authorization flow."
+    return oauth_view
+
+
+def _make_import_private_view(provider_key):
+    """Build an OAuth-callback view bound to the given provider config."""
+    cfg = _OAUTH_CONFIGS[provider_key]
+
+    @require_GET
+    def import_view(request):
+        # Resolve token_fn and task_fn at call time so unittest.mock.patch
+        # against the imported module attributes is honoured.
+        token_fn = getattr(cfg["token_module"], cfg["token_attr"])
+        task_fn = getattr(tasks, cfg["task_module_attr"])
+        oauth = token_fn(request)
+        enc_token = helpers.encrypt(oauth[cfg["token_field"]])
+        username = oauth.get("username")
+        if cfg["requires_username"] and not username:
+            messages.error(request, f"{cfg['source_label']} username is required.")
+            return redirect("import_data")
+        return _handle_oauth_callback(
+            request,
+            enc_token,
+            username,
+            cfg["source_label"],
+            task_fn,
+        )
+
+    import_view.__name__ = f"import_{provider_key}_private"
+    import_view.__doc__ = f"Handle {cfg['source_label']} OAuth2 callback."
+    return import_view
+
+
+trakt_oauth = _make_oauth_view("trakt")
+import_trakt_private = _make_import_private_view("trakt")
 
 
 @require_POST
@@ -159,25 +226,8 @@ def import_trakt_public(request):
     return _handle_public_import(request, "Trakt", tasks.import_trakt)
 
 
-@require_POST
-def simkl_oauth(request):
-    """Initiate SIMKL OAuth2 authorization flow."""
-    return _initiate_oauth(
-        request,
-        "import_simkl_private",
-        "https://simkl.com/oauth/authorize",
-        settings.SIMKL_ID,
-    )
-
-
-@require_GET
-def import_simkl_private(request):
-    """Handle SIMKL OAuth2 callback."""
-    oauth = simkl.get_token(request)
-    enc_token = helpers.encrypt(oauth["access_token"])
-    return _handle_oauth_callback(
-        request, enc_token, oauth["username"], "SIMKL", tasks.import_simkl
-    )
+simkl_oauth = _make_oauth_view("simkl")
+import_simkl_private = _make_import_private_view("simkl")
 
 
 @require_POST
@@ -186,31 +236,8 @@ def import_mal(request):
     return _handle_public_import(request, "MyAnimeList", tasks.import_mal)
 
 
-@require_POST
-def anilist_oauth(request):
-    """Initiate AniList OAuth flow."""
-    return _initiate_oauth(
-        request,
-        "import_anilist_private",
-        "https://anilist.co/api/v2/oauth/authorize",
-        settings.ANILIST_ID,
-    )
-
-
-@require_GET
-def import_anilist_private(request):
-    """Handle AniList OAuth2 callback."""
-    oauth = anilist.get_token(request)
-    enc_token = helpers.encrypt(oauth["access_token"])
-    username = oauth["username"]
-
-    if not username:
-        messages.error(request, "AniList username is required.")
-        return redirect("import_data")
-
-    return _handle_oauth_callback(
-        request, enc_token, username, "AniList", tasks.import_anilist
-    )
+anilist_oauth = _make_oauth_view("anilist")
+import_anilist_private = _make_import_private_view("anilist")
 
 
 @require_POST
