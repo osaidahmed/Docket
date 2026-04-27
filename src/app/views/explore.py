@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from django.apps import apps
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_GET
@@ -8,6 +10,63 @@ from app.providers import services
 from app.services.recommendations import _add_title_variants, _matches_cross_media
 
 TMDB_TYPES = {MediaTypes.MOVIE.value, MediaTypes.TV.value}
+
+
+@dataclass
+class ExploreContext:
+    """Template context source for the explore_type view."""
+
+    data: dict
+    media_type: str
+    categories: list
+    category: str
+    layout: str
+    order: str
+    extra_params: str
+    hide_watched_anime: bool
+    resolved_filters: list | None
+    active_filters: dict
+    expanded_filters: set
+    year: int | None = None
+    season_name: str | None = None
+
+    def to_template_context(self) -> dict:
+        """Render this context object into the dict the explore template expects."""
+        ctx = {
+            "data": self.data,
+            "media_type": self.media_type,
+            "categories": self.categories,
+            "current_category": self.category,
+            "layout": self.layout,
+            "extra_params": self.extra_params,
+            "hide_watched_anime": self.hide_watched_anime,
+            "is_manga": self.media_type == MediaTypes.MANGA.value,
+            "is_upcoming": config.is_upcoming_category(
+                self.media_type,
+                self.category,
+                self.year,
+                self.season_name,
+            ),
+            "filter_definitions": self.resolved_filters,
+            "active_filters": self.active_filters,
+            "has_active_filters": bool(self.active_filters),
+            "expanded_filters": self.expanded_filters,
+            "is_tmdb_type": self.media_type in TMDB_TYPES,
+            "order": self.order,
+        }
+        if self.category == "seasonal" and self.media_type == MediaTypes.ANIME.value:
+            year = self.year or 0
+            ctx.update(
+                {
+                    "show_season_picker": True,
+                    "year": self.year,
+                    "prev_year": year - 1,
+                    "next_year": year + 1,
+                    "season": self.season_name,
+                    "seasons": config.ANIME_SEASONS,
+                }
+            )
+        return ctx
 
 
 @require_GET
@@ -114,58 +173,6 @@ def _apply_hide_watched_anime(request, media_type, data):
     return True
 
 
-def _build_explore_context(
-    *,
-    data,
-    media_type,
-    categories,
-    category,
-    layout,
-    order,
-    extra_params,
-    hide_watched_anime,
-    resolved_filters,
-    active_filters,
-    expanded_filters,
-    year,
-    season_name,
-):
-    """Build the template context dict for explore_type."""
-    context = {
-        "data": data,
-        "media_type": media_type,
-        "categories": categories,
-        "current_category": category,
-        "layout": layout,
-        "extra_params": extra_params,
-        "hide_watched_anime": hide_watched_anime,
-        "is_manga": media_type == MediaTypes.MANGA.value,
-        "is_upcoming": config.is_upcoming_category(
-            media_type, category, year, season_name
-        ),
-        "filter_definitions": resolved_filters,
-        "active_filters": active_filters,
-        "has_active_filters": bool(active_filters),
-        "expanded_filters": expanded_filters,
-        "is_tmdb_type": media_type in TMDB_TYPES,
-        "order": order,
-    }
-
-    if category == "seasonal" and media_type == MediaTypes.ANIME.value:
-        context.update(
-            {
-                "show_season_picker": True,
-                "year": year,
-                "prev_year": year - 1,
-                "next_year": year + 1,
-                "season": season_name,
-                "seasons": config.ANIME_SEASONS,
-            }
-        )
-
-    return context
-
-
 @require_GET
 def explore_type(request, media_type):
     """Browse media of a specific type by category, with optional filters."""
@@ -215,7 +222,7 @@ def explore_type(request, media_type):
         active_filters, year, season_name, hide_watched_anime
     )
 
-    context = _build_explore_context(
+    context = ExploreContext(
         data=data,
         media_type=media_type,
         categories=categories,
@@ -229,7 +236,7 @@ def explore_type(request, media_type):
         expanded_filters=expanded_filters,
         year=year,
         season_name=season_name,
-    )
+    ).to_template_context()
 
     context["has_discover"] = has_discover
     context["current_view"] = "browse"
