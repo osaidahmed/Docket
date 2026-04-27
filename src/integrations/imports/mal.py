@@ -16,6 +16,23 @@ from integrations.imports.helpers import MediaImportError, MediaImportUnexpected
 logger = logging.getLogger(__name__)
 
 
+_YEAR_LEN = 4
+_YEAR_MONTH_LEN = 7
+
+
+def _pad_partial_mal_date(date_str):
+    """Normalize a MAL partial date (YYYY or YYYY-MM) to YYYY-MM-DD."""
+    if len(date_str) == _YEAR_LEN and date_str.isdigit():
+        return f"{date_str}-01-01"
+    if (
+        len(date_str) == _YEAR_MONTH_LEN
+        and date_str[:4].isdigit()
+        and date_str[5:7].isdigit()
+    ):
+        return f"{date_str}-01"
+    return date_str
+
+
 def importer(username, user, mode):
     """Import anime and manga from MyAnimeList."""
     mal_importer = MyAnimeListImporter(username, user, mode)
@@ -227,21 +244,8 @@ class MyAnimeListImporter:
         """Parse MAL date string (YYYY-MM-YY) into datetime object."""
         if date_str is None:
             return None
-
-        year_only_len = 4  # YYYY
-        year_month_len = 7  # YYYY-MM
-
-        if len(date_str) == year_only_len and date_str.isdigit():
-            date_str = f"{date_str}-01-01"  # Default to January 1st
-
-        elif (
-            len(date_str) == year_month_len
-            and date_str[:4].isdigit()
-            and date_str[5:7].isdigit()
-        ):
-            date_str = f"{date_str}-01"  # Default to first day of the month
-
-        return datetime.strptime(date_str, "%Y-%m-%d").replace(
+        normalized = _pad_partial_mal_date(date_str)
+        return datetime.strptime(normalized, "%Y-%m-%d").replace(
             hour=0,
             minute=0,
             second=0,
