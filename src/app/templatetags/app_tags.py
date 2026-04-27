@@ -209,7 +209,7 @@ def get_search_media_types(user):
         }
         for media_type in enabled_types
     )
-    return mark_safe(json.dumps(types))
+    return mark_safe(json.dumps(types))  # noqa: S308 — types is server-controlled
 
 
 @register.simple_tag
@@ -423,38 +423,37 @@ def get_pagination_range(current_page, total_pages, window, total_exact=True):  
     if total_exact == "":
         total_exact = True
 
-    second_page = 2
-
     if not total_exact:
-        result = [1]
-        left_boundary = max(second_page, current_page - window)
-        right_boundary = current_page + window
-
-        if left_boundary > second_page:
-            result.append(None)
-        result.extend(range(left_boundary, right_boundary + 1))
-        result.append(None)  # trailing ellipsis = more pages exist
-        return result
+        return _estimate_pagination_range(current_page, window)
 
     if total_pages <= 5 + window * 2:
         return list(range(1, total_pages + 1))
 
+    second_page = 2
     left_boundary = max(second_page, current_page - window)
     right_boundary = min(total_pages - 1, current_page + window)
 
     result = [1]
-
     if left_boundary > second_page:
         result.append(None)
-
     result.extend(range(left_boundary, right_boundary + 1))
-
     if right_boundary < total_pages - 1:
         result.append(None)
-
     if total_pages not in result:
         result.append(total_pages)
+    return result
 
+
+def _estimate_pagination_range(current_page, window):
+    """Pagination range when total page count is an estimate (always trailing …)."""
+    second_page = 2
+    left_boundary = max(second_page, current_page - window)
+    right_boundary = current_page + window
+    result = [1]
+    if left_boundary > second_page:
+        result.append(None)
+    result.extend(range(left_boundary, right_boundary + 1))
+    result.append(None)  # trailing ellipsis = more pages exist
     return result
 
 
