@@ -8,6 +8,8 @@ from app.models import MediaTypes, Sources, Status
 
 logger = logging.getLogger(__name__)
 
+_DUPLICATE_EPISODE_WINDOW_SECONDS = 5  # de-dupe webhook bursts within this window
+
 
 class BaseWebhookProcessor:
     """Base class for webhook processors."""
@@ -280,35 +282,43 @@ class BaseWebhookProcessor:
         status = Status.COMPLETED.value if is_completed else Status.IN_PROGRESS.value
 
         if current and current.status != Status.COMPLETED.value:
-            current.progress = progress
-            if is_completed:
-                current.end_date = now
-                current.status = status
-            elif current.status != Status.IN_PROGRESS.value:
-                current.start_date = now
-                current.status = status
+            self._update_existing_instance(current, progress, is_completed, now, label)
+            return
 
-            if current.tracker.changed():
-                current.save()
-                logger.info(
-                    "Updated existing %s instance to status: %s", label, current.status
-                )
-            else:
-                logger.debug(
-                    "No changes detected for existing %s instance: %s",
-                    label,
-                    current.item,
-                )
-        else:
-            model.objects.create(
-                item=item,
-                user=user,
-                progress=progress,
-                status=status,
-                start_date=now if not is_completed else None,
-                end_date=now if is_completed else None,
+        model.objects.create(
+            item=item,
+            user=user,
+            progress=progress,
+            status=status,
+            start_date=now if not is_completed else None,
+            end_date=now if is_completed else None,
+        )
+        logger.info("Created new %s instance with status: %s", label, status)
+
+    def _update_existing_instance(self, current, progress, is_completed, now, label):
+        """Apply progress/status updates to an existing in-progress instance."""
+        current.progress = progress
+        status = Status.COMPLETED.value if is_completed else Status.IN_PROGRESS.value
+        if is_completed:
+            current.end_date = now
+            current.status = status
+        elif current.status != Status.IN_PROGRESS.value:
+            current.start_date = now
+            current.status = status
+
+        if current.tracker.changed():
+            current.save()
+            logger.info(
+                "Updated existing %s instance to status: %s",
+                label,
+                current.status,
             )
-            logger.info("Created new %s instance with status: %s", label, status)
+        else:
+            logger.debug(
+                "No changes detected for existing %s instance: %s",
+                label,
+                current.item,
+            )
 
     def _ensure_in_progress(self, instance, created, title, label=""):
         """Ensure an instance is in IN_PROGRESS status."""
@@ -405,7 +415,7 @@ class BaseWebhookProcessor:
 
         if latest and latest.end_date:
             time_diff = abs((now - latest.end_date).total_seconds())
-            if time_diff < 5:
+            if time_diff < _DUPLICATE_EPISODE_WINDOW_SECONDS:
                 logger.debug(
                     "Skipping duplicate episode record "
                     "(time difference: %d seconds): %s S%02dE%02d",
