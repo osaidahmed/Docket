@@ -1,5 +1,7 @@
 import logging
 from collections import defaultdict
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import requests
 from django.conf import settings
@@ -14,6 +16,20 @@ from integrations.imports import helpers
 from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _ListConfig:
+    """Per-media-type configuration for processing a Simkl list."""
+
+    entry_inner_key: str
+    id_key: str
+    id_label: str
+    media_type: str
+    source: str
+    log_label: str
+    instance_class: type
+    process_children: Callable | None = None
 
 
 def get_token(request):
@@ -156,13 +172,40 @@ class SimklImporter:
         )
 
     def _process_media_lists(self, data):
-        """Process all media types from Simkl."""
-        if "shows" in data:
-            self._process_tv_list(data["shows"])
-        if "movies" in data:
-            self._process_movie_list(data["movies"])
-        if "anime" in data:
-            self._process_anime_list(data["anime"])
+        """Dispatch each Simkl list to the generic processor with type-specific config."""
+        list_specs = (
+            ("shows", _ListConfig(
+                entry_inner_key="show",
+                id_key="tmdb",
+                id_label="TMDB",
+                media_type=MediaTypes.TV.value,
+                source=Sources.TMDB.value,
+                log_label="tv shows",
+                instance_class=app.models.TV,
+                process_children=self._process_seasons_and_episodes,
+            )),
+            ("movies", _ListConfig(
+                entry_inner_key="movie",
+                id_key="tmdb",
+                id_label="TMDB",
+                media_type=MediaTypes.MOVIE.value,
+                source=Sources.TMDB.value,
+                log_label="movies",
+                instance_class=app.models.Movie,
+            )),
+            ("anime", _ListConfig(
+                entry_inner_key="show",
+                id_key="mal",
+                id_label="MyAnimeList",
+                media_type=MediaTypes.ANIME.value,
+                source=Sources.MAL.value,
+                log_label="anime",
+                instance_class=app.models.Anime,
+            )),
+        )
+        for data_key, config in list_specs:
+            if data_key in data:
+                self._process_generic_list(data[data_key], config)
 
     def _extract_entry_id(self, entry_data, id_key, label):
         """Extract media ID from entry, returning None with warning if missing."""
@@ -205,70 +248,99 @@ class SimklImporter:
         """Extract memo text from entry."""
         return entry["memo"]["text"] if entry["memo"] != {} else ""
 
-    def _process_tv_list(self, tv_list):
-        """Process TV list from Simkl."""
-        logger.info("Processing tv shows")
+    def _process_generic_list(self, entries, config):
+        """Process a Simkl list using a per-media-type config object."""
+        logger.info("Processing %s", config.log_label)
         existing_ids = set()
-
-        for tv in tv_list:
+        for entry in entries:
             try:
-                title = tv["show"]["title"]
-                tmdb_id = self._extract_entry_id(tv["show"], "tmdb", "TMDB")
-                if not tmdb_id:
-                    continue
-                if not self._check_dedup_and_mode(
-                    tmdb_id,
-                    existing_ids,
-                    title,
-                    MediaTypes.TV.value,
-                    Sources.TMDB.value,
-                ):
-                    continue
-
-                season_numbers = [s["number"] for s in tv.get("seasons", [])]
-                metadata = self._fetch_metadata_safe(
-                    lambda tid=tmdb_id, sn=season_numbers: (
-                        app.providers.tmdb.tv_with_seasons(tid, sn)
-                    ),
-                    title,
-                    Sources.TMDB,
-                    tmdb_id,
-                )
-                if not metadata:
-                    continue
-
-                tv_item, _ = app.models.Item.objects.get_or_create(
-                    media_id=tmdb_id,
-                    source=Sources.TMDB.value,
-                    media_type=MediaTypes.TV.value,
-                    defaults={"title": metadata["title"], "image": metadata["image"]},
-                )
-
-                tv_instance = app.models.TV(
-                    item=tv_item,
-                    user=self.user,
-                    status=self._get_status(tv["status"]),
-                    score=tv["user_rating"],
-                    notes=self._get_memo(tv),
-                )
-                tv_instance._history_date = self._get_history_date(tv)
-                self.bulk_media[MediaTypes.TV.value].append(tv_instance)
-                existing_ids.add(tmdb_id)
-
-                if season_numbers:
-                    self._process_seasons_and_episodes(tv, tv_instance, metadata)
-
+                self._process_simkl_entry(entry, config, existing_ids)
             except Exception as error:
-                msg = f"Error processing entry: {tv}"
+                msg = f"Error processing entry: {entry}"
                 raise MediaImportUnexpectedError(msg) from error
+        logger.info("Processed %d %s", len(entries), config.log_label)
 
-        logger.info("Processed %d tv shows", len(tv_list))
+    def _process_simkl_entry(self, entry, config, existing_ids):
+        """Persist a single Simkl entry; mutates existing_ids and self.bulk_media."""
+        entry_data = entry[config.entry_inner_key]
+        title = entry_data["title"]
+        media_id = self._extract_entry_id(entry_data, config.id_key, config.id_label)
+        if not media_id:
+            return
+        if not self._check_dedup_and_mode(
+            media_id, existing_ids, title, config.media_type, config.source,
+        ):
+            return
+        metadata = self._fetch_simkl_metadata(config.media_type, entry, media_id, title)
+        if not metadata:
+            return
+        item, _ = app.models.Item.objects.get_or_create(
+            media_id=media_id,
+            source=config.source,
+            media_type=config.media_type,
+            defaults={"title": metadata["title"], "image": metadata["image"]},
+        )
+        status = self._get_status(entry["status"])
+        instance = config.instance_class(
+            item=item,
+            user=self.user,
+            status=status,
+            score=entry["user_rating"],
+            notes=self._get_memo(entry),
+            **self._build_extra_kwargs(config.media_type, entry, status),
+        )
+        instance._history_date = self._get_history_date(entry)
+        self.bulk_media[config.media_type].append(instance)
+        existing_ids.add(media_id)
+        if config.process_children:
+            config.process_children(entry, instance, metadata)
+
+    def _fetch_simkl_metadata(self, media_type, entry, media_id, title):
+        """Fetch provider metadata for a Simkl entry by media type."""
+        if media_type == MediaTypes.TV.value:
+            season_numbers = [s["number"] for s in entry.get("seasons", [])]
+            return self._fetch_metadata_safe(
+                lambda: app.providers.tmdb.tv_with_seasons(media_id, season_numbers),
+                title,
+                Sources.TMDB,
+                media_id,
+            )
+        if media_type == MediaTypes.MOVIE.value:
+            return self._fetch_metadata_safe(
+                lambda: app.providers.tmdb.movie(media_id),
+                title,
+                Sources.TMDB,
+                media_id,
+            )
+        return self._fetch_metadata_safe(
+            lambda: app.providers.mal.anime(media_id),
+            title,
+            Sources.MAL,
+            media_id,
+        )
+
+    def _build_extra_kwargs(self, media_type, entry, status):
+        """Build media-type-specific instance kwargs for the model constructor."""
+        if media_type == MediaTypes.MOVIE.value:
+            last_watched = self._get_date(entry.get("last_watched_at"))
+            return {
+                "progress": 1 if status == Status.COMPLETED.value else 0,
+                "start_date": last_watched,
+                "end_date": last_watched,
+            }
+        if media_type == MediaTypes.ANIME.value:
+            return {
+                "progress": entry["watched_episodes_count"],
+                "start_date": self._get_start_date(entry),
+                "end_date": self._get_end_date(status, entry.get("last_watched_at")),
+            }
+        return {}
 
     def _process_seasons_and_episodes(self, tv, tv_instance, metadata):
         """Process seasons and episodes for a TV show."""
         tmdb_id = tv["show"]["ids"]["tmdb"]
 
-        for season in tv["seasons"]:
+        for season in tv.get("seasons", []):
             season_number = season["number"]
             episodes = season["episodes"]
             season_metadata = metadata[f"season/{season_number}"]
@@ -334,123 +406,6 @@ class SimklImporter:
                     f"https://image.tmdb.org/t/p/w500{episode_metadata['still_path']}"
                 )
         return settings.IMG_NONE
-
-    def _process_movie_list(self, movie_list):
-        """Process movie list from Simkl."""
-        logger.info("Processing movies")
-        existing_ids = set()
-
-        for movie in movie_list:
-            try:
-                title = movie["movie"]["title"]
-                tmdb_id = self._extract_entry_id(movie["movie"], "tmdb", "TMDB")
-                if not tmdb_id:
-                    continue
-                if not self._check_dedup_and_mode(
-                    tmdb_id,
-                    existing_ids,
-                    title,
-                    MediaTypes.MOVIE.value,
-                    Sources.TMDB.value,
-                ):
-                    continue
-
-                metadata = self._fetch_metadata_safe(
-                    lambda tid=tmdb_id: app.providers.tmdb.movie(tid),
-                    title,
-                    Sources.TMDB,
-                    tmdb_id,
-                )
-                if not metadata:
-                    continue
-
-                movie_status = self._get_status(movie["status"])
-                movie_item, _ = app.models.Item.objects.get_or_create(
-                    media_id=tmdb_id,
-                    source=Sources.TMDB.value,
-                    media_type=MediaTypes.MOVIE.value,
-                    defaults={"title": metadata["title"], "image": metadata["image"]},
-                )
-
-                movie_instance = app.models.Movie(
-                    item=movie_item,
-                    user=self.user,
-                    status=movie_status,
-                    score=movie["user_rating"],
-                    progress=1 if movie_status == Status.COMPLETED.value else 0,
-                    start_date=self._get_date(movie.get("last_watched_at")),
-                    end_date=self._get_date(movie.get("last_watched_at")),
-                    notes=self._get_memo(movie),
-                )
-                movie_instance._history_date = self._get_history_date(movie)
-                self.bulk_media[MediaTypes.MOVIE.value].append(movie_instance)
-                existing_ids.add(tmdb_id)
-
-            except Exception as error:
-                msg = f"Error processing entry: {movie}"
-                raise MediaImportUnexpectedError(msg) from error
-
-        logger.info("Processed %d movies", len(movie_list))
-
-    def _process_anime_list(self, anime_list):
-        """Process anime list from Simkl."""
-        logger.info("Processing anime")
-        existing_ids = set()
-
-        for anime in anime_list:
-            try:
-                title = anime["show"]["title"]
-                mal_id = self._extract_entry_id(anime["show"], "mal", "MyAnimeList")
-                if not mal_id:
-                    continue
-                if not self._check_dedup_and_mode(
-                    mal_id,
-                    existing_ids,
-                    title,
-                    MediaTypes.ANIME.value,
-                    Sources.MAL.value,
-                ):
-                    continue
-
-                metadata = self._fetch_metadata_safe(
-                    lambda mid=mal_id: app.providers.mal.anime(mid),
-                    title,
-                    Sources.MAL,
-                    mal_id,
-                )
-                if not metadata:
-                    continue
-
-                anime_status = self._get_status(anime["status"])
-                anime_item, _ = app.models.Item.objects.get_or_create(
-                    media_id=mal_id,
-                    source=Sources.MAL.value,
-                    media_type=MediaTypes.ANIME.value,
-                    defaults={"title": metadata["title"], "image": metadata["image"]},
-                )
-
-                anime_instance = app.models.Anime(
-                    item=anime_item,
-                    user=self.user,
-                    status=anime_status,
-                    score=anime["user_rating"],
-                    progress=anime["watched_episodes_count"],
-                    start_date=self._get_start_date(anime),
-                    end_date=self._get_end_date(
-                        anime_status,
-                        anime.get("last_watched_at"),
-                    ),
-                    notes=self._get_memo(anime),
-                )
-                anime_instance._history_date = self._get_history_date(anime)
-                self.bulk_media[MediaTypes.ANIME.value].append(anime_instance)
-                existing_ids.add(mal_id)
-
-            except Exception as error:
-                msg = f"Error processing entry: {anime}"
-                raise MediaImportUnexpectedError(msg) from error
-
-        logger.info("Processed %d anime", len(anime_list))
 
     def _get_status(self, status):
         """Map Simkl status to internal status."""
