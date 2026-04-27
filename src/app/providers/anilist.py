@@ -181,31 +181,47 @@ def _formats_for_type(media_type):
     return _ANIME_FORMATS
 
 
+def _with_cache(cache_key, ttl, compute_fn):
+    """Cache wrapper: return cached value or compute, cache, and return it."""
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    data = compute_fn()
+    cache.set(cache_key, data, timeout=ttl)
+    return data
+
+
 def _cached_media_query(query, media_type, page, per_page, cache_prefix, ttl):
     """Execute a cached AniList media query and return paginated results."""
     cache_key = f"anilist_{cache_prefix}_{media_type}_{page}_{per_page}"
-    data = cache.get(cache_key)
+    return _with_cache(
+        cache_key,
+        ttl,
+        lambda: _run_media_query(query, media_type, page, per_page),
+    )
 
-    if data is None:
-        response = _graphql_request(
-            query,
-            {
-                "type": _anilist_type(media_type),
-                "page": page,
-                "perPage": per_page,
-                "formats": _formats_for_type(media_type),
-            },
-        )
-        page_data = response["data"]["Page"]
-        page_info = page_data["pageInfo"]
-        results = [_format_media(m, media_type) for m in page_data["media"]]
 
-        data = helpers.format_search_response(
-            page, per_page, page_info.get("total", 0), results
-        )
-        data["has_next_page"] = page_info.get("hasNextPage", False)
-        cache.set(cache_key, data, timeout=ttl)
-
+def _run_media_query(query, media_type, page, per_page):
+    """Run a paginated AniList media GraphQL query and format the response."""
+    response = _graphql_request(
+        query,
+        {
+            "type": _anilist_type(media_type),
+            "page": page,
+            "perPage": per_page,
+            "formats": _formats_for_type(media_type),
+        },
+    )
+    page_data = response["data"]["Page"]
+    page_info = page_data["pageInfo"]
+    results = [_format_media(m, media_type) for m in page_data["media"]]
+    data = helpers.format_search_response(
+        page,
+        per_page,
+        page_info.get("total", 0),
+        results,
+    )
+    data["has_next_page"] = page_info.get("hasNextPage", False)
     return data
 
 
@@ -242,23 +258,18 @@ def recently_updated(media_type, page=1, per_page=24):
     For manga: uses UPDATED_AT_DESC query.
     """
     cache_key = f"anilist_recently_updated_{media_type}_{page}_{per_page}"
-    data = cache.get(cache_key)
-
-    if data is None:
-        if media_type == MediaTypes.ANIME.value:
-            data = _recently_aired_anime(page, per_page)
-        else:
-            data = _cached_media_query(
-                _RECENTLY_UPDATED_QUERY,
-                media_type,
-                page,
-                per_page,
-                f"recent_manga_{page}",
-                CACHE_TTL_RECENT,
-            )
-        cache.set(cache_key, data, timeout=CACHE_TTL_RECENT)
-
-    return data
+    if media_type == MediaTypes.ANIME.value:
+        compute = lambda: _recently_aired_anime(page, per_page)  # noqa: E731
+    else:
+        compute = lambda: _cached_media_query(  # noqa: E731
+            _RECENTLY_UPDATED_QUERY,
+            media_type,
+            page,
+            per_page,
+            f"recent_manga_{page}",
+            CACHE_TTL_RECENT,
+        )
+    return _with_cache(cache_key, CACHE_TTL_RECENT, compute)
 
 
 def _recently_aired_anime(page, per_page):
