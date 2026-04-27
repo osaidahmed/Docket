@@ -311,31 +311,13 @@ class TraktImporter:
     def process_watched_episode(self, entry):
         """Process a single episode watch event."""
         show = entry["show"]
-        tmdb_id = self._get_tmdb_id(show)
-        if not tmdb_id:
+        tv_result = self._validate_and_fetch_metadata(show, MediaTypes.TV.value)
+        if not tv_result:
             return
-
-        if not helpers.should_process_media(
-            self.existing_media,
-            self.to_delete,
-            MediaTypes.TV.value,
-            Sources.TMDB.value,
-            tmdb_id,
-            self.mode,
-        ):
-            return
+        tmdb_id, tv_metadata = tv_result
 
         season_number = entry["episode"]["season"]
         episode_number = entry["episode"]["number"]
-
-        tv_metadata = self._get_metadata(
-            MediaTypes.TV.value,
-            tmdb_id,
-            show["title"],
-        )
-        if not tv_metadata:
-            return
-
         season_metadata = self._get_metadata(
             MediaTypes.SEASON.value,
             tmdb_id,
@@ -344,7 +326,6 @@ class TraktImporter:
         )
         if not season_metadata:
             return
-
         if not self._validate_episode(
             show["title"],
             tmdb_id,
@@ -380,6 +361,37 @@ class TraktImporter:
             season_metadata,
             tv_metadata,
         )
+
+    def _validate_and_fetch_metadata(self, media_data, media_type, season_number=None):
+        """Validate tmdb_id, check should_process, and fetch metadata.
+
+        For SEASON media_type, the should_process check uses TV as the parent type.
+        Returns (tmdb_id, metadata) tuple or None to skip.
+        """
+        tmdb_id = self._get_tmdb_id(media_data)
+        if not tmdb_id:
+            return None
+        parent_type = (
+            MediaTypes.TV.value if media_type == MediaTypes.SEASON.value else media_type
+        )
+        if not helpers.should_process_media(
+            self.existing_media,
+            self.to_delete,
+            parent_type,
+            Sources.TMDB.value,
+            tmdb_id,
+            self.mode,
+        ):
+            return None
+        metadata = self._get_metadata(
+            media_type,
+            tmdb_id,
+            media_data["title"],
+            season_number,
+        )
+        if not metadata:
+            return None
+        return tmdb_id, metadata
 
     def _validate_episode(
         self,
@@ -599,31 +611,10 @@ class TraktImporter:
         season_number=None,
     ):
         """Process media items for watchlist, ratings, and comments."""
-        tmdb_id = self._get_tmdb_id(media_data)
-        if not tmdb_id:
+        result = self._validate_and_fetch_metadata(media_data, media_type, season_number)
+        if not result:
             return
-
-        parent_type = (
-            MediaTypes.TV.value if media_type == MediaTypes.SEASON.value else media_type
-        )
-        if not helpers.should_process_media(
-            self.existing_media,
-            self.to_delete,
-            parent_type,
-            Sources.TMDB.value,
-            tmdb_id,
-            self.mode,
-        ):
-            return
-
-        metadata = self._get_metadata(
-            media_type,
-            tmdb_id,
-            media_data["title"],
-            season_number,
-        )
-        if not metadata:
-            return
+        tmdb_id, metadata = result
 
         updated_at = self._get_entry_timestamp(entry)
 
