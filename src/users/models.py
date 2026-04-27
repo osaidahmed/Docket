@@ -180,6 +180,8 @@ class UserMediaPreference(models.Model):
     )
 
     class Meta:
+        """Database constraints for UserMediaPreference."""
+
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "media_type"],
@@ -188,7 +190,30 @@ class UserMediaPreference(models.Model):
         ]
 
     def __str__(self):
+        """Return a human-readable identifier for this preference row."""
         return f"{self.user.username} - {self.media_type}"
+
+
+def _value_in_field_choices(value, field):
+    """Return True if value is acceptable for field (choices-bound or free-form)."""
+    if not (hasattr(field, "choices") and field.choices):
+        return True
+    return value in {choice[0] for choice in field.choices}
+
+
+_IMPORT_TASKS = {
+    "trakt": "Import from Trakt",
+    "simkl": "Import from SIMKL",
+    "myanimelist": "Import from MyAnimeList",
+    "anilist": "Import from AniList",
+    "kitsu": "Import from Kitsu",
+    "docket": "Import from Docket",
+    "hltb": "Import from HowLongToBeat",
+    "steam": "Import from Steam",
+    "imdb": "Import from IMDB",
+    "goodreads": "Import from GoodReads",
+}
+_TASK_TO_SOURCE = {v: k for k, v in _IMPORT_TASKS.items()}
 
 
 class User(AbstractUser):
@@ -462,13 +487,8 @@ class User(AbstractUser):
             _, attr = parsed
             pref_attr = "status_filter" if attr == "status" else attr
             field = UserMediaPreference._meta.get_field(pref_attr)
-            if hasattr(field, "choices") and field.choices:
-                return new_value in {c[0] for c in field.choices}
-            return True
-        field = self._meta.get_field(field_name)
-        if not (hasattr(field, "choices") and field.choices):
-            return True
-        return new_value in {choice[0] for choice in field.choices}
+            return _value_in_field_choices(new_value, field)
+        return _value_in_field_choices(new_value, self._meta.get_field(field_name))
 
     def update_preference(self, field_name, new_value):
         """Update user preference if the new value is valid and different."""
@@ -575,84 +595,61 @@ class User(AbstractUser):
 
     def get_import_tasks(self):
         """Return import tasks history and schedules for the user."""
-        import_tasks = {
-            "trakt": "Import from Trakt",
-            "simkl": "Import from SIMKL",
-            "myanimelist": "Import from MyAnimeList",
-            "anilist": "Import from AniList",
-            "kitsu": "Import from Kitsu",
-            "docket": "Import from Docket",
-            "hltb": "Import from HowLongToBeat",
-            "steam": "Import from Steam",
-            "imdb": "Import from IMDB",
-            "goodreads": "Import from GoodReads",
+        return {
+            "results": self._collect_task_results(),
+            "schedules": self._collect_periodic_tasks(),
         }
 
-        # Reverse mapping to get source from task name
-        task_to_source = {v: k for k, v in import_tasks.items()}
-
-        task_result_filter_text = f"'user_id': {self.id},"
-
-        # Get all task results for this user
+    def _collect_task_results(self):
+        """Build the recent-import history list for this user."""
         task_results = TaskResult.objects.filter(
-            task_kwargs__contains=task_result_filter_text,
-            task_name__in=import_tasks.values(),
-        ).order_by(
-            "-date_done",
-        )  # Most recent first
+            task_kwargs__contains=f"'user_id': {self.id},",
+            task_name__in=_IMPORT_TASKS.values(),
+        ).order_by("-date_done")  # Most recent first
 
-        # Build results list
         results = []
         for task in task_results:
-            source = task_to_source[task.task_name]
             processed_task = helpers.process_task_result(task)
             results.append(
                 {
                     "task": processed_task,
-                    "source": source,
+                    "source": _TASK_TO_SOURCE[task.task_name],
                     "date": task.date_done,
                     "status": task.status,
                     "summary": processed_task.summary,
                     "errors": processed_task.errors,
                 },
             )
+        return results
 
-        # Get periodic tasks with their crontab schedules
-        periodic_tasks_filter_text = f'"user_id": {self.id},'
+    def _collect_periodic_tasks(self):
+        """Build the active import-schedule list for this user."""
         periodic_tasks = PeriodicTask.objects.filter(
-            task__in=import_tasks.values(),
-            kwargs__contains=periodic_tasks_filter_text,
+            task__in=_IMPORT_TASKS.values(),
+            kwargs__contains=f'"user_id": {self.id},',
             enabled=True,
         ).select_related("crontab")
 
-        # Build schedules list
         schedules = []
         for periodic_task in periodic_tasks:
-            source = task_to_source.get(periodic_task.task, "unknown")
-
-            # Extract username from task name if available
+            schedule_info = helpers.get_next_run_info(periodic_task)
+            if not schedule_info:
+                continue
             username = ""
             if " for " in periodic_task.name:
                 username = periodic_task.name.split(" for ")[1].split(" at ")[0]
-
-            schedule_info = helpers.get_next_run_info(periodic_task)
-            if schedule_info:
-                schedules.append(
-                    {
-                        "task": periodic_task,
-                        "source": source,
-                        "username": username,
-                        "last_run": periodic_task.last_run_at,
-                        "next_run": schedule_info["next_run"],
-                        "schedule": schedule_info["frequency"],
-                        "mode": schedule_info["mode"],
-                    },
-                )
-
-        return {
-            "results": results,
-            "schedules": schedules,
-        }
+            schedules.append(
+                {
+                    "task": periodic_task,
+                    "source": _TASK_TO_SOURCE.get(periodic_task.task, "unknown"),
+                    "username": username,
+                    "last_run": periodic_task.last_run_at,
+                    "next_run": schedule_info["next_run"],
+                    "schedule": schedule_info["frequency"],
+                    "mode": schedule_info["mode"],
+                },
+            )
+        return schedules
 
     def regenerate_token(self):
         """Regenerate the user's token."""
