@@ -350,14 +350,19 @@ def backlog_save(request):
     )
 
     if rewatch_cancelled or media.status == Status.DROPPED.value:
-        response = render(request, "app/components/backlog_dropped.html")
-        if rewatch_cancelled or source_context == "medialist":
-            response["HX-Refresh"] = "true"
-        return response
+        return _build_dropped_response(request, rewatch_cancelled, source_context)
 
     return _render_backlog_save_response(
         request, media_type, instance_id, source_context, state_changed
     )
+
+
+def _build_dropped_response(request, rewatch_cancelled, source_context):
+    """Render the dropped/cancelled backlog response, refreshing where needed."""
+    response = render(request, "app/components/backlog_dropped.html")
+    if rewatch_cancelled or source_context == "medialist":
+        response["HX-Refresh"] = "true"
+    return response
 
 
 def _render_backlog_save_response(
@@ -386,13 +391,14 @@ def _render_backlog_save_response(
 
 def _update_pin_order(user, media, old_is_pinned, is_pinned_submitted):
     """Update pin_order after a backlog save."""
-    if is_pinned_submitted and not old_is_pinned:
+    if is_pinned_submitted == old_is_pinned:
+        return
+    if is_pinned_submitted:
         max_order = _get_max_pin_order(user)
         media.pin_order = 0 if max_order is None else max_order + 1
-        media.save(update_fields=["pin_order"])
-    elif not is_pinned_submitted and old_is_pinned:
+    else:
         media.pin_order = None
-        media.save(update_fields=["pin_order"])
+    media.save(update_fields=["pin_order"])
 
 
 def _check_rewatch_cancelled(user, media, media_type, old_is_rewatch):
@@ -451,15 +457,20 @@ def _bulk_status(items, value):
     with transaction.atomic(), disable_fetch_releases():
         for item in items:
             item.status = value
-            if (
-                value == Status.IN_PROGRESS.value
-                and not item.start_date
-                and hasattr(type(item), "start_date")
-                and not isinstance(type(item).start_date, property)
-            ):
+            if _should_set_start_date(item, value):
                 item.start_date = now
             item.save()
     return None
+
+
+def _should_set_start_date(item, status):
+    """Whether marking IN_PROGRESS should auto-set start_date on this item."""
+    if status != Status.IN_PROGRESS.value:
+        return False
+    if item.start_date:
+        return False
+    cls_attr = getattr(type(item), "start_date", None)
+    return cls_attr is not None and not isinstance(cls_attr, property)
 
 
 def _bulk_score(items, model, value):
@@ -492,18 +503,17 @@ def bulk_action(request):
 
     model = get_media_model(media_type)
     items = list(model.objects.filter(id__in=instance_ids, user=request.user))
-
     if not items:
         return HttpResponseBadRequest("No valid items found.")
 
-    if action == "status":
-        error = _bulk_status(items, value)
-    elif action == "score":
-        error = _bulk_score(items, model, value)
-    else:
-        model.objects.filter(id__in=instance_ids, user=request.user).delete()
-        error = None
-
+    error = _dispatch_bulk_action(
+        action,
+        items,
+        model,
+        value,
+        request.user,
+        instance_ids,
+    )
     if error:
         return error
 
@@ -514,6 +524,16 @@ def bulk_action(request):
     response = HttpResponse("")
     response["HX-Refresh"] = "true"
     return response
+
+
+def _dispatch_bulk_action(action, items, model, value, user, instance_ids):
+    """Apply the named bulk action to items; return error response or None."""
+    if action == "status":
+        return _bulk_status(items, value)
+    if action == "score":
+        return _bulk_score(items, model, value)
+    model.objects.filter(id__in=instance_ids, user=user).delete()
+    return None
 
 
 def _get_max_pin_order(user):
@@ -530,12 +550,12 @@ def _get_max_pin_order(user):
         model = get_media_model(mt)
         table = model._meta.db_table
         parts.append(
-            f"SELECT MAX(pin_order) AS max_pin FROM {table}"
+            f"SELECT MAX(pin_order) AS max_pin FROM {table}"  # noqa: S608
             " WHERE user_id = %s AND pin_order IS NOT NULL",
         )
         params.append(user.id)
 
-    query = f"SELECT MAX(max_pin) FROM ({' UNION ALL '.join(parts)}) sub"
+    query = f"SELECT MAX(max_pin) FROM ({' UNION ALL '.join(parts)}) sub"  # noqa: S608
     with connection.cursor() as cursor:
         cursor.execute(query, params)
         return cursor.fetchone()[0]
