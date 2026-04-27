@@ -125,6 +125,43 @@ def raise_not_found_error(provider, media_id, media_type="item"):
     raise ProviderAPIError(provider, 404, error_msg)
 
 
+def extract_xml_text(elem, tag, default=None):
+    """Return the text of an XML child element, or default when missing/empty."""
+    target = elem.find(tag)
+    if target is not None and target.text:
+        return target.text
+    return default
+
+
+def extract_xml_attr(elem, xpath, cast=str, default=None):
+    """Find an XML element via xpath and cast its `value` attribute.
+
+    Returns default on missing element or ValueError during cast.
+    """
+    target = elem.find(xpath)
+    if target is None:
+        return default
+    try:
+        return cast(target.get("value", 0))
+    except ValueError:
+        return default
+
+
+def extract_nested_dict(data, outer_key, inner_key):
+    """Look up data[outer_key][inner_key] when outer is a dict, else None."""
+    nested = data.get(outer_key)
+    if nested and isinstance(nested, dict):
+        return nested.get(inner_key)
+    return None
+
+
+def extract_name_list(items, key="name"):
+    """Build a list of [key] values from a list of dicts; None if items is empty."""
+    if items:
+        return [item[key] for item in items]
+    return None
+
+
 MAX_RETRIES = 3
 
 
@@ -150,6 +187,7 @@ def api_request(
         ) as error:
             logger.exception("Connection error for %s", provider)
             raise _connection_error(provider, error) from error
+    return None
 
 
 def _parse_response(response, response_format):

@@ -260,10 +260,7 @@ def get_start_year(response):
 
 def get_publisher_name(response):
     """Return the publisher name of the comic volume."""
-    publisher = response.get("publisher")
-    if publisher and isinstance(publisher, dict):
-        return publisher.get("name")
-    return None
+    return services.extract_nested_dict(response, "publisher", "name")
 
 
 def get_issues_count(response):
@@ -273,10 +270,7 @@ def get_issues_count(response):
 
 def get_last_issue_name(response):
     """Return the name of the last issue in the comic volume."""
-    last_issue = response.get("last_issue")
-    if last_issue and isinstance(last_issue, dict):
-        return last_issue.get("name")
-    return None
+    return services.extract_nested_dict(response, "last_issue", "name")
 
 
 def get_issue_number(issue_number):
@@ -301,10 +295,7 @@ def get_issue_number(issue_number):
 
 def get_last_issue_number(response):
     """Return the last issue number."""
-    last_issue = response.get("last_issue")
-    if last_issue and isinstance(last_issue, dict):
-        return last_issue.get("issue_number")
-    return None
+    return services.extract_nested_dict(response, "last_issue", "issue_number")
 
 
 def get_people(response):

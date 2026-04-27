@@ -728,11 +728,8 @@ def get_readable_duration(duration):
 
 def get_genres(genres):
     """Return the genres for the media."""
-    # when unknown genres, value from response is empty list
-    # e.g tv: 24795
-    if genres:
-        return [genre["name"] for genre in genres]
-    return None
+    # when unknown genres, value from response is empty list (e.g tv: 24795)
+    return services.extract_name_list(genres, key="name")
 
 
 def get_country(countries):
@@ -746,11 +743,8 @@ def get_country(countries):
 
 def get_languages(languages):
     """Return the languages for the media."""
-    # when unknown spoken languages, value from response is empty list
-    # e.g tv: 24795
-    if languages:
-        return [language["english_name"] for language in languages]
-    return None
+    # when unknown spoken languages, value from response is empty list (e.g tv: 24795)
+    return services.extract_name_list(languages, key="english_name")
 
 
 def get_companies(companies):

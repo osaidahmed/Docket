@@ -151,10 +151,7 @@ def _parse_detail_item(item):
 
 def _get_elem_text(item, tag):
     """Get text content from an XML element, or None."""
-    elem = item.find(tag)
-    if elem is not None and elem.text:
-        return elem.text
-    return None
+    return services.extract_xml_text(item, tag)
 
 
 def browse(category, page):
@@ -257,10 +254,7 @@ def get_image(item):
 
 def get_description(item):
     """Return the description."""
-    desc_elem = item.find("description")
-    if desc_elem is not None and desc_elem.text:
-        return desc_elem.text
-    return "No synopsis available"
+    return services.extract_xml_text(item, "description", "No synopsis available")
 
 
 def get_year(item):
@@ -299,24 +293,20 @@ def get_min_age(item):
 
 def get_score(item):
     """Return the average rating."""
-    avg_rating_elem = item.find(".//statistics/ratings/average")
-    if avg_rating_elem is not None:
-        try:
-            return round(float(avg_rating_elem.get("value", 0)), 1)
-        except ValueError:
-            return None
-    return None
+    return services.extract_xml_attr(
+        item,
+        ".//statistics/ratings/average",
+        cast=lambda v: round(float(v), 1),
+    )
 
 
 def get_score_count(item):
     """Return the number of ratings."""
-    usersrated_elem = item.find(".//statistics/ratings/usersrated")
-    if usersrated_elem is not None:
-        try:
-            return int(usersrated_elem.get("value", 0))
-        except ValueError:
-            return None
-    return None
+    return services.extract_xml_attr(
+        item,
+        ".//statistics/ratings/usersrated",
+        cast=int,
+    )
 
 
 def get_categories(item):
