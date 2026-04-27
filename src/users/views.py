@@ -65,23 +65,33 @@ def account(request):
     password_form = PasswordChangeForm(user=request.user)
 
     if request.method == "POST":
-        if "username" in request.POST:
-            user_form, response = _handle_username_update(request)
-            if response:
-                return response
-        elif any(
-            key in request.POST
-            for key in ["old_password", "new_password1", "new_password2"]
-        ):
-            password_form, response = _handle_password_update(request)
-            if response:
-                return response
+        result = _handle_account_post(request, user_form, password_form)
+        if isinstance(result, tuple):
+            user_form, password_form = result
+        else:
+            return result
 
     return render(
         request,
         "users/account.html",
         {"user_form": user_form, "password_form": password_form},
     )
+
+
+_PASSWORD_FIELDS = ("old_password", "new_password1", "new_password2")
+
+
+def _handle_account_post(request, user_form, password_form):
+    """Dispatch a POST on the account form. Return a redirect or updated forms."""
+    if "username" in request.POST:
+        user_form, response = _handle_username_update(request)
+    elif any(key in request.POST for key in _PASSWORD_FIELDS):
+        password_form, response = _handle_password_update(request)
+    else:
+        response = None
+    if response:
+        return response
+    return user_form, password_form
 
 
 @require_http_methods(["GET", "POST"])
