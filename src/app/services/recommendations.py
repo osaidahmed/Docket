@@ -147,20 +147,28 @@ def _collect_frequencies(processable, progress_key):
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {executor.submit(_fetch_one, m): m for m in processable}
         for future in as_completed(futures):
-            media, metadata = future.result()
             completed += 1
-
-            if metadata:
-                _process_item(data, media, metadata)
-
-            if completed % PROGRESS_BATCH == 0 or completed == total:
-                cache.set(
-                    progress_key,
-                    {"current": completed, "total": total},
-                    PROGRESS_TIMEOUT,
-                )
+            _consume_frequency_future(future, data)
+            _maybe_publish_progress(progress_key, completed, total)
 
     return data
+
+
+def _consume_frequency_future(future, data):
+    """Apply one fetched (media, metadata) pair into the frequency totals."""
+    media, metadata = future.result()
+    if metadata:
+        _process_item(data, media, metadata)
+
+
+def _maybe_publish_progress(progress_key, completed, total):
+    """Cache progress state on batch boundaries and at the final step."""
+    if completed % PROGRESS_BATCH == 0 or completed == total:
+        cache.set(
+            progress_key,
+            {"current": completed, "total": total},
+            PROGRESS_TIMEOUT,
+        )
 
 
 def _build_cross_media_titles(user_id, media_type):
