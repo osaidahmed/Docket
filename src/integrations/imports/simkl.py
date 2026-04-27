@@ -172,7 +172,7 @@ class SimklImporter:
         )
 
     def _process_media_lists(self, data):
-        """Dispatch each Simkl list to the generic processor with type-specific config."""
+        """Dispatch each Simkl list to the generic processor with the right config."""
         list_specs = (
             ("shows", _ListConfig(
                 entry_inner_key="show",

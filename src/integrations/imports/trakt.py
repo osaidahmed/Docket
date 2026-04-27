@@ -611,7 +611,9 @@ class TraktImporter:
         season_number=None,
     ):
         """Process media items for watchlist, ratings, and comments."""
-        result = self._validate_and_fetch_metadata(media_data, media_type, season_number)
+        result = self._validate_and_fetch_metadata(
+            media_data, media_type, season_number,
+        )
         if not result:
             return
         tmdb_id, metadata = result
