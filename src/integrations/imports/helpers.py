@@ -101,65 +101,44 @@ def cleanup_existing_media(to_delete, user):
             )
 
 
-def update_season_references(seasons, user):
-    """Update season references with actual TV instances.
+def _reference_config(kind):
+    """Return the (model, related_attr, key_fn) tuple for a parent-ref kind."""
+    if kind == "season":
+        return (
+            app.models.TV,
+            "related_tv",
+            lambda s: s.item.media_id,
+        )
+    return (
+        app.models.Season,
+        "related_season",
+        lambda e: (e.item.media_id, e.item.season_number),
+    )
 
-    When bulk_create skips existing TV shows, seasons would still reference
-    the unsaved TV instances. This updates those references to point to
-    the existing TV shows in the database, preventing the ValueError about
-    unsaved related objects during bulk creation of seasons.
+
+def update_references(items, kind, user):
+    """Re-point items' related-FK to existing DB instances after a bulk-skip.
+
+    `kind` selects between "season" (rewires `related_tv` to existing TV rows)
+    and "episode" (rewires `related_season` to existing Season rows). When
+    bulk_create skips existing parents, child items still reference unsaved
+    parents; this rewires them so the next bulk_create can persist children
+    without ValueError.
     """
-    # Get existing TV shows from database
-    existing_tv = {
-        tv.item.media_id: tv
-        for tv in app.models.TV.objects.filter(
-            user=user,
-            item__media_id__in=[season.item.media_id for season in seasons],
-        )
+    model, related_attr, key_fn = _reference_config(kind)
+    media_ids = {
+        key_fn(item)[0] if isinstance(key_fn(item), tuple) else key_fn(item)
+        for item in items
     }
-
-    # Update references
-    for season in seasons:
-        media_id = season.item.media_id
-        if media_id in existing_tv:
-            season.related_tv = existing_tv[media_id]
-            logger.debug(
-                "Updated new season %s with existing TV %s",
-                season,
-                existing_tv[media_id],
-            )
-
-
-def update_episode_references(episodes, user):
-    """Update episode references with actual Season instances.
-
-    When bulk_create skips existing seasons, episodes would still reference
-    the unsaved season instances. This updates those references to point to
-    the existing seasons in the database, preventing the ValueError about
-    unsaved related objects during bulk creation of episodes.
-    """
-    # Create mapping of season instances
-    existing_seasons = {
-        (season.item.media_id, season.item.season_number): season
-        for season in app.models.Season.objects.filter(
-            user=user,
-            item__media_id__in={episode.item.media_id for episode in episodes},
-        )
+    existing = {
+        key_fn(obj): obj
+        for obj in model.objects.filter(user=user, item__media_id__in=media_ids)
     }
-
-    # Update references
-    for episode in episodes:
-        season_key = (
-            episode.item.media_id,
-            episode.item.season_number,
-        )
-        if season_key in existing_seasons:
-            episode.related_season = existing_seasons[season_key]
-            logger.debug(
-                "Updated new episode %s with existing season %s",
-                episode,
-                existing_seasons[season_key],
-            )
+    for item in items:
+        key = key_fn(item)
+        if key in existing:
+            setattr(item, related_attr, existing[key])
+            logger.debug("Updated new %s with existing %s", item, existing[key])
 
 
 def bulk_create_media(bulk_media_list, user):
@@ -175,12 +154,12 @@ def bulk_create_media(bulk_media_list, user):
         # Update references for seasons and episodes
         if media_type == MediaTypes.SEASON.value:
             logger.info("Updating references for season to existing TV shows")
-            update_season_references(bulk_media, user)
+            update_references(bulk_media, "season", user)
         elif media_type == MediaTypes.EPISODE.value:
             logger.info(
                 "Updating references for episodes to existing TV seasons",
             )
-            update_episode_references(bulk_media, user)
+            update_references(bulk_media, "episode", user)
 
         bulk_create_with_history(
             bulk_media,

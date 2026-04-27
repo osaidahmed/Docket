@@ -54,7 +54,7 @@ class HelpersTest(TestCase):
             related_tv=TV(item=item, user=self.user),
         )
 
-        helpers.update_season_references([new_season], self.user)
+        helpers.update_references([new_season], "season", self.user)
 
         self.assertEqual(new_season.related_tv.id, tv.id)
 
@@ -100,7 +100,7 @@ class HelpersTest(TestCase):
             related_season=Season(item=season_item, related_tv=tv, user=self.user),
         )
 
-        helpers.update_episode_references([new_episode], self.user)
+        helpers.update_references([new_episode], "episode", self.user)
 
         self.assertEqual(new_episode.related_season.id, season.id)
 
@@ -181,7 +181,7 @@ class HelpersTest(TestCase):
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
         )
-        from simple_history.utils import bulk_create_with_history
+        from simple_history.utils import bulk_create_with_history  # noqa: PLC0415
 
         movie = Movie(item=item, user=self.user, status=Status.COMPLETED.value)
         bulk_create_with_history([movie], Movie, default_user=self.user)
@@ -245,7 +245,7 @@ class HelpersTest(TestCase):
             media_type=MediaTypes.MOVIE.value,
             title="To Delete Movie",
         )
-        from simple_history.utils import bulk_create_with_history
+        from simple_history.utils import bulk_create_with_history  # noqa: PLC0415
 
         movie = Movie(item=item, user=self.user, status=Status.COMPLETED.value)
         bulk_create_with_history([movie], Movie, default_user=self.user)
@@ -261,7 +261,7 @@ class HelpersTest(TestCase):
         helpers.cleanup_existing_media(to_delete, self.user)
 
     def test_bulk_create_media_with_seasons_and_episodes(self):
-        from simple_history.utils import bulk_create_with_history
+        from simple_history.utils import bulk_create_with_history  # noqa: PLC0415
 
         tv_item = Item.objects.create(
             media_id="1",
@@ -316,7 +316,7 @@ class HelpersTest(TestCase):
         self.assertEqual(Episode.objects.count(), 1)
 
     @patch("django.contrib.messages.success")
-    def test_create_import_schedule_with_token(self, mock_messages):
+    def test_create_import_schedule_with_token(self, mock_messages):  # noqa: ARG002
         request = Mock()
         request.user = self.user
 
@@ -332,7 +332,7 @@ class HelpersTest(TestCase):
 
         task = PeriodicTask.objects.first()
         self.assertIsNotNone(task)
-        import json
+        import json  # noqa: PLC0415
 
         kwargs = json.loads(task.kwargs)
         self.assertEqual(kwargs["token"], "encrypted_token")
