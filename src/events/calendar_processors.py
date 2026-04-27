@@ -337,35 +337,26 @@ def _convert_anime_episode(item, episode):
     )
 
 
+_ANIME_SCHEDULE_QUERY = """
+query ($ids: [Int], $page: Int) {
+  Page(page: $page) {
+    pageInfo { hasNextPage }
+    media(idMal_in: $ids, type: ANIME) {
+      idMal
+      endDate { year month day }
+      episodes
+      airingSchedule { nodes { episode airingAt } }
+    }
+  }
+}
+"""
+
+
 def get_anime_schedule_bulk(media_ids):
     """Get the airing schedule for multiple anime items from AniList API."""
     all_data = {}
     page = 1
     url = "https://graphql.anilist.co"
-    query = """
-    query ($ids: [Int], $page: Int) {
-      Page(page: $page) {
-        pageInfo {
-          hasNextPage
-        }
-        media(idMal_in: $ids, type: ANIME) {
-          idMal
-          endDate {
-            year
-            month
-            day
-          }
-          episodes
-          airingSchedule {
-            nodes {
-              episode
-              airingAt
-            }
-          }
-        }
-      }
-    }
-    """
 
     while True:
         variables = {"ids": media_ids, "page": page}
@@ -373,7 +364,7 @@ def get_anime_schedule_bulk(media_ids):
             "ANILIST",
             "POST",
             url,
-            params={"query": query, "variables": variables},
+            params={"query": _ANIME_SCHEDULE_QUERY, "variables": variables},
         )
 
         for media_data in response["data"]["Page"]["media"]:
