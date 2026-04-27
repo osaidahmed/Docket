@@ -1168,8 +1168,6 @@ class Episode(models.Model):
             return
         last_season = tv_metadata["related"]["seasons"][-1]["season_number"]
         next_episode_season = tv_metadata.get("next_episode_season")
-        # mark the TV show as completed only if it's the last season
-        # and the show is not ongoing
         if season_number == last_season and next_episode_season is None:
             tv.status = Status.COMPLETED.value
             bulk_update_with_history([tv], TV, fields=["status"])
