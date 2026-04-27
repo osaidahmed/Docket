@@ -227,11 +227,15 @@ class Item(CalendarTriggerMixin, models.Model):
 
 
 class RelationType(models.TextChoices):
+    """Choices for the directional relationship between two items."""
+
     SEQUEL = "sequel"
     PREQUEL = "prequel"
 
 
 class ItemRelationship(models.Model):
+    """Directional link between two items (e.g. sequel/prequel)."""
+
     from_item = models.ForeignKey(
         Item, on_delete=models.CASCADE, related_name="relationships_from"
     )
@@ -241,6 +245,8 @@ class ItemRelationship(models.Model):
     relation_type = models.CharField(max_length=20, choices=RelationType.choices)
 
     class Meta:
+        """Database constraints for ItemRelationship."""
+
         constraints = [
             models.UniqueConstraint(
                 fields=["from_item", "to_item", "relation_type"],
@@ -248,8 +254,12 @@ class ItemRelationship(models.Model):
             ),
         ]
 
+    def __str__(self):
+        """Return a human-readable description of the relationship."""
+        return f"{self.from_item} -> {self.relation_type} -> {self.to_item}"
 
-from app.managers import MediaManager
+
+from app.managers import MediaManager  # noqa: E402  (circular import workaround)
 
 
 class Status(models.TextChoices):
@@ -431,23 +441,25 @@ class TV(Media):
     def save(self, *args, **kwargs):
         """Save the media instance."""
         super(Media, self).save(*args, **kwargs)
-
         if self.tracker.has_changed("status"):
-            if self.status == Status.COMPLETED.value:
-                if self._completed():
-                    self._revert_to_ongoing()
-                    bulk_update_with_history([self], TV, fields=["status", "caught_up"])
+            self._handle_status_change()
 
-            elif self.status == Status.DROPPED.value:
-                self._mark_in_progress_seasons_as_dropped()
+    def _handle_status_change(self):
+        """Cascade side effects of a TV status transition."""
+        if self.status == Status.COMPLETED.value:
+            if self._completed():
+                self._revert_to_ongoing()
+                bulk_update_with_history([self], TV, fields=["status", "caught_up"])
+        elif self.status == Status.DROPPED.value:
+            self._mark_in_progress_seasons_as_dropped()
+        elif self.status == Status.IN_PROGRESS.value:
+            self._maybe_start_next_season()
+        self.item.fetch_releases(delay=True)
 
-            elif (
-                self.status == Status.IN_PROGRESS.value
-                and not self.seasons.filter(status=Status.IN_PROGRESS.value).exists()
-            ):
-                self._start_next_available_season()
-
-            self.item.fetch_releases(delay=True)
+    def _maybe_start_next_season(self):
+        """Start the next available season if none is currently in progress."""
+        if not self.seasons.filter(status=Status.IN_PROGRESS.value).exists():
+            self._start_next_available_season()
 
     @property
     def _non_special_seasons(self):
@@ -712,7 +724,7 @@ class Season(Media):
             self.related_tv.status = target_status
             bulk_update_with_history([self.related_tv], TV, fields=["status"])
 
-    @tracker
+    @tracker  # noqa: DJ012  save kept after status helpers it dispatches into
     def save(self, *args, **kwargs):
         """Save the media instance."""
         if self.related_tv_id is None:
@@ -1105,23 +1117,30 @@ class Episode(models.Model):
     def save(self, *args, **kwargs):
         """Save the episode instance."""
         super().save(*args, **kwargs)
-
         season_number = self.item.season_number
-        tv_with_seasons_metadata = getattr(self, "_tv_metadata", None)
-        if tv_with_seasons_metadata is None:
-            tv_with_seasons_metadata = providers.services.get_media_metadata(
-                "tv_with_seasons",
-                self.item.media_id,
-                self.item.source,
-                [season_number],
-            )
-        season_metadata = tv_with_seasons_metadata[f"season/{season_number}"]
-        max_progress = season_metadata["max_progress"]
+        tv_metadata = self._get_tv_metadata(season_number)
+        max_progress = tv_metadata[f"season/{season_number}"]["max_progress"]
 
         # clear prefetch cache to get the updated episodes
         self.related_season.refresh_from_db()
 
-        season_just_completed = False
+        season_just_completed = self._cascade_season_status(max_progress)
+        self._cascade_tv_status(tv_metadata, season_number, season_just_completed)
+
+    def _get_tv_metadata(self, season_number):
+        """Return cached or freshly-fetched tv_with_seasons metadata."""
+        cached = getattr(self, "_tv_metadata", None)
+        if cached is not None:
+            return cached
+        return providers.services.get_media_metadata(
+            "tv_with_seasons",
+            self.item.media_id,
+            self.item.source,
+            [season_number],
+        )
+
+    def _cascade_season_status(self, max_progress):
+        """Update season status; return True if the season just completed."""
         if max_progress and self.item.episode_number == max_progress:
             self.related_season.status = Status.COMPLETED.value
             bulk_update_with_history(
@@ -1129,39 +1148,31 @@ class Episode(models.Model):
                 Season,
                 fields=["status"],
             )
-            season_just_completed = True
-
-        elif self.related_season.status != Status.IN_PROGRESS.value:
+            return True
+        if self.related_season.status != Status.IN_PROGRESS.value:
             self.related_season.status = Status.IN_PROGRESS.value
             bulk_update_with_history(
                 [self.related_season],
                 Season,
                 fields=["status"],
             )
+        return False
 
-        if season_just_completed:
-            last_season = tv_with_seasons_metadata["related"]["seasons"][-1][
-                "season_number"
-            ]
-            next_episode_season = tv_with_seasons_metadata.get(
-                "next_episode_season",
-            )
-            # mark the TV show as completed only if it's the last season
-            # and the show is not ongoing
-            if season_number == last_season and next_episode_season is None:
-                self.related_season.related_tv.status = Status.COMPLETED.value
-                bulk_update_with_history(
-                    [self.related_season.related_tv],
-                    TV,
-                    fields=["status"],
-                )
-        elif self.related_season.related_tv.status != Status.IN_PROGRESS.value:
-            self.related_season.related_tv.status = Status.IN_PROGRESS.value
-            bulk_update_with_history(
-                [self.related_season.related_tv],
-                TV,
-                fields=["status"],
-            )
+    def _cascade_tv_status(self, tv_metadata, season_number, season_just_completed):
+        """Update TV status based on whether this completion finished the show."""
+        tv = self.related_season.related_tv
+        if not season_just_completed:
+            if tv.status != Status.IN_PROGRESS.value:
+                tv.status = Status.IN_PROGRESS.value
+                bulk_update_with_history([tv], TV, fields=["status"])
+            return
+        last_season = tv_metadata["related"]["seasons"][-1]["season_number"]
+        next_episode_season = tv_metadata.get("next_episode_season")
+        # mark the TV show as completed only if it's the last season
+        # and the show is not ongoing
+        if season_number == last_season and next_episode_season is None:
+            tv.status = Status.COMPLETED.value
+            bulk_update_with_history([tv], TV, fields=["status"])
 
 
 class Manga(Media):
