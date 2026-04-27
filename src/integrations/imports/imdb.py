@@ -156,40 +156,54 @@ class IMDBImporter:
 
     def _process_second_pass(self, row, media_id_counts):
         """Second pass to process non-duplicate entries."""
+        resolved = self._validate_imdb_entry(row, media_id_counts)
+        if not resolved:
+            return
+        media_type, tmdb_data = resolved
+        item, _ = self._create_or_update_item(tmdb_data, media_type)
+        instance = self._create_media_instance(item, row, media_type)
+        self.bulk_media[media_type].append(instance)
+
+    def _validate_imdb_entry(self, row, media_id_counts):
+        """Validate an IMDB row. Return (media_type, tmdb_data) or None to skip."""
+        metadata = self._resolve_imdb_metadata(row)
+        if not metadata:
+            return None
+        title_type, tmdb_data = metadata
+        media_type = IMDB_TYPE_MAPPING[title_type]
+        if not self._should_keep_imdb_entry(
+            tmdb_data["media_id"],
+            media_type,
+            media_id_counts,
+        ):
+            return None
+        return media_type, tmdb_data
+
+    def _resolve_imdb_metadata(self, row):
+        """Resolve an IMDB row to its TMDB lookup. Return (title_type, tmdb_data)."""
         imdb_id = self._extract_imdb_id(row)
         if not imdb_id:
-            return  # Already added warning in first pass
-
+            return None
         title_type = row.get("Title Type", "").strip()
         if not self._is_supported_type(title_type):
-            return  # Already added warning in first pass
-
+            return None
         tmdb_data = self._lookup_in_tmdb(imdb_id, title_type)
         if not tmdb_data:
-            return  # Already added warning in first pass
+            return None
+        return title_type, tmdb_data
 
-        media_id = tmdb_data["media_id"]
-
-        # Skip if this media_id appears more than once
+    def _should_keep_imdb_entry(self, media_id, media_type, media_id_counts):
+        """Drop entries seen multiple times or filtered out by import mode."""
         if media_id_counts[media_id] > 1:
-            return
-
-        media_type = IMDB_TYPE_MAPPING[title_type]
-
-        # Check if we should process this entry based on mode
-        if not helpers.should_process_media(
+            return False
+        return helpers.should_process_media(
             self.existing_media,
             self.to_delete,
             media_type,
             Sources.TMDB.value,
             str(media_id),
             self.mode,
-        ):
-            return
-
-        item, _ = self._create_or_update_item(tmdb_data, media_type)
-        instance = self._create_media_instance(item, row, media_type)
-        self.bulk_media[media_type].append(instance)
+        )
 
     def _add_duplicate_warnings(self, media_id_counts, media_id_titles):
         """Add warnings for duplicate entries."""
