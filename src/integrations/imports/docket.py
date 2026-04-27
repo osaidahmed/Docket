@@ -92,25 +92,10 @@ class DocketImporter:
 
     def _process_row(self, row):
         """Process a single row from the CSV file."""
-        media_type = row["media_type"]
-
-        season_number = (
-            int(row["season_number"]) if row["season_number"] != "" else None
-        )
-        episode_number = (
-            int(row["episode_number"]) if row["episode_number"] != "" else None
+        media_type, season_number, episode_number, parent_type = (
+            self._parse_row_fields(row)
         )
 
-        if row["progress"] == "":
-            row["progress"] = 0
-
-        parent_type = (
-            MediaTypes.TV.value
-            if media_type in (MediaTypes.SEASON.value, MediaTypes.EPISODE.value)
-            else media_type
-        )
-
-        # Check if we should process this movie based on mode
         if not helpers.should_process_media(
             self.existing_media,
             self.to_delete,
@@ -142,16 +127,35 @@ class DocketImporter:
             },
         )
 
+        self._save_row_instance(row, item, media_type)
+
+    def _parse_row_fields(self, row):
+        """Normalize row fields and resolve parent_type for mode-check."""
+        media_type = row["media_type"]
+        season_number = (
+            int(row["season_number"]) if row["season_number"] != "" else None
+        )
+        episode_number = (
+            int(row["episode_number"]) if row["episode_number"] != "" else None
+        )
+        if row["progress"] == "":
+            row["progress"] = 0
+        parent_type = (
+            MediaTypes.TV.value
+            if media_type in (MediaTypes.SEASON.value, MediaTypes.EPISODE.value)
+            else media_type
+        )
+        return media_type, season_number, episode_number, parent_type
+
+    def _save_row_instance(self, row, item, media_type):
+        """Build the model instance, validate the form, and append or warn."""
         model = apps.get_model(app_label="app", model_name=media_type)
         instance = model(item=item)
         if media_type != MediaTypes.EPISODE.value:  # episode has no user field
             instance.user = self.user
 
         row["item"] = item
-        form = app.forms.get_form_class(media_type)(
-            row,
-            instance=instance,
-        )
+        form = app.forms.get_form_class(media_type)(row, instance=instance)
 
         if form.is_valid():
             progressed_at = row.get("progressed_at")
