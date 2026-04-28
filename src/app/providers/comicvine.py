@@ -152,35 +152,34 @@ def browse(category, page):
     return data
 
 
+_COMIC_VOLUME_FIELDS = (
+    "publisher,site_detail_url,name,last_issue,image,description,"
+    "concepts,start_year,count_of_issues,people,date_last_updated"
+)
+
+
 def comic(media_id):
     """Return the metadata for the selected comic volume from Comic Vine."""
     cache_key = f"{Sources.COMICVINE.value}_{MediaTypes.COMIC.value}_{media_id}"
     data = cache.get(cache_key)
 
     if data is None:
-        params = {
-            "api_key": settings.COMICVINE_API,
-            "format": "json",
-            "field_list": (
-                "publisher,site_detail_url,name,last_issue,image,description,"
-                "concepts,start_year,count_of_issues,people,date_last_updated"
-            ),
-        }
-
         try:
             response = services.api_request(
                 Sources.COMICVINE.value,
                 "GET",
                 f"{base_url}/volume/4050-{media_id}/",
-                params=params,
+                params={
+                    "api_key": settings.COMICVINE_API,
+                    "format": "json",
+                    "field_list": _COMIC_VOLUME_FIELDS,
+                },
                 headers=headers,
             )
         except requests.exceptions.HTTPError as error:
             handle_error(error)
 
         response = response.get("results", {})
-
-        # Check if response is empty (no results found)
         if not response:
             services.raise_not_found_error(
                 Sources.COMICVINE.value,
@@ -189,44 +188,47 @@ def comic(media_id):
             )
 
         publisher_id = response.get("publisher", {}).get("id")
-        publisher_comics = []
-        if publisher_id:
-            publisher_comics = get_publisher_comics(publisher_id, media_id)
-
-        data = {
-            "media_id": media_id,
-            "source": Sources.COMICVINE.value,
-            "source_url": response["site_detail_url"],
-            "media_type": MediaTypes.COMIC.value,
-            "title": response["name"],
-            "max_progress": None,
-            "max_issue_number": get_issue_number(
-                response["last_issue"]["issue_number"],
-            ),
-            "image": get_image(response),
-            "synopsis": get_synopsis(response),
-            "genres": get_genres(response),
-            "score": None,
-            "score_count": None,
-            "details": {
-                "start_date": get_start_year(response),
-                "publisher": get_publisher_name(response),
-                "issues_count": get_issues_count(response),
-                "last_issue_name": get_last_issue_name(response),
-                "last_issue_number": get_last_issue_number(response),
-                "people": get_people(response),
-                "last_updated": response.get("date_last_updated").split()[0],
-            },
-            "related": {
-                "recommendations": publisher_comics,
-            },
-            # used for events fetching
-            "last_issue_id": response["last_issue"]["id"],
-        }
-
+        publisher_comics = (
+            get_publisher_comics(publisher_id, media_id) if publisher_id else []
+        )
+        data = _assemble_comic_metadata(response, publisher_comics, media_id)
         cache.set(cache_key, data)
 
     return data
+
+
+def _assemble_comic_metadata(response, publisher_comics, media_id):
+    """Build the comic metadata dict from a Comic Vine volume response."""
+    return {
+        "media_id": media_id,
+        "source": Sources.COMICVINE.value,
+        "source_url": response["site_detail_url"],
+        "media_type": MediaTypes.COMIC.value,
+        "title": response["name"],
+        "max_progress": None,
+        "max_issue_number": get_issue_number(
+            response["last_issue"]["issue_number"],
+        ),
+        "image": get_image(response),
+        "synopsis": get_synopsis(response),
+        "genres": get_genres(response),
+        "score": None,
+        "score_count": None,
+        "details": {
+            "start_date": get_start_year(response),
+            "publisher": get_publisher_name(response),
+            "issues_count": get_issues_count(response),
+            "last_issue_name": get_last_issue_name(response),
+            "last_issue_number": get_last_issue_number(response),
+            "people": get_people(response),
+            "last_updated": response.get("date_last_updated").split()[0],
+        },
+        "related": {
+            "recommendations": publisher_comics,
+        },
+        # used for events fetching
+        "last_issue_id": response["last_issue"]["id"],
+    }
 
 
 def get_image(response):
