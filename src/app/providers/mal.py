@@ -41,19 +41,16 @@ def handle_error(error):
             "API key is missing",
         )
 
-    error_json = _parse_error_json(error)
+    try:
+        error_json = error.response.json()
+    except requests.exceptions.JSONDecodeError as json_error:
+        logger.exception("Failed to decode JSON response")
+        raise services.ProviderAPIError(Sources.MAL.value, error) from json_error
+
     if status_code == requests.codes.bad_request and error_json:
         return _handle_bad_request(error, error_json)
 
     raise services.ProviderAPIError(Sources.MAL.value, error)
-
-
-def _parse_error_json(error):
-    try:
-        return error.response.json()
-    except requests.exceptions.JSONDecodeError as json_error:
-        logger.exception("Failed to decode JSON response")
-        raise services.ProviderAPIError(Sources.MAL.value, error) from json_error
 
 
 def _handle_bad_request(error, error_json):
@@ -142,57 +139,43 @@ def _paginate_response(response, page, offset, results):
     )
 
 
-def browse(media_type, category, page):
-    """Browse ranked media on MyAnimeList."""
-    cache_key = f"browse_{Sources.MAL.value}_{media_type}_{category}_{page}"
+def _cached_browse(cache_key, url, params, page, media_type):
     data = cache.get(cache_key)
-
     if data is None:
         offset = (page - 1) * settings.PER_PAGE
         response = _mal_request(
-            f"{base_url}/{media_type}/ranking",
-            {
-                "ranking_type": category,
-                "fields": "media_type,synopsis,alternative_titles,status,num_chapters",
-                "limit": settings.PER_PAGE,
-                "offset": offset,
-            },
+            url,
+            {**params, "limit": settings.PER_PAGE, "offset": offset},
         )
-
         results = [
             _build_media_result(entry["node"], media_type) for entry in response["data"]
         ]
         data = _paginate_response(response, page, offset, results)
         cache.set(cache_key, data)
-
     return data
+
+
+_BROWSE_FIELDS = "media_type,synopsis,alternative_titles,status,num_chapters"
+_SEASONAL_FIELDS = "media_type,synopsis,alternative_titles,status"
+
+
+def browse(media_type, category, page):
+    """Browse ranked media on MyAnimeList."""
+    cache_key = f"browse_{Sources.MAL.value}_{media_type}_{category}_{page}"
+    url = f"{base_url}/{media_type}/ranking"
+    params = {"ranking_type": category, "fields": _BROWSE_FIELDS}
+    return _cached_browse(cache_key, url, params, page, media_type)
 
 
 def browse_seasonal(year, season, page):
     """Browse seasonal anime on MyAnimeList."""
-    cache_key = f"browse_{Sources.MAL.value}_anime_seasonal_{year}_{season}_{page}"
-    data = cache.get(cache_key)
-
-    if data is None:
-        offset = (page - 1) * settings.PER_PAGE
-        response = _mal_request(
-            f"{base_url}/anime/season/{year}/{season}",
-            {
-                "fields": "media_type,synopsis,alternative_titles,status",
-                "sort": "anime_num_list_users",
-                "limit": settings.PER_PAGE,
-                "offset": offset,
-            },
-        )
-
-        results = [
-            _build_media_result(entry["node"], MediaTypes.ANIME.value)
-            for entry in response["data"]
-        ]
-        data = _paginate_response(response, page, offset, results)
-        cache.set(cache_key, data)
-
-    return data
+    return _cached_browse(
+        cache_key=f"browse_{Sources.MAL.value}_anime_seasonal_{year}_{season}_{page}",
+        url=f"{base_url}/anime/season/{year}/{season}",
+        params={"fields": _SEASONAL_FIELDS, "sort": "anime_num_list_users"},
+        page=page,
+        media_type=MediaTypes.ANIME.value,
+    )
 
 
 def _needs_relationship_refetch(data):
