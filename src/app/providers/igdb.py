@@ -516,39 +516,43 @@ def get_game_type(game_type_id):
     return game_type_mapping.get(game_type_id)
 
 
+def _safe_extract(response, key, transform):
+    try:
+        return transform(response[key])
+    except KeyError:
+        return None
+
+
 def get_start_date(response):
     """Return the start date of the game."""
     # when no release date, first_release_date is not present in the response
     # e.g game: 210710
-    try:
-        return timezone.datetime.fromtimestamp(
-            response["first_release_date"],
-            tz=timezone.get_current_timezone(),
-        ).strftime("%Y-%m-%d")
-    except KeyError:
+    ts = response.get("first_release_date")
+    if ts is None:
         return None
+    return timezone.datetime.fromtimestamp(
+        ts, tz=timezone.get_current_timezone()
+    ).strftime("%Y-%m-%d")
 
 
 def get_list(response, field):
     """Return the list of names from a list of dictionaries."""
     # when no data of field, field is not present in the response
     # e.g game: 25222
-    try:
-        return [item["name"] for item in response[field]]
-    except KeyError:
-        return None
+    return _safe_extract(
+        response, field, lambda items: [item["name"] for item in items]
+    )
 
 
 def get_companies(response):
     """Return the companies involved in the game."""
     # when no companies, involved_companies is not present in the response
     # e.g game: 238417
-    try:
-        return ", ".join(
-            company["company"]["name"] for company in response["involved_companies"]
-        )
-    except KeyError:
-        return None
+    return _safe_extract(
+        response,
+        "involved_companies",
+        lambda cs: ", ".join(c["company"]["name"] for c in cs),
+    )
 
 
 def get_score(response):
