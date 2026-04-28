@@ -20,71 +20,66 @@ logger = logging.getLogger(__name__)
 @require_GET
 def lists(request):
     """Return the custom list page."""
-    # Get parameters from request
     search_query = request.GET.get("q", "")
     page = request.GET.get("page", 1)
     sort_by = request.user.update_preference("lists_sort", request.GET.get("sort"))
 
     custom_lists = CustomList.objects.get_user_lists(request.user)
-
     if search_query:
         custom_lists = custom_lists.filter(
             Q(name__icontains=search_query) | Q(description__icontains=search_query),
         )
+    custom_lists = _apply_lists_sort(custom_lists, sort_by)
 
-    if sort_by == "name":
-        custom_lists = custom_lists.order_by("name")
-    elif sort_by == "items_count":
-        custom_lists = custom_lists.annotate(
-            items_count=Count("items", distinct=True),
-        ).order_by("-items_count")
-    elif sort_by == "newest_first":
-        custom_lists = custom_lists.order_by("-id")
-    else:  # last_item_added is the default
-        # Get the latest update date for each list
-        custom_lists = custom_lists.annotate(
-            latest_update=Subquery(
-                CustomListItem.objects.filter(
-                    custom_list=OuterRef("pk"),
-                )
-                .order_by("-date_added")
-                .values("date_added")[:1],
-            ),
-        ).order_by("-latest_update", "name")
-
-    items_per_page = 20
-    paginator = Paginator(custom_lists, items_per_page)
+    paginator = Paginator(custom_lists, 20)
     lists_page = paginator.get_page(page)
-
-    # Create a form for each list
-    # needs unique id for django-select2
-    for i, custom_list in enumerate(lists_page, start=1):
-        custom_list.form = CustomListForm(
-            instance=custom_list,
-            auto_id=f"id_{i}_%s",
-        )
+    _attach_list_forms(lists_page)
 
     if request.headers.get("HX-Request"):
         return render(
             request,
             "lists/components/list_grid.html",
-            {
-                "custom_lists": lists_page,
-            },
+            {"custom_lists": lists_page},
         )
-
-    create_list_form = CustomListForm()
-
     return render(
         request,
         "lists/custom_lists.html",
         {
             "custom_lists": lists_page,
-            "form": create_list_form,
+            "form": CustomListForm(),
             "current_sort": sort_by,
             "sort_choices": ListSortChoices.choices,
         },
     )
+
+
+def _apply_lists_sort(custom_lists, sort_by):
+    """Apply the user-selected sort to the custom-list queryset."""
+    if sort_by == "name":
+        return custom_lists.order_by("name")
+    if sort_by == "items_count":
+        return custom_lists.annotate(
+            items_count=Count("items", distinct=True),
+        ).order_by("-items_count")
+    if sort_by == "newest_first":
+        return custom_lists.order_by("-id")
+    # last_item_added (default): latest CustomListItem date_added per list
+    return custom_lists.annotate(
+        latest_update=Subquery(
+            CustomListItem.objects.filter(custom_list=OuterRef("pk"))
+            .order_by("-date_added")
+            .values("date_added")[:1],
+        ),
+    ).order_by("-latest_update", "name")
+
+
+def _attach_list_forms(lists_page):
+    """Attach a per-list edit form (with unique django-select2 id) to each list."""
+    for i, custom_list in enumerate(lists_page, start=1):
+        custom_list.form = CustomListForm(
+            instance=custom_list,
+            auto_id=f"id_{i}_%s",
+        )
 
 
 def _filter_list_items(items, params):
@@ -123,14 +118,7 @@ _SORT_MAPPING = {
 @require_GET
 def list_detail(request, list_id):
     """Return the detail page of a custom list."""
-    custom_list = get_object_or_404(
-        CustomList.objects.select_related("owner").prefetch_related("collaborators"),
-        id=list_id,
-    )
-    if not custom_list.user_can_view(request.user):
-        msg = "List not found"
-        raise Http404(msg)
-
+    custom_list = _resolve_list_for_user(request, list_id)
     sort_by = request.user.update_preference(
         "list_detail_sort",
         request.GET.get("sort"),
@@ -141,6 +129,57 @@ def list_detail(request, list_id):
     )
     page = int(request.GET.get("page", 1))
 
+    items_page, media_by_item_id, paginator = _resolve_list_items(
+        request,
+        custom_list,
+        sort_by,
+        status_filter,
+        page,
+    )
+    for item in items_page:
+        item.media = media_by_item_id.get(item.id)
+
+    context = {
+        "custom_list": custom_list,
+        "items": items_page,
+        "has_next": items_page.has_next(),
+        "next_page_number": (
+            items_page.next_page_number() if items_page.has_next() else None
+        ),
+        "current_sort": sort_by,
+        "current_status": status_filter or MediaStatusChoices.ALL,
+        "sort_choices": ListDetailSortChoices.choices,
+        "status_choices": MediaStatusChoices.choices,
+    }
+
+    if request.headers.get("HX-Request"):
+        return render(request, "lists/components/media_grid.html", context)
+
+    context.update(
+        {
+            "form": CustomListForm(instance=custom_list),
+            "media_types": MediaTypes.values,
+            "items_count": paginator.count,
+            "collaborators_count": custom_list.collaborators.count() + 1,
+        }
+    )
+    return render(request, "lists/list_detail.html", context)
+
+
+def _resolve_list_for_user(request, list_id):
+    """Fetch the requested list and verify the user has view access."""
+    custom_list = get_object_or_404(
+        CustomList.objects.select_related("owner").prefetch_related("collaborators"),
+        id=list_id,
+    )
+    if not custom_list.user_can_view(request.user):
+        msg = "List not found"
+        raise Http404(msg)
+    return custom_list
+
+
+def _resolve_list_items(request, custom_list, sort_by, status_filter, page):
+    """Filter, sort, and paginate items. Return (page, media_map, paginator)."""
     items = _filter_list_items(
         custom_list.items.all(),
         {
@@ -152,10 +191,8 @@ def list_detail(request, list_id):
     items = items.order_by(
         *_SORT_MAPPING.get(sort_by, ["-customlistitem__date_added"]),
     )
-
     paginator = Paginator(items, 16)
     items_page = paginator.get_page(page)
-
     if not media_by_item_id:
         page_types = {item.media_type for item in items_page}
         page_ids = [item.id for item in items_page]
@@ -164,34 +201,7 @@ def list_detail(request, list_id):
             page_ids,
             request.user,
         )
-    for item in items_page:
-        item.media = media_by_item_id.get(item.id)
-
-    context = {
-        "custom_list": custom_list,
-        "items": items_page,
-        "has_next": items_page.has_next(),
-        "next_page_number": items_page.next_page_number()
-        if items_page.has_next()
-        else None,
-        "current_sort": sort_by,
-        "current_status": status_filter or MediaStatusChoices.ALL,
-        "sort_choices": ListDetailSortChoices.choices,
-        "status_choices": MediaStatusChoices.choices,
-    }
-
-    if not request.headers.get("HX-Request"):
-        context.update(
-            {
-                "form": CustomListForm(instance=custom_list),
-                "media_types": MediaTypes.values,
-                "items_count": paginator.count,
-                "collaborators_count": custom_list.collaborators.count() + 1,
-            }
-        )
-        return render(request, "lists/list_detail.html", context)
-
-    return render(request, "lists/components/media_grid.html", context)
+    return items_page, media_by_item_id, paginator
 
 
 @require_POST
