@@ -92,8 +92,8 @@ class DocketImporter:
 
     def _process_row(self, row):
         """Process a single row from the CSV file."""
-        media_type, season_number, episode_number, parent_type = (
-            self._parse_row_fields(row)
+        media_type, season_number, episode_number, parent_type = self._parse_row_fields(
+            row
         )
 
         if not helpers.should_process_media(

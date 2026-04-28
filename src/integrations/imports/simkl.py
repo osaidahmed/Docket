@@ -174,34 +174,43 @@ class SimklImporter:
     def _process_media_lists(self, data):
         """Dispatch each Simkl list to the generic processor with the right config."""
         list_specs = (
-            ("shows", _ListConfig(
-                entry_inner_key="show",
-                id_key="tmdb",
-                id_label="TMDB",
-                media_type=MediaTypes.TV.value,
-                source=Sources.TMDB.value,
-                log_label="tv shows",
-                instance_class=app.models.TV,
-                process_children=self._process_seasons_and_episodes,
-            )),
-            ("movies", _ListConfig(
-                entry_inner_key="movie",
-                id_key="tmdb",
-                id_label="TMDB",
-                media_type=MediaTypes.MOVIE.value,
-                source=Sources.TMDB.value,
-                log_label="movies",
-                instance_class=app.models.Movie,
-            )),
-            ("anime", _ListConfig(
-                entry_inner_key="show",
-                id_key="mal",
-                id_label="MyAnimeList",
-                media_type=MediaTypes.ANIME.value,
-                source=Sources.MAL.value,
-                log_label="anime",
-                instance_class=app.models.Anime,
-            )),
+            (
+                "shows",
+                _ListConfig(
+                    entry_inner_key="show",
+                    id_key="tmdb",
+                    id_label="TMDB",
+                    media_type=MediaTypes.TV.value,
+                    source=Sources.TMDB.value,
+                    log_label="tv shows",
+                    instance_class=app.models.TV,
+                    process_children=self._process_seasons_and_episodes,
+                ),
+            ),
+            (
+                "movies",
+                _ListConfig(
+                    entry_inner_key="movie",
+                    id_key="tmdb",
+                    id_label="TMDB",
+                    media_type=MediaTypes.MOVIE.value,
+                    source=Sources.TMDB.value,
+                    log_label="movies",
+                    instance_class=app.models.Movie,
+                ),
+            ),
+            (
+                "anime",
+                _ListConfig(
+                    entry_inner_key="show",
+                    id_key="mal",
+                    id_label="MyAnimeList",
+                    media_type=MediaTypes.ANIME.value,
+                    source=Sources.MAL.value,
+                    log_label="anime",
+                    instance_class=app.models.Anime,
+                ),
+            ),
         )
         for data_key, config in list_specs:
             if data_key in data:
@@ -268,7 +277,11 @@ class SimklImporter:
         if not media_id:
             return
         if not self._check_dedup_and_mode(
-            media_id, existing_ids, title, config.media_type, config.source,
+            media_id,
+            existing_ids,
+            title,
+            config.media_type,
+            config.source,
         ):
             return
         metadata = self._fetch_simkl_metadata(config.media_type, entry, media_id, title)
