@@ -102,7 +102,9 @@ def home(request):
 
     archive = backlog_data["archive"]
     if request.user.group_related_media:
-        from app.services.backlog import _apply_grouping_to_backlog_items
+        from app.services.backlog import (  # noqa: PLC0415
+            _apply_grouping_to_backlog_items,
+        )
 
         archive = _apply_grouping_to_backlog_items(archive, request.user)
     if not params["archive_open"]:
@@ -254,7 +256,6 @@ def media_list(request, media_type):
     """Return the media list page."""
     params = _parse_medialist_params(request, media_type)
     layout = params["layout"]
-    sort_filter = params["sort_filter"]
     status_filter = params["status_filter"]
     page = params["page"]
 
@@ -262,69 +263,103 @@ def media_list(request, media_type):
         user=request.user,
         media_type=media_type,
         status_filter=status_filter,
-        sort_filter=sort_filter,
+        sort_filter=params["sort_filter"],
         search=params["search"],
         sort_dir=params["sort_dir"],
     )
-
     media_queryset, pinned_list = _split_pinned_from_queryset(
         media_queryset,
         status_filter,
     )
 
     is_grouped = _should_group(request.user, media_type)
+    media_page = _paginate_medialist(media_queryset, page, media_type, is_grouped)
+    _annotate_media_list(media_page.object_list, pinned_list, media_type)
+
+    redirect_response = _medialist_htmx_redirect(
+        request,
+        page,
+        pinned_list,
+        status_filter,
+        media_type,
+    )
+    if redirect_response is not None:
+        return redirect_response
+
+    context = _build_medialist_context(
+        request,
+        media_type,
+        params,
+        media_page,
+        pinned_list,
+        is_grouped,
+    )
+    return render(request, _get_medialist_template(request, layout), context)
+
+
+def _paginate_medialist(media_queryset, page, media_type, is_grouped):
+    """Apply grouping (when enabled) and paginate the media list."""
     if is_grouped:
-        all_items = list(media_queryset)
-        grouped = grouping.group_media_list(all_items, media_type)
+        grouped = grouping.group_media_list(list(media_queryset), media_type)
         paginator = Paginator(grouped, 32)
     else:
         paginator = Paginator(media_queryset, 32)
-    media_page = paginator.get_page(page)
-    _annotate_media_list(media_page.object_list, pinned_list, media_type)
+    return paginator.get_page(page)
 
+
+def _medialist_htmx_redirect(request, page, pinned_list, status_filter, media_type):
+    """Return an HX-Redirect HttpResponse if one is required, else None."""
+    if not request.headers.get("HX-Request"):
+        return None
+    if request.headers.get("HX-Target") == "empty_list":
+        response = HttpResponse()
+        response["HX-Redirect"] = reverse("medialist", args=[media_type])
+        return response
+    if int(page) <= 1 and (pinned_list or status_filter == Status.PLANNING.value):
+        response = HttpResponse()
+        response["HX-Redirect"] = request.get_full_path()
+        return response
+    return None
+
+
+def _build_medialist_context(
+    request,
+    media_type,
+    params,
+    media_page,
+    pinned_list,
+    is_grouped,
+):
+    """Build the template context for the media-list page."""
+    sort_filter = params["sort_filter"]
     effective_sort_dir = (
         params["sort_dir"]
         if params["sort_dir"] in ("asc", "desc")
         else BasicMedia.objects._DEFAULT_SORT_DIRS.get(sort_filter, "desc")
     )
-
-    context = {
+    export_cfg = request.user.export_txt_config or {}
+    return {
         "media_type": media_type,
         "media_type_plural": app_tags.media_type_readable_plural(media_type).lower(),
         "media_list": media_page,
-        "current_layout": layout,
-        "layout_class": _LAYOUT_CLASSES.get(layout, "#media-cards-list"),
+        "current_layout": params["layout"],
+        "layout_class": _LAYOUT_CLASSES.get(params["layout"], "#media-cards-list"),
         "current_sort": sort_filter,
         "current_sort_dir": effective_sort_dir,
-        "current_status": status_filter,
+        "current_status": params["status_filter"],
         "sort_choices": MediaSortChoices.choices,
         "status_choices": MediaStatusChoices.choices,
-        "export_txt_template": (request.user.export_txt_config or {}).get(
+        "export_txt_template": export_cfg.get(
             "template",
             "{title} - {score} ({status})",
         ),
-        "export_txt_separator": (request.user.export_txt_config or {}).get(
-            "separator",
-            "\\n",
-        ),
+        "export_txt_separator": export_cfg.get("separator", "\\n"),
         "edit_status_choices": Status.choices,
         "supports_recommendations": config.supports_recommendations(media_type),
         "pinned_list": pinned_list,
         "active_tab": request.GET.get("tab", "collection"),
         "is_grouped": is_grouped,
     }
-
-    if request.headers.get("HX-Request"):
-        if request.headers.get("HX-Target") == "empty_list":
-            response = HttpResponse()
-            response["HX-Redirect"] = reverse("medialist", args=[media_type])
-            return response
-        if int(page) <= 1 and (pinned_list or status_filter == Status.PLANNING.value):
-            response = HttpResponse()
-            response["HX-Redirect"] = request.get_full_path()
-            return response
-
-    return render(request, _get_medialist_template(request, layout), context)
 
 
 def _should_group(user, media_type):
