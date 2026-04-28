@@ -185,16 +185,21 @@ def format_description(field_name, old_value, new_value, media_type=None, user=N
     return formatter(field_name, old_value, new_value, media_type)
 
 
+_STATUS_INITIAL_TEMPLATES = {
+    Status.IN_PROGRESS.value: "Marked as currently {verb}ing",
+    Status.COMPLETED.value: "Marked as finished {verb}ing",
+    Status.PLANNING.value: "Added to {verb}ing list",
+    Status.PAUSED.value: "Marked as paused {verb}ing",
+}
+
+
 def _fmt_status_initial(_field_name, new_value, media_type):
-    verb = config.get_verb(media_type, past_tense=False)
-    labels = {
-        Status.IN_PROGRESS.value: f"Marked as currently {verb}ing",
-        Status.COMPLETED.value: f"Marked as finished {verb}ing",
-        Status.PLANNING.value: f"Added to {verb}ing list",
-        Status.DROPPED.value: "Marked as dropped",
-        Status.PAUSED.value: f"Marked as paused {verb}ing",
-    }
-    return labels.get(new_value, f"Set status to {new_value}")
+    if new_value == Status.DROPPED.value:
+        return "Marked as dropped"
+    template = _STATUS_INITIAL_TEMPLATES.get(new_value)
+    if template is None:
+        return f"Set status to {new_value}"
+    return template.format(verb=config.get_verb(media_type, past_tense=False))
 
 
 def _fmt_score_initial(_field_name, new_value, _media_type):
