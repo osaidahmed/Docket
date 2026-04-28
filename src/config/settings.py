@@ -176,8 +176,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "django.template.context_processors.media",
-                "app.context_processors.export_vars",
-                "app.context_processors.media_enums",
+                "app.context_processors.template_constants",
             ],
         },
     },
@@ -232,7 +231,8 @@ else:
 CACHE_TIMEOUT = 86400  # 24 hours
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379")
 FLARESOLVERR_URL = config(
-    "FLARESOLVERR_URL", default="http://flaresolverr:8191/v1",
+    "FLARESOLVERR_URL",
+    default="http://flaresolverr:8191/v1",
 )
 KEY_PREFIX = f"{REDIS_PREFIX}" if REDIS_PREFIX else ""
 CACHES = {
