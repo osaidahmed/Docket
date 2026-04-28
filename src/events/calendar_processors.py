@@ -5,9 +5,10 @@ from zoneinfo import ZoneInfo
 import requests
 from django.core.cache import cache
 
-from app import config
 from app.models import Item, MediaTypes, Sources
 from app.providers import comicvine, services, tmdb
+from events._calendar_dates import date_parser
+from events._calendar_other import process_other
 from events.calendar import (
     SENTINEL_DATETIME,
     auto_move_completed_to_planning,
@@ -233,70 +234,6 @@ def process_comic(item, events_bulk):
             datetime=issue_datetime,
         ),
     )
-
-
-def process_other(item, events_bulk):
-    """Process other types of items and add events to the event list."""
-    logger.info("Fetching releases for %s", item)
-    try:
-        metadata = services.get_media_metadata(
-            item.media_type,
-            item.media_id,
-            item.source,
-        )
-    except services.ProviderAPIError:
-        logger.warning("Failed to fetch metadata for %s", item)
-        return
-
-    date_key = config.get_date_key(item.media_type)
-    content_number = metadata["max_progress"]
-
-    content_datetime = _parse_content_datetime(
-        metadata["details"],
-        date_key,
-        item,
-    )
-
-    if content_datetime is not None:
-        if item.media_type == MediaTypes.MOVIE.value:
-            content_number = None
-
-        events_bulk.append(
-            Event(
-                item=item,
-                content_number=content_number,
-                datetime=content_datetime,
-            ),
-        )
-        return
-
-    if item.source == Sources.MANGAUPDATES.value and content_number:
-        events_bulk.append(
-            Event(
-                item=item,
-                content_number=content_number,
-                datetime=SENTINEL_DATETIME,
-            ),
-        )
-
-
-def _parse_content_datetime(details, date_key, item):
-    """Parse datetime from metadata details.
-
-    Returns datetime, SENTINEL_DATETIME, or None if not applicable.
-    """
-    if date_key not in details:
-        return None
-
-    date_value = details[date_key]
-    if not date_value:
-        return SENTINEL_DATETIME
-
-    try:
-        return date_parser(date_value)
-    except ValueError:
-        logger.warning("Invalid date for %s: %s", item, date_value)
-        return None
 
 
 def process_anime_bulk(items, events_bulk):
@@ -553,28 +490,6 @@ def _lookup_tvmaze_id(tvdb_id):
         return None
 
     return tvmaze_id
-
-
-def date_parser(date_str):
-    """Parse string in %Y-%m-%d to datetime. Raises ValueError if invalid."""
-    year_only_parts = 1
-    year_month_parts = 2
-    default_month_day = "-01-01"
-    default_day = "-01"
-    parts = date_str.split("-")
-    if len(parts) == year_only_parts:
-        date_str += default_month_day
-    elif len(parts) == year_month_parts:
-        date_str += default_day
-
-    dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=ZoneInfo("UTC"))
-    return dt.replace(
-        hour=SentinelDatetime.HOUR,
-        minute=SentinelDatetime.MINUTE,
-        second=SentinelDatetime.SECOND,
-        microsecond=SentinelDatetime.MICROSECOND,
-        tzinfo=ZoneInfo("UTC"),
-    )
 
 
 def anilist_date_parser(start_date):
