@@ -2,10 +2,12 @@ from unittest.mock import MagicMock, patch
 
 import requests
 from django.conf import settings
+from django.core.cache import cache
 from django.test import TestCase
 
 from app.models import MediaTypes, Sources
 from app.providers import comicvine, services
+from app.tests.providers._http_error_helpers import make_http_error
 
 
 class ComicVineBrowse(TestCase):
@@ -260,3 +262,38 @@ class ComicVineIssue(TestCase):
 
         self.assertIsNone(result["cover_date"])
         self.assertIsNone(result["store_date"])
+
+    @patch("app.providers.services.api_request")
+    def test_issue_http_error(self, mock_api):
+        mock_api.side_effect = make_http_error(500, {"error": "boom"})
+        with self.assertRaises(services.ProviderAPIError):
+            comicvine.issue("99903")
+
+
+class ComicVineHTTPErrorTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    @patch("app.providers.services.api_request")
+    def test_search_http_error(self, mock_api):
+        mock_api.side_effect = make_http_error(500, {"error": "boom"})
+        with self.assertRaises(services.ProviderAPIError):
+            comicvine.search("Batman", 1)
+
+    @patch("app.providers.services.api_request")
+    def test_browse_http_error(self, mock_api):
+        mock_api.side_effect = make_http_error(500, {"error": "boom"})
+        with self.assertRaises(services.ProviderAPIError):
+            comicvine.browse("recent", 1)
+
+    @patch("app.providers.services.api_request")
+    def test_comic_http_error(self, mock_api):
+        mock_api.side_effect = make_http_error(500, {"error": "boom"})
+        with self.assertRaises(services.ProviderAPIError):
+            comicvine.comic("123")
+
+    @patch("app.providers.services.api_request")
+    def test_publisher_comics_http_error(self, mock_api):
+        mock_api.side_effect = make_http_error(500, {"error": "boom"})
+        with self.assertRaises(services.ProviderAPIError):
+            comicvine.get_publisher_comics("1", "100")

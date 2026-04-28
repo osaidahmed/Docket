@@ -381,3 +381,48 @@ class ManualItemFormTest(TestCase):
         self.assertNotEqual(item1.media_id, item2.media_id)
         self.assertEqual(item1.media_id, "1")
         self.assertEqual(item2.media_id, "2")
+
+
+class CustomDurationFieldBranchTests(TestCase):
+    def test_clean_empty_returns_zero(self):
+        from app.forms import CustomDurationField
+
+        field = CustomDurationField(required=False)
+        self.assertEqual(field.clean(""), 0)
+
+    def test_clean_hours_only(self):
+        from app.forms import CustomDurationField
+
+        field = CustomDurationField()
+        self.assertEqual(field.clean("5h"), 300)
+
+    def test_clean_minutes_only(self):
+        from app.forms import CustomDurationField
+
+        field = CustomDurationField()
+        self.assertEqual(field.clean("30min"), 30)
+
+    def test_clean_hh_mm(self):
+        from app.forms import CustomDurationField
+
+        field = CustomDurationField()
+        self.assertEqual(field.clean("01:30"), 90)
+
+    def test_validate_minutes_out_of_range(self):
+        from django.core.exceptions import ValidationError
+
+        from app.forms import CustomDurationField
+
+        field = CustomDurationField()
+        with self.assertRaises(ValidationError):
+            field._validate_minutes(60)
+
+
+class EpisodeFormDateInputTests(TestCase):
+    def test_episode_form_uses_date_input_when_track_time_disabled(self):
+        from django.forms import DateInput
+        from django.test import override_settings
+
+        with override_settings(TRACK_TIME=False):
+            form = EpisodeForm()
+            self.assertIsInstance(form.fields["end_date"].widget, DateInput)

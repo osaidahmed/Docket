@@ -1,7 +1,11 @@
+from unittest.mock import patch
+
+from django.core.cache import cache
 from django.test import TestCase
 
 from app.models import MediaTypes
-from app.providers import hardcover
+from app.providers import hardcover, services
+from app.tests.providers._http_error_helpers import make_http_error
 
 
 class HardcoverBrowse(TestCase):
@@ -40,3 +44,39 @@ class HardcoverBrowse(TestCase):
         self.assertIn("total_results", response)
         self.assertIn("total_pages", response)
         self.assertIn("results", response)
+
+
+class HardcoverErrorAndEdgeCases(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    @patch("app.providers.services.api_request")
+    def test_hardcover_request_http_error_propagates(self, mock_api):
+        mock_api.side_effect = make_http_error(500, {"error": "boom"})
+        with self.assertRaises(services.ProviderAPIError):
+            hardcover._hardcover_request("query {}", {})
+
+    @patch("app.providers.services.api_request")
+    def test_book_not_found_raises_404(self, mock_api):
+        mock_api.return_value = {"data": {"books_by_pk": None}}
+        with self.assertRaises(services.ProviderAPIError) as ctx:
+            hardcover.book("999")
+        self.assertEqual(ctx.exception.status_code, 404)
+
+    @patch("app.providers.services.api_request")
+    def test_browse_partial_page_total_exact(self, mock_api):
+        mock_api.return_value = {
+            "data": {
+                "books": [
+                    {
+                        "id": 1,
+                        "title": "Solo Book",
+                        "cached_image": "http://img/x.jpg",
+                        "description": "desc",
+                    },
+                ],
+            },
+        }
+        data = hardcover.browse("popular", 1)
+        self.assertEqual(data["total_results"], 1)
+        self.assertEqual(len(data["results"]), 1)

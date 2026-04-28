@@ -3,10 +3,12 @@ from xml.etree.ElementTree import Element, SubElement
 
 import requests
 from django.conf import settings
+from django.core.cache import cache
 from django.test import TestCase
 
 from app.models import MediaTypes, Sources
 from app.providers import bgg, services
+from app.tests.providers._http_error_helpers import make_http_error
 
 
 class BGGBrowse(TestCase):
@@ -383,3 +385,26 @@ class BGGHelpers(TestCase):
         for name in ["Pub1", "Pub2", "Pub3", "Pub4"]:
             SubElement(item, "link", {"type": "boardgamepublisher", "value": name})
         self.assertEqual(bgg.get_publishers(item), "Pub1, Pub2, Pub3")
+
+
+class BGGSearchHTTPError(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    @patch("app.providers.services.api_request")
+    def test_search_http_error_raises(self, mock_api):
+        mock_api.side_effect = make_http_error(500, {"err": "x"})
+        with self.assertRaises(services.ProviderAPIError):
+            bgg.search("anything", 1)
+
+    @patch("app.providers.services.api_request")
+    def test_browse_http_error_raises(self, mock_api):
+        mock_api.side_effect = make_http_error(500, {"err": "x"})
+        with self.assertRaises(services.ProviderAPIError):
+            bgg.browse("hot", 1)
+
+    @patch("app.providers.services.api_request")
+    def test_boardgame_http_error_raises(self, mock_api):
+        mock_api.side_effect = make_http_error(500, {"err": "x"})
+        with self.assertRaises(services.ProviderAPIError):
+            bgg.boardgame("123")

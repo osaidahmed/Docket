@@ -43,7 +43,7 @@ class RefreshAnimeRelationshipsTaskTests(TestCase):
     def test_fetches_relationships_for_anime_without_existing(
         self, mock_anime, mock_save, mock_sleep
     ):
-        a = self._make_anime("100")
+        self._make_anime("100")
         mock_anime.return_value = {
             "related": {"related_anime": [{"media_id": 200, "title": "Sequel"}]}
         }

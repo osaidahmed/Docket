@@ -81,6 +81,22 @@ class BackfillSynopsisTests(TestCase):
         season_item.refresh_from_db()
         self.assertEqual(season_item.synopsis, "")
 
+    @patch("app.management.commands.backfill_synopsis.services.get_media_metadata")
+    def test_handles_provider_error(self, mock_metadata):
+        error_response = Mock()
+        error_response.status_code = 500
+        error_response.text = "Server error"
+        mock_metadata.side_effect = ProviderAPIError(
+            provider=Sources.TMDB.value,
+            error=error_response,
+            details="boom",
+        )
+        stderr = StringIO()
+        stdout = StringIO()
+        call_command("backfill_synopsis", stderr=stderr, stdout=stdout)
+        self.assertIn("Error", stderr.getvalue())
+        self.assertIn("Errors: 1", stdout.getvalue())
+
 
 class BackfillEnglishTitlesTests(TestCase):
     """Test the backfill_english_titles management command."""

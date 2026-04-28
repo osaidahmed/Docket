@@ -419,3 +419,119 @@ class CalendarProcessorsTests(TestCase):
         mock_api.return_value = {"name": "Some Show"}
         result = get_tvmaze_episode_map("tvdb_noid")
         self.assertEqual(result, {})
+
+
+class CalendarProcessorsBranchTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="cp_branch", password="x"
+        )
+        cls.tv_item = Item.objects.create(
+            media_id="555",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.TV.value,
+            title="Branch Show",
+            image=IMG,
+        )
+
+    @patch("events.calendar_processors.tmdb.tv")
+    def test_get_seasons_to_process_no_seasons(self, mock_tv):
+        mock_tv.return_value = {"related": {}}
+        result = get_seasons_to_process(self.tv_item)
+        self.assertEqual(result, [])
+
+    @patch("events.calendar_processors.tmdb.tv")
+    def test_get_seasons_to_process_empty_seasons_list(self, mock_tv):
+        mock_tv.return_value = {"related": {"seasons": []}}
+        result = get_seasons_to_process(self.tv_item)
+        self.assertEqual(result, [])
+
+    @patch("events.calendar_processors.process_tv_seasons")
+    @patch("events.calendar_processors.get_seasons_to_process")
+    def test_process_tv_no_seasons_logs_and_returns(self, mock_seasons, mock_process):
+        mock_seasons.return_value = []
+        process_tv(self.tv_item, [])
+        mock_process.assert_not_called()
+
+    @patch("events.calendar_processors.get_seasons_to_process")
+    def test_process_tv_provider_error_swallowed(self, mock_seasons):
+        mock_seasons.side_effect = services.ProviderAPIError(
+            Sources.TMDB.value,
+            type(
+                "Err",
+                (),
+                {"response": type("R", (), {"status_code": 500, "text": "x"})()},
+            )(),
+        )
+        process_tv(self.tv_item, [])
+
+    @patch("events.calendar_processors.get_seasons_to_process")
+    def test_process_tv_unexpected_exception_swallowed(self, mock_seasons):
+        mock_seasons.side_effect = ValueError("kaboom")
+        process_tv(self.tv_item, [])
+
+
+class AnimeBulkBranchTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="ab_branch", password="x"
+        )
+        cls.anime_item = Item.objects.create(
+            media_id="100",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="A",
+            image=IMG,
+        )
+
+    @patch("events.calendar_processors.process_other")
+    @patch("events.calendar_processors.get_anime_schedule_bulk")
+    def test_anime_falls_back_to_process_other_when_no_data(
+        self, mock_bulk, mock_other
+    ):
+        from events.calendar_processors import process_anime_bulk
+
+        mock_bulk.return_value = {}
+        process_anime_bulk([self.anime_item], [])
+        mock_other.assert_called_once()
+
+    def test_process_anime_bulk_empty_returns_early(self):
+        from events.calendar_processors import process_anime_bulk
+
+        process_anime_bulk([], [])
+
+    def test_convert_anime_episode_none_airing_uses_sentinel(self):
+        from events.calendar_processors import SENTINEL_DATETIME, _convert_anime_episode
+
+        ev = _convert_anime_episode(self.anime_item, {"airingAt": None, "episode": 1})
+        self.assertEqual(ev.datetime, SENTINEL_DATETIME)
+
+
+class FillMissingEpisodesTests(TestCase):
+    @patch("events.calendar_processors.services.get_media_metadata")
+    def test_returns_none_when_mal_episode_count_higher(self, mock_meta):
+        from events.calendar_processors import _fill_missing_episodes
+
+        mock_meta.return_value = {"max_progress": 20}
+        result = _fill_missing_episodes(
+            schedule=[],
+            total_episodes=12,
+            mal_id="42",
+            end_date={"year": 2025, "month": 1, "day": 1},
+        )
+        self.assertIsNone(result)
+
+
+class GetEpisodeDatetimeBranchTests(TestCase):
+    def test_invalid_air_date_returns_sentinel(self):
+        from events.calendar_processors import SENTINEL_DATETIME, get_episode_datetime
+
+        result = get_episode_datetime(
+            episode={"air_date": "not-a-date"},
+            season_number=1,
+            episode_number=1,
+            tvmaze_map={},
+        )
+        self.assertEqual(result, SENTINEL_DATETIME)

@@ -443,3 +443,34 @@ class IGDBRetryOnAuthError(TestCase):
 
         with self.assertRaises(services.ProviderAPIError):
             igdb.search("ErrorTest", 99)
+
+
+class IGDBAccessTokenAndRetry(TestCase):
+    def setUp(self):
+        cache.delete(f"{Sources.IGDB.value}_access_token")
+
+    @patch("app.providers.services.api_request")
+    def test_access_token_http_error_propagates(self, mock_api):
+        mock_api.side_effect = requests.exceptions.HTTPError(
+            response=MagicMock(status_code=500, text="boom"),
+        )
+        mock_api.side_effect.response.json.side_effect = (
+            requests.exceptions.JSONDecodeError("err", "", 0)
+        )
+        with self.assertRaises(services.ProviderAPIError):
+            igdb.get_access_token()
+
+    @patch("app.providers.igdb.handle_error")
+    @patch("app.providers.igdb.get_access_token")
+    @patch("app.providers.services.api_request")
+    def test_igdb_request_falls_through_to_raise(
+        self, mock_api, mock_token, mock_handle
+    ):
+        mock_token.return_value = "tok"
+        original_error = requests.exceptions.HTTPError(
+            response=MagicMock(status_code=500, text="x"),
+        )
+        mock_api.side_effect = original_error
+        mock_handle.return_value = None
+        with self.assertRaises(requests.exceptions.HTTPError):
+            igdb._igdb_request(f"{igdb.base_url}/games", "fields name;")

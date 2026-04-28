@@ -235,3 +235,23 @@ class ExploreSectionTests(TestCase):
         )
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+
+
+class DiscoverHelperTests(TestCase):
+    def test_has_next_with_non_dict(self):
+        from app.views.discover import _has_next
+
+        self.assertFalse(_has_next(None))
+        self.assertFalse(_has_next([]))
+
+    def test_has_next_with_explicit_flag(self):
+        from app.views.discover import _has_next
+
+        self.assertTrue(_has_next({"has_next_page": True}))
+        self.assertFalse(_has_next({"has_next_page": False}))
+
+    def test_has_next_uses_pagination(self):
+        from app.views.discover import _has_next
+
+        self.assertTrue(_has_next({"page": 1, "total_pages": 5}))
+        self.assertFalse(_has_next({"page": 5, "total_pages": 5}))

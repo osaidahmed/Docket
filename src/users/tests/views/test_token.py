@@ -15,7 +15,7 @@ class RegenerateTokenTests(TestCase):
         """Create user for the tests."""
         cls.credentials = {"username": "testuser", "password": "testpass123"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
-        cls.user.token = "initial_token"  # noqa: S105
+        cls.user.token = "initial_token"
         cls.user.save()
 
     def setUp(self):

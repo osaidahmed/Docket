@@ -238,7 +238,7 @@ class SendingTests(TestCase):
 
         mock_send_notifications.return_value = {
             "event_count": 6,
-            "event_ids": self._all_event_ids() + [event2.id],
+            "event_ids": [*self._all_event_ids(), event2.id],
         }
 
         self.user1.notification_excluded_items.add(self.anime_item)

@@ -518,9 +518,9 @@ class PreferencesViewOrderTests(TestCase):
 
     def test_saves_media_type_order(self):
         """POST with media_type_order JSON saves the order."""
-        import json  # noqa: PLC0415
+        import json
 
-        from django.urls import reverse  # noqa: PLC0415
+        from django.urls import reverse
 
         order = ["game", "tv", "anime", "manga", "movie", "book", "comic", "boardgame"]
         self.client.post(
@@ -535,7 +535,7 @@ class PreferencesViewOrderTests(TestCase):
 
     def test_get_returns_ordered_media_types(self):
         """GET preferences returns media types in custom order."""
-        from django.urls import reverse  # noqa: PLC0415
+        from django.urls import reverse
 
         self.user.media_type_order = ["game", "tv", "anime"]
         self.user.save()

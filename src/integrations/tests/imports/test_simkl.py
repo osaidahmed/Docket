@@ -311,7 +311,7 @@ class TestSimklSeasonImport(SimklImporterMixin, TestCase):
             shows=[self._make_tv_entry("Breaking Bad", 1396)],
         )
 
-        imported_counts, warnings = self.importer.import_data()
+        imported_counts, _warnings = self.importer.import_data()
         self.assertEqual(imported_counts[MediaTypes.TV.value], 1)
 
 
@@ -348,7 +348,7 @@ class TestSimklErrorPaths(SimklImporterMixin, TestCase):
                 )
             ],
         )
-        imported_counts, warnings = self.importer.import_data()
+        _imported_counts, warnings = self.importer.import_data()
         self.assertIn("not found", warnings)
 
     @patch("integrations.imports.simkl.SimklImporter._get_user_list")
@@ -375,7 +375,7 @@ class TestSimklErrorPaths(SimklImporterMixin, TestCase):
         mock_user_list.return_value = self._make_user_list(
             movies=[self._make_movie_entry("Missing Movie", 99999)],
         )
-        imported_counts, warnings = self.importer.import_data()
+        _imported_counts, warnings = self.importer.import_data()
         self.assertIn("not found", warnings)
 
     @patch("integrations.imports.simkl.SimklImporter._get_user_list")
@@ -414,7 +414,7 @@ class TestSimklErrorPaths(SimklImporterMixin, TestCase):
                 )
             ],
         )
-        imported_counts, warnings = self.importer.import_data()
+        _imported_counts, warnings = self.importer.import_data()
         self.assertIn("not found", warnings)
 
 

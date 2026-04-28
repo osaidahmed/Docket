@@ -475,3 +475,80 @@ class ProcessHistoryEntriesTests(TestCase):
             or result["date_changes"]["end_date"] is not None
         )
         self.assertTrue(has_date_change)
+
+
+class HistoryProcessorBranchTests(TestCase):
+    def test_apply_date_status_integration_no_status_change(self):
+        changes = {
+            "status_change": None,
+            "date_changes": {"start_date": None, "end_date": None},
+        }
+        apply_date_status_integration(changes, user=None)
+        self.assertIsNone(changes["status_change"])
+
+    def test_fmt_status_initial_unmapped_returns_default(self):
+        result = format_description(
+            "status",
+            None,
+            "made_up",
+            media_type=MediaTypes.MOVIE.value,
+        )
+        self.assertEqual(result, "Set status to made_up")
+
+    def test_fmt_status_change_unknown_transition(self):
+        result = format_description(
+            "status",
+            Status.PAUSED.value,
+            Status.DROPPED.value,
+            media_type=MediaTypes.MOVIE.value,
+        )
+        self.assertIn(Status.PAUSED.value, result)
+        self.assertIn(Status.DROPPED.value, result)
+
+    def test_fmt_progress_initial_no_media_type(self):
+        result = format_description("progress", None, 5)
+        self.assertEqual(result, "Set progress to 5")
+
+    def test_fmt_date_change_removed_end_date(self):
+        from app.history_processor import _fmt_date_change
+
+        result = _fmt_date_change(
+            "end_date",
+            "2023-01-01",
+            None,
+            MediaTypes.MOVIE.value,
+        )
+        self.assertEqual(result, "Removed end date")
+
+    def test_fmt_date_change_set_when_old_was_none(self):
+        from app.history_processor import _fmt_date_change
+
+        result = _fmt_date_change(
+            "start_date",
+            None,
+            "2023-01-01",
+            MediaTypes.MOVIE.value,
+        )
+        self.assertEqual(result, "Started on 2023-01-01")
+
+    def test_should_skip_creation_field_movie_progress(self):
+        from django.apps import apps
+
+        from app.history_processor import _should_skip_creation_field
+
+        history_model = apps.get_model(
+            app_label="app",
+            model_name=f"historical{MediaTypes.MOVIE.value}",
+        )
+        progress_field = next(
+            f for f in history_model._meta.get_fields() if f.name == "progress"
+        )
+
+        class _FakeRecord:
+            progress = 1
+
+        self.assertTrue(
+            _should_skip_creation_field(
+                progress_field, _FakeRecord(), MediaTypes.MOVIE.value
+            )
+        )

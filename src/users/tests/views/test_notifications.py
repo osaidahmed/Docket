@@ -220,3 +220,57 @@ class NotificationTests(TestCase):
         messages = list(get_messages(response.wsgi_request))
         self.assertEqual(len(messages), 1)
         self.assertIn("Failed", str(messages[0]))
+
+    @patch("apprise.Apprise")
+    def test_test_notification_apprise_raises_swallowed(self, mock_apprise):
+        self.user.notification_urls = "https://example.com/notify"
+        self.user.save()
+        mock_apprise.side_effect = RuntimeError("apprise broke")
+        response = self.client.get(reverse("test_notification"))
+        self.assertRedirects(response, reverse("notifications"))
+
+    @patch("app.tasks.refresh_anime_relationships_task")
+    def test_refresh_relationships_enqueues_task(self, mock_task):
+        response = self.client.post(reverse("refresh_relationships"))
+        self.assertEqual(response.status_code, 200)
+        mock_task.delay.assert_called_once_with(self.user.id)
+
+    def test_clear_search_cache_redirects(self):
+        response = self.client.post(reverse("clear_search_cache"))
+        self.assertRedirects(response, reverse("advanced"))
+
+    def test_about_view(self):
+        response = self.client.get(reverse("about"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_advanced_view(self):
+        response = self.client.get(reverse("advanced"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_export_data_view(self):
+        response = self.client.get(reverse("export_data"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_search_items_short_query_returns_empty(self):
+        response = self.client.get(
+            reverse("search_notification_items") + "?q=a",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_search_items_with_query(self):
+        response = self.client.get(
+            reverse("search_notification_items") + "?q=Test",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_exclude_then_include_item(self):
+        response = self.client.post(
+            reverse("exclude_notification_item"), {"item_id": self.item1.id}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.item1, self.user.notification_excluded_items.all())
+        response = self.client.post(
+            reverse("include_notification_item"), {"item_id": self.item1.id}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(self.item1, self.user.notification_excluded_items.all())

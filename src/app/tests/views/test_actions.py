@@ -43,7 +43,7 @@ class BacklogSaveTests(TestCase):
             "link": "",
         }
         # Include progress only for types that have it on the form
-        if media.item.media_type not in (MediaTypes.MOVIE.value,):
+        if media.item.media_type != MediaTypes.MOVIE.value:
             data["progress"] = media.progress if media.progress is not None else ""
         if source_context:
             data["source_context"] = source_context
@@ -201,7 +201,7 @@ class PinOrderTests(TestCase):
             "notes": "",
             "link": "",
         }
-        if media.item.media_type not in (MediaTypes.MOVIE.value,):
+        if media.item.media_type != MediaTypes.MOVIE.value:
             data["progress"] = media.progress if media.progress is not None else ""
         return data
 
@@ -314,7 +314,7 @@ class RewatchCancellationTests(TestCase):
             "notes": "",
             "link": "",
         }
-        if media.item.media_type not in (MediaTypes.MOVIE.value,):
+        if media.item.media_type != MediaTypes.MOVIE.value:
             data["progress"] = media.progress if media.progress is not None else ""
         return data
 
@@ -793,3 +793,127 @@ class InvalidMediaTypeTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 404)
+
+
+class QuickActionsBranchTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "qa", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.movie_item = Item.objects.create(
+            media_id="100",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="X",
+            image="http://example.com/x.jpg",
+        )
+        cls.movie = Movie.objects.create(
+            item=cls.movie_item,
+            user=cls.user,
+            status=Status.IN_PROGRESS.value,
+        )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def test_quick_drop(self):
+        response = self.client.post(
+            reverse("quick_drop"),
+            {
+                "media_type": MediaTypes.MOVIE.value,
+                "instance_id": self.movie.id,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.movie.refresh_from_db()
+        self.assertEqual(self.movie.status, Status.DROPPED.value)
+
+    def test_quick_untrack_deletes_media(self):
+        self.movie.status = Status.DROPPED.value
+        self.movie.save()
+        movie_id = self.movie.id
+        response = self.client.post(
+            reverse("quick_untrack"),
+            {
+                "media_type": MediaTypes.MOVIE.value,
+                "instance_id": movie_id,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Movie.objects.filter(id=movie_id).exists())
+
+    def test_bulk_action_no_matching_items(self):
+        response = self.client.post(
+            reverse("bulk_action"),
+            {
+                "media_type": MediaTypes.MOVIE.value,
+                "instance_ids": "999999",
+                "action": "status",
+                "value": Status.PLANNING.value,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class StartDateHelperTests(TestCase):
+    def test_should_set_start_date_only_for_in_progress(self):
+        from app.views.actions import _should_set_start_date
+
+        item = Movie(start_date=None)
+        self.assertFalse(_should_set_start_date(item, Status.PLANNING.value))
+
+    def test_should_set_start_date_skips_when_already_set(self):
+        from django.utils import timezone as _tz
+
+        from app.views.actions import _should_set_start_date
+
+        item = Movie(start_date=_tz.now())
+        self.assertFalse(_should_set_start_date(item, Status.IN_PROGRESS.value))
+
+
+class GetMaxPinOrderEdgeTests(TestCase):
+    def test_no_media_types_returns_none(self):
+        from unittest.mock import MagicMock
+
+        from app.views.actions import _get_max_pin_order
+
+        user = MagicMock()
+        user.get_active_media_types.return_value = []
+        self.assertIsNone(_get_max_pin_order(user))
+
+
+class RewatchHelperTests(TestCase):
+    def test_resolve_rewatch_item_with_season_number(self):
+        from app.views._rewatch import resolve_rewatch_item
+
+        Item.objects.create(
+            media_id="42",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            title="Show",
+            season_number=2,
+        )
+        item = resolve_rewatch_item(
+            "42",
+            Sources.TMDB.value,
+            MediaTypes.SEASON.value,
+            season_number=2,
+        )
+        self.assertEqual(item.season_number, 2)
+
+    def test_resolve_rewatch_item_without_season_number(self):
+        from app.views._rewatch import resolve_rewatch_item
+
+        Item.objects.create(
+            media_id="43",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Movie",
+        )
+        item = resolve_rewatch_item(
+            "43",
+            Sources.TMDB.value,
+            MediaTypes.MOVIE.value,
+            season_number=None,
+        )
+        self.assertEqual(item.media_id, "43")

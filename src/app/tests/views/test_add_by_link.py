@@ -251,7 +251,7 @@ class AddByLinkViewTests(TestCase):
             "synopsis": "A ninja.",
         }
 
-        def side_effect(_media_type, query, page):  # noqa: ARG001
+        def side_effect(_media_type, query, page):
             if "one punch" in query:
                 return MOCK_SEARCH_RESULT
             if "naruto" in query:

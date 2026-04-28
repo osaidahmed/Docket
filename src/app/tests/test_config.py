@@ -107,3 +107,20 @@ class MinScorePresetButtonsTests(SimpleTestCase):
         f = self._get_min_score_filter(MediaTypes.MOVIE.value)
         values = [p["value"] for p in f["presets"]]
         self.assertIn("", values)
+
+
+class SearchableAndDiscoverableTypesTests(SimpleTestCase):
+    def test_get_searchable_types_returns_list(self):
+        from app.config import get_searchable_types
+
+        types = get_searchable_types()
+        self.assertIn(MediaTypes.MOVIE.value, types)
+        self.assertNotIn(MediaTypes.SEASON.value, types)
+        self.assertNotIn(MediaTypes.EPISODE.value, types)
+
+    def test_get_discoverable_types_returns_list(self):
+        from app.config import get_discoverable_types
+
+        types = get_discoverable_types()
+        self.assertIsInstance(types, list)
+        self.assertGreater(len(types), 0)

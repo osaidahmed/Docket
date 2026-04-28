@@ -212,3 +212,62 @@ class ImportHowLongToBeat(TestCase):
         self.assertIn("General: Great game", result)
         self.assertIn("Main Story: Short campaign", result)
         self.assertNotIn("Review:", result)
+
+    @patch("app.providers.services.search")
+    def test_unfound_game_emits_warning(self, mock_search):
+        mock_search.return_value = {"results": []}
+        csv_content = (
+            '"Title","Platform","Playing","Backlog","Replay","Custom-1","Custom-2","Custom-3",'
+            '"Completed","Retired","Retired Notes","Start Date","Completion Date","Playthrough",'
+            '"Progress","Main Story","Main Story Notes","Main + Extras","Main + Extras Notes",'
+            '"Completionist","Completionist Notes","Speed Any%","Speed Any% Notes",'
+            '"Speed 100%","Speed 100% Notes","Co-Op","Multi-Player","General Notes",'
+            '"Storefront","Review","Review Notes","Added","Updated"\n'
+            'Mystery Game,"PC","","","","","","","X","","","","","First-Play","--","--","","--","",'
+            '"--","","--","","--","","--","--","","",70,"",2024-02-09 15:54:48,2024-02-09 15:54:48\n'
+        )
+        file = BytesIO(csv_content.encode("utf-8"))
+        _counts, warnings = hltb.importer(file, self.user, "new")
+        self.assertIn("Couldn't find a game", warnings)
+
+    @patch("app.providers.services.search")
+    def test_first_pass_exception_raises_unexpected(self, mock_search):
+        from integrations.imports.helpers import MediaImportUnexpectedError
+
+        mock_search.side_effect = RuntimeError("provider broken")
+        csv_content = (
+            '"Title","Platform","Playing","Backlog","Replay","Custom-1","Custom-2","Custom-3",'
+            '"Completed","Retired","Retired Notes","Start Date","Completion Date","Playthrough",'
+            '"Progress","Main Story","Main Story Notes","Main + Extras","Main + Extras Notes",'
+            '"Completionist","Completionist Notes","Speed Any%","Speed Any% Notes",'
+            '"Speed 100%","Speed 100% Notes","Co-Op","Multi-Player","General Notes",'
+            '"Storefront","Review","Review Notes","Added","Updated"\n'
+            'Bad Game,"PC","","","","","","","X","","","","","First-Play","--","--","","--","",'
+            '"--","","--","","--","","--","--","","",70,"",2024-02-09 15:54:48,2024-02-09 15:54:48\n'
+        )
+        file = BytesIO(csv_content.encode("utf-8"))
+        with self.assertRaises(MediaImportUnexpectedError):
+            hltb.importer(file, self.user, "new")
+
+    @patch("integrations.imports.helpers.should_process_media")
+    @patch("app.providers.services.search")
+    def test_skip_existing_in_new_mode(self, mock_search, mock_should_process):
+        mock_search.return_value = {
+            "results": [
+                {"media_id": "999", "title": "Skipped Game", "image": "img.jpg"},
+            ],
+        }
+        mock_should_process.return_value = False
+        csv_content = (
+            '"Title","Platform","Playing","Backlog","Replay","Custom-1","Custom-2","Custom-3",'
+            '"Completed","Retired","Retired Notes","Start Date","Completion Date","Playthrough",'
+            '"Progress","Main Story","Main Story Notes","Main + Extras","Main + Extras Notes",'
+            '"Completionist","Completionist Notes","Speed Any%","Speed Any% Notes",'
+            '"Speed 100%","Speed 100% Notes","Co-Op","Multi-Player","General Notes",'
+            '"Storefront","Review","Review Notes","Added","Updated"\n'
+            'Skipped Game,"PC","","","","","","","X","","","","","First-Play","--","--","","--","",'
+            '"--","","--","","--","","--","--","","",70,"",2024-02-09 15:54:48,2024-02-09 15:54:48\n'
+        )
+        file = BytesIO(csv_content.encode("utf-8"))
+        counts, _warnings = hltb.importer(file, self.user, "new")
+        self.assertEqual(counts.get(MediaTypes.GAME.value, 0), 0)

@@ -518,3 +518,48 @@ class SyncMetadata(TestCase):
             + "?next=/",
         )
         self.assertEqual(response.status_code, 302)
+
+
+class CrudHelperBranchTests(TestCase):
+    def test_restrict_ongoing_status_choices_with_none_metadata(self):
+        from app.forms import AnimeForm
+        from app.views.crud import _restrict_ongoing_status_choices
+
+        form = AnimeForm()
+        before = list(form.fields["status"].choices)
+        _restrict_ongoing_status_choices(form, MediaTypes.ANIME.value, None)
+        self.assertEqual(list(form.fields["status"].choices), before)
+
+    def test_restrict_ongoing_status_choices_skips_other_types(self):
+        from app.forms import MovieForm
+        from app.views.crud import _restrict_ongoing_status_choices
+
+        form = MovieForm()
+        before = list(form.fields["status"].choices)
+        _restrict_ongoing_status_choices(
+            form, MediaTypes.MOVIE.value, {"is_ongoing": True}
+        )
+        self.assertEqual(list(form.fields["status"].choices), before)
+
+    def test_apply_form_restrictions_announced_drops_fields(self):
+        from app.forms import MovieForm
+        from app.views.crud import _apply_form_restrictions
+
+        form = MovieForm()
+        metadata = {"details": {"status": "Announced"}}
+        _apply_form_restrictions(form, media=None, metadata=metadata)
+        for field_name in ("score", "progress", "caught_up", "is_rewatch"):
+            self.assertNotIn(field_name, form.fields)
+        statuses = {c[0] for c in form.fields["status"].choices}
+        self.assertEqual(statuses, {Status.PLANNING.value})
+
+    def test_apply_form_restrictions_no_op_for_normal_state(self):
+        from app.forms import MovieForm
+        from app.views.crud import _apply_form_restrictions
+
+        form = MovieForm()
+        before = list(form.fields["status"].choices)
+        _apply_form_restrictions(
+            form, media=None, metadata={"details": {"status": "Released"}}
+        )
+        self.assertEqual(list(form.fields["status"].choices), before)

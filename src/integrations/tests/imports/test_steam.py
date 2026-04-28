@@ -176,7 +176,7 @@ class ImportSteam(TestCase):
     @patch("integrations.imports.steam.services.api_request")
     def test_import_steam_no_games(self, mock_api_request):
         mock_api_request.return_value = {"response": {"games": []}}
-        imported_counts, warnings = steam.importer(
+        imported_counts, _warnings = steam.importer(
             "76561198000000000",
             self.user,
             "new",
@@ -186,7 +186,7 @@ class ImportSteam(TestCase):
     @patch("integrations.imports.steam.services.api_request")
     def test_import_steam_no_games_in_response(self, mock_api_request):
         mock_api_request.return_value = {"response": {}}
-        imported_counts, warnings = steam.importer(
+        imported_counts, _warnings = steam.importer(
             "76561198000000000",
             self.user,
             "new",

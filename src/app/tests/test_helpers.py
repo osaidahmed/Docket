@@ -266,3 +266,58 @@ class EnrichItemsWithUserDataTest(TestCase):
             self.request, raw_items, "recommendations"
         )
         self.assertEqual(len(enriched_items), 2)
+
+
+class HelpersInternalTests(TestCase):
+    def test_enrich_items_with_empty_list(self):
+        from app.helpers import enrich_items_with_user_data
+
+        request = MagicMock()
+        request.user = MagicMock()
+        self.assertEqual(enrich_items_with_user_data(request, [], "any"), [])
+
+    def test_media_key_season(self):
+        from app.helpers import _media_key
+
+        item = MagicMock(media_id="m1", source="tmdb", season_number=2)
+        self.assertEqual(_media_key(item, is_season=True), ("m1", "tmdb", 2))
+
+    def test_media_key_non_season(self):
+        from app.helpers import _media_key
+
+        item = MagicMock(media_id="m1", source="tmdb")
+        self.assertEqual(_media_key(item, is_season=False), ("m1", "tmdb"))
+
+    def test_item_key_string_conversion(self):
+        from app.helpers import _item_key
+
+        item = {"media_id": 42, "source": "tmdb", "season_number": 3}
+        self.assertEqual(_item_key(item, is_season=True), ("42", "tmdb", 3))
+        self.assertEqual(
+            _item_key({"media_id": 42, "source": "tmdb"}, is_season=False),
+            ("42", "tmdb"),
+        )
+
+    def test_should_replace_branches(self):
+        from app.helpers import _should_replace
+
+        active = {Status.IN_PROGRESS.value, Status.PLANNING.value, Status.PAUSED.value}
+
+        candidate = MagicMock(status=Status.PLANNING.value)
+        self.assertTrue(_should_replace(None, candidate, active))
+
+        existing = MagicMock(status=Status.IN_PROGRESS.value)
+        candidate = MagicMock(status=Status.COMPLETED.value)
+        self.assertTrue(_should_replace(existing, candidate, active))
+
+        existing = MagicMock(status=Status.COMPLETED.value)
+        candidate = MagicMock(status=Status.COMPLETED.value)
+        self.assertFalse(_should_replace(existing, candidate, active))
+
+        existing = MagicMock(status=Status.IN_PROGRESS.value)
+        candidate = MagicMock(status=Status.DROPPED.value)
+        self.assertTrue(_should_replace(existing, candidate, active))
+
+        existing = MagicMock(status=Status.DROPPED.value)
+        candidate = MagicMock(status=Status.DROPPED.value)
+        self.assertFalse(_should_replace(existing, candidate, active))

@@ -181,7 +181,7 @@ class HelpersTest(TestCase):
             media_type=MediaTypes.MOVIE.value,
             title="Test Movie",
         )
-        from simple_history.utils import bulk_create_with_history  # noqa: PLC0415
+        from simple_history.utils import bulk_create_with_history
 
         movie = Movie(item=item, user=self.user, status=Status.COMPLETED.value)
         bulk_create_with_history([movie], Movie, default_user=self.user)
@@ -245,7 +245,7 @@ class HelpersTest(TestCase):
             media_type=MediaTypes.MOVIE.value,
             title="To Delete Movie",
         )
-        from simple_history.utils import bulk_create_with_history  # noqa: PLC0415
+        from simple_history.utils import bulk_create_with_history
 
         movie = Movie(item=item, user=self.user, status=Status.COMPLETED.value)
         bulk_create_with_history([movie], Movie, default_user=self.user)
@@ -261,7 +261,7 @@ class HelpersTest(TestCase):
         helpers.cleanup_existing_media(to_delete, self.user)
 
     def test_bulk_create_media_with_seasons_and_episodes(self):
-        from simple_history.utils import bulk_create_with_history  # noqa: PLC0415
+        from simple_history.utils import bulk_create_with_history
 
         tv_item = Item.objects.create(
             media_id="1",
@@ -316,7 +316,7 @@ class HelpersTest(TestCase):
         self.assertEqual(Episode.objects.count(), 1)
 
     @patch("django.contrib.messages.success")
-    def test_create_import_schedule_with_token(self, mock_messages):  # noqa: ARG002
+    def test_create_import_schedule_with_token(self, mock_messages):
         request = Mock()
         request.user = self.user
 
@@ -332,7 +332,7 @@ class HelpersTest(TestCase):
 
         task = PeriodicTask.objects.first()
         self.assertIsNotNone(task)
-        import json  # noqa: PLC0415
+        import json
 
         kwargs = json.loads(task.kwargs)
         self.assertEqual(kwargs["token"], "encrypted_token")
@@ -352,3 +352,13 @@ class HelpersTest(TestCase):
         decrypted = helpers.decrypt(encrypted)
         self.assertEqual(decrypted, original)
         self.assertNotEqual(encrypted, original)
+
+    def test_cleanup_with_empty_sources_dict(self):
+        to_delete = defaultdict(lambda: defaultdict(set))
+        to_delete[MediaTypes.MOVIE.value] = {}
+        helpers.cleanup_existing_media(to_delete, self.user)
+
+    def test_cleanup_with_empty_media_ids_set(self):
+        to_delete = defaultdict(lambda: defaultdict(set))
+        to_delete[MediaTypes.MOVIE.value][Sources.TMDB.value] = set()
+        helpers.cleanup_existing_media(to_delete, self.user)

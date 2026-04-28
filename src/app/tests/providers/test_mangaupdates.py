@@ -157,3 +157,77 @@ class MangaUpdatesHelperTests(SimpleTestCase):
 
     def test_get_status_none(self):
         self.assertIsNone(get_status(None))
+
+
+class MangaUpdatesSearchHTTPError(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    @patch("app.providers.mangaupdates.handle_error")
+    @patch("app.providers.services.api_request")
+    def test_browse_handle_error_returns_none_short_circuits(
+        self, mock_api, mock_handle
+    ):
+        mock_api.side_effect = requests.exceptions.HTTPError(
+            response=MagicMock(status_code=400, text="bad")
+        )
+        mock_handle.return_value = None
+        data = mangaupdates.browse("releases", 1)
+        self.assertEqual(data["results"], [])
+        self.assertEqual(data["total_results"], 0)
+
+    @patch("app.providers.services.api_request")
+    def test_async_manga_http_error(self, mock_api):
+        mock_api.side_effect = requests.exceptions.HTTPError(
+            response=MagicMock(status_code=500),
+        )
+        mock_api.side_effect.response.json.side_effect = (
+            requests.exceptions.JSONDecodeError("err", "", 0)
+        )
+        with self.assertRaises(services.ProviderAPIError):
+            mangaupdates.manga("999")
+
+    @patch("app.providers.services.api_request")
+    def test_search_handle_error_returns_empty(self, mock_api):
+        mock_api.side_effect = requests.exceptions.HTTPError(
+            response=MagicMock(status_code=400),
+        )
+        mock_api.side_effect.response.json.return_value = {
+            "context": {
+                "search": [{"errors": ['"" must have a length between 1 and 400']}],
+            },
+        }
+        data = mangaupdates.search("", 1)
+        self.assertEqual(data["results"], [])
+
+
+class MangaUpdatesAsyncFetchTests(TestCase):
+    def test_fetch_series_data_non_200_returns_none(self):
+        import asyncio
+        from unittest.mock import AsyncMock
+
+        class _AsyncCM:
+            def __init__(self, response):
+                self._response = response
+
+            async def __aenter__(self):
+                return self._response
+
+            async def __aexit__(self, *_):
+                return False
+
+        mock_response = MagicMock()
+        mock_response.status = 404
+        mock_response.json = AsyncMock(return_value={})
+
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=_AsyncCM(mock_response))
+
+        result = asyncio.run(
+            mangaupdates.fetch_series_data(
+                mock_session,
+                "https://api.mangaupdates.com/v1/series/123",
+                {"series_name": "X", "series_id": 123},
+            ),
+        )
+        self.assertIsNone(result)

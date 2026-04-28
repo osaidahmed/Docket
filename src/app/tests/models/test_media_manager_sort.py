@@ -180,6 +180,38 @@ class MediaManagerSortTests(MediaManagerTestBase):
         self.assertEqual(media_list.first(), self.anime)
         self.assertEqual(media_list.last(), anime2)
 
+    def test_sort_generic_anime_by_start_date_asc(self):
+        anime_item2 = Item.objects.create(
+            media_id="9001",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Other Anime",
+            image="http://example.com/o.jpg",
+        )
+        Anime.objects.create(
+            item=anime_item2,
+            user=self.user,
+            status=Status.IN_PROGRESS.value,
+            score=5,
+            start_date=timezone.make_aware(datetime(2010, 1, 1)),
+        )
+        queryset = Anime.objects.filter(user=self.user).select_related("item")
+        result = list(
+            self.manager._sort_media_list(
+                queryset, "start_date", MediaTypes.ANIME.value, "asc"
+            )
+        )
+        self.assertGreater(len(result), 0)
+
+    def test_sort_generic_anime_by_end_date_desc(self):
+        queryset = Anime.objects.filter(user=self.user).select_related("item")
+        result = list(
+            self.manager._sort_media_list(
+                queryset, "end_date", MediaTypes.ANIME.value, "desc"
+            )
+        )
+        self.assertGreaterEqual(len(result), 0)
+
     def test_sort_in_progress_media(self):
         anime_list = self._build_in_progress_anime_list()
 

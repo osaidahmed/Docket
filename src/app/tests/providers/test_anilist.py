@@ -4,7 +4,8 @@ from django.core.cache import cache
 from django.test import TestCase
 
 from app.models import MediaTypes, Sources
-from app.providers import anilist
+from app.providers import anilist, services
+from app.tests.providers._http_error_helpers import make_http_error
 
 
 class CacheClearMixin:
@@ -323,3 +324,30 @@ class AiringScheduleTests(CacheClearMixin, TestCase):
         }
         data = anilist.airing_schedule()
         self.assertEqual(len(data), 0)
+
+
+class GraphqlRequestErrorTests(TestCase):
+    @patch("app.providers.anilist.services.api_request")
+    def test_http_error_wraps_in_provider_error(self, mock_api):
+        mock_api.side_effect = make_http_error(500, {"errors": ["server"]})
+        with self.assertRaises(services.ProviderAPIError):
+            anilist._graphql_request("query {}", {})
+
+
+@patch("app.providers.anilist._graphql_request")
+class RecentlyAiredMultiPageTests(CacheClearMixin, TestCase):
+    def test_continues_paginating_until_filled(self, mock_gql):
+        first_page = _mock_schedule_response(
+            [_make_schedule_entry(mal_id=1)],
+            has_next=True,
+        )
+        second_page = _mock_schedule_response(
+            [_make_schedule_entry(mal_id=2), _make_schedule_entry(mal_id=3)],
+            has_next=False,
+        )
+        mock_gql.side_effect = [first_page, second_page]
+
+        data = anilist.recently_updated(MediaTypes.ANIME.value, per_page=3)
+
+        self.assertEqual(len(data["results"]), 3)
+        self.assertEqual(mock_gql.call_count, 2)

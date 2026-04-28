@@ -1,11 +1,20 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
-from app.link_providers import tasks
+from app.link_providers import registry, tasks
 from app.link_providers.base import LinkProvider, LinkProviderError, LinkResult
 from app.models import Item, Manga, MediaTypes, Sources, Status
+
+
+class RegistryTests(SimpleTestCase):
+    def test_get_provider_unknown_returns_none(self):
+        self.assertIsNone(registry.get_provider("does-not-exist"))
+
+    def test_get_providers_for_filters_by_media_type(self):
+        providers = registry.get_providers_for(MediaTypes.ANIME.value)
+        self.assertTrue(all(MediaTypes.ANIME.value in p.media_types for p in providers))
 
 
 class _StubProvider(LinkProvider):
@@ -15,7 +24,7 @@ class _StubProvider(LinkProvider):
     raise_exception = False
     calls = 0
 
-    def find(self, item):  # noqa: ARG002
+    def find(self, item):
         type(self).calls += 1
         if type(self).raise_exception:
             msg = "boom"

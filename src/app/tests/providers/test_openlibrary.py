@@ -202,3 +202,116 @@ class OpenLibraryAsyncTests(TestCase):
         result = openlibrary.book("OL123M")
         self.assertEqual(result["title"], "Test Book")
         mock_api.assert_called_once()
+
+
+class OpenLibraryHTTPErrorAndEdges(TestCase):
+    def setUp(self):
+        from django.core.cache import cache as _cache
+
+        _cache.clear()
+
+    def test_search_card_no_editions_returns_none(self):
+        doc = {"title": "X", "editions": {"docs": []}}
+        self.assertIsNone(openlibrary._search_card(doc))
+
+    def test_browse_card_falls_back_to_cover_edition_key(self):
+        work = {
+            "title": "Y",
+            "cover_edition_key": "OL999M",
+            "editions": {"docs": []},
+        }
+        card = openlibrary._browse_card(work)
+        assert card is not None
+        self.assertEqual(card["media_id"], "OL999M")
+
+    def test_browse_card_returns_none_when_no_id(self):
+        work = {"title": "Z", "editions": {"docs": []}}
+        self.assertIsNone(openlibrary._browse_card(work))
+
+    def test_estimate_browse_total_partial_page_exact(self):
+        results = [{"x": 1}]
+        total, exact = openlibrary._estimate_browse_total(results, offset=10)
+        self.assertEqual(total, 11)
+        self.assertTrue(exact)
+
+    def test_estimate_browse_total_full_page_inexact(self):
+        from django.conf import settings
+
+        results = [{"x": i} for i in range(settings.PER_PAGE)]
+        total, exact = openlibrary._estimate_browse_total(results, offset=0)
+        self.assertGreaterEqual(total, settings.PER_PAGE)
+        self.assertFalse(exact)
+
+    def test_get_publishers_present(self):
+        result = openlibrary.get_publishers({"publishers": ["A", "B", "C"]})
+        self.assertEqual(result, ["A", "B", "C"])
+
+    def test_get_subjects_present(self):
+        result = openlibrary.get_subjects({"subjects": ["Sci-Fi", "Drama"]})
+        self.assertEqual(result, ["Sci-Fi", "Drama"])
+
+    def test_fetch_author_data_success(self):
+        from unittest.mock import AsyncMock
+
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"name": "Author One"})
+
+        class _AsyncCM:
+            async def __aenter__(self):
+                return mock_response
+
+            async def __aexit__(self, *_):
+                return False
+
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=_AsyncCM())
+
+        result = asyncio.run(
+            openlibrary.fetch_author_data(mock_session, "http://example.com")
+        )
+        assert result is not None
+        self.assertEqual(result["name"], "Author One")
+
+    @patch("app.providers.services.api_request")
+    def test_search_request_exception(self, mock_api):
+        from app.tests.providers._http_error_helpers import make_http_error
+
+        mock_api.side_effect = make_http_error(500, {"error": "boom"})
+        with self.assertRaises(ProviderAPIError):
+            openlibrary.search("anything", 1)
+
+    @patch("app.providers.services.api_request")
+    def test_browse_request_exception(self, mock_api):
+        from app.tests.providers._http_error_helpers import make_http_error
+
+        mock_api.side_effect = make_http_error(500, {"error": "boom"})
+        with self.assertRaises(ProviderAPIError):
+            openlibrary.browse("trending", 1)
+
+    @patch("app.providers.openlibrary._fetch_book_and_work")
+    def test_book_propagates_fetch_error(self, mock_fetch):
+        mock_fetch.side_effect = ProviderAPIError(
+            "openlibrary", MagicMock(response=MagicMock(status_code=500, text="x"))
+        )
+        with self.assertRaises(ProviderAPIError):
+            openlibrary.book("OL999M")
+
+    @patch("app.providers.services.api_request")
+    def test_fetch_book_and_work_book_request_error(self, mock_api):
+        from app.tests.providers._http_error_helpers import make_http_error
+
+        mock_api.side_effect = make_http_error(500, {"error": "boom"})
+        with self.assertRaises(ProviderAPIError):
+            openlibrary._fetch_book_and_work("OL1M")
+
+    @patch("app.providers.services.api_request")
+    def test_fetch_book_and_work_work_request_error(self, mock_api):
+        from app.tests.providers._http_error_helpers import make_http_error
+
+        mock_api.side_effect = [
+            {"title": "X", "works": [{"key": "/works/OL1W"}]},
+            make_http_error(500, {"error": "boom"}),
+        ]
+        with self.assertRaises(ProviderAPIError):
+            openlibrary._fetch_book_and_work("OL1M")

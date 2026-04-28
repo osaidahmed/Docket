@@ -564,3 +564,92 @@ class MediaUrlEdgeCasesTests(TestCase):
         )
         url = media_url(item)
         self.assertIn("/1/", url)
+
+
+class FormatTagBranchTests(TestCase):
+    def test_iso_date_format_non_string_returns_value(self):
+        user = MagicMock()
+        user.date_format = "Y-m-d"
+        self.assertEqual(app_tags.iso_date_format(None, user), None)
+        self.assertEqual(app_tags.iso_date_format(12345, user), 12345)
+
+    def test_iso_date_format_invalid_string_returns_value(self):
+        user = MagicMock()
+        user.date_format = "Y-m-d"
+        self.assertEqual(app_tags.iso_date_format("not-a-date", user), "not-a-date")
+
+    def test_iso_date_format_valid_string(self):
+        user = MagicMock()
+        user.date_format = "Y-m-d"
+        self.assertEqual(app_tags.iso_date_format("2024-05-01", user), "2024-05-01")
+
+    def test_datetime_format_none(self):
+        user = MagicMock()
+        user.date_format = "Y-m-d"
+        self.assertIsNone(app_tags.datetime_format(None, user))
+
+    @patch("app.templatetags._app_tags_format.settings")
+    def test_datetime_format_track_time_false(self, mock_settings):
+        mock_settings.TRACK_TIME = False
+        user = MagicMock()
+        user.date_format = "Y-m-d"
+        dt = timezone.now()
+        result = app_tags.datetime_format(dt, user)
+        self.assertIsInstance(result, str)
+        self.assertNotIn(":", result)
+
+    def test_timestamp_to_time_falsy_returns_empty(self):
+        self.assertEqual(app_tags.timestamp_to_time(0), "")
+        self.assertEqual(app_tags.timestamp_to_time(None), "")
+        self.assertEqual(app_tags.timestamp_to_time(""), "")
+
+
+class MediaTagBranchTests(TestCase):
+    def test_source_readable(self):
+        self.assertEqual(
+            app_tags.source_readable(Sources.TMDB.value), "The Movie Database"
+        )
+
+    def test_media_verb_ing_e_ending(self):
+        from app import config as app_config
+
+        with patch.object(app_config, "get_verb", return_value="like"):
+            self.assertEqual(app_tags.media_verb_ing("anything"), "liking")
+
+    def test_media_verb_ing_consonant_ending(self):
+        from app import config as app_config
+
+        with patch.object(app_config, "get_verb", return_value="watch"):
+            self.assertEqual(app_tags.media_verb_ing("anything"), "watching")
+
+    def test_media_attr_auto_detect_dict(self):
+        from app.templatetags._app_tags_media import _media_attr
+
+        self.assertEqual(_media_attr({"x": 1}, "x"), 1)
+
+    def test_media_attr_auto_detect_object(self):
+        from app.templatetags._app_tags_media import _media_attr
+
+        obj = MagicMock(spec=["x"])
+        obj.x = "value"
+        self.assertEqual(_media_attr(obj, "x"), "value")
+
+
+class UtilityTagBranchTests(TestCase):
+    def test_is_list_true(self):
+        self.assertTrue(app_tags.is_list([1, 2]))
+
+    def test_is_list_false(self):
+        self.assertFalse(app_tags.is_list("string"))
+        self.assertFalse(app_tags.is_list(None))
+        self.assertFalse(app_tags.is_list({"k": "v"}))
+        self.assertFalse(app_tags.is_list((1, 2)))
+
+    def test_get_item_dict(self):
+        self.assertEqual(app_tags.get_item({"k": "v"}, "k"), "v")
+        self.assertEqual(app_tags.get_item({"k": "v"}, "missing"), "")
+
+    def test_get_item_non_dict(self):
+        self.assertEqual(app_tags.get_item(None, "k"), "")
+        self.assertEqual(app_tags.get_item("string", "k"), "")
+        self.assertEqual(app_tags.get_item(123, "k"), "")

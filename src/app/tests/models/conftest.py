@@ -35,7 +35,7 @@ class MediaManagerTestBase(TestCase):
 
     @classmethod
     def _create_user(cls):
-        from users.models import UserMediaPreference  # noqa: PLC0415
+        from users.models import UserMediaPreference
 
         user = get_user_model().objects.create_user(username="test", password="12345")
         for media_type in MediaTypes.values:

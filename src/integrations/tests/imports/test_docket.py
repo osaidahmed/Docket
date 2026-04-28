@@ -247,3 +247,56 @@ class DocketEdgeCaseTests(TestCase):
         docket.importer(file, self.user, "new")
         item = Item.objects.get(media_id="1", source=Sources.MANUAL.value)
         self.assertEqual(item.image, settings.IMG_NONE)
+
+    def test_provider_api_error_warns(self):
+        from unittest.mock import patch
+
+        from app.providers import services as svc
+
+        csv_content = (
+            "media_id,source,media_type,title,image,season_number,episode_number,"
+            "status,score,progress,start_date,end_date,notes,link,progressed_at,"
+            "english_title\n"
+            "999,tmdb,movie,Bad,http://x.jpg,,,Completed,8,1,,,,,,"
+        )
+        file = BytesIO(csv_content.encode("utf-8"))
+        with patch(
+            "integrations.imports.docket.app.models.Item.objects.update_or_create",
+            side_effect=svc.ProviderAPIError(
+                Sources.TMDB.value,
+                type(
+                    "Err",
+                    (),
+                    {
+                        "response": type(
+                            "R",
+                            (),
+                            {"status_code": 500, "text": "boom"},
+                        )(),
+                    },
+                )(),
+            ),
+        ):
+            _, warnings = docket.importer(file, self.user, "new")
+        self.assertIn("Error processing entry with ID 999", warnings)
+
+    def test_unexpected_error_raised(self):
+        from unittest.mock import patch
+
+        from integrations.imports.helpers import MediaImportUnexpectedError
+
+        csv_content = (
+            "media_id,source,media_type,title,image,season_number,episode_number,"
+            "status,score,progress,start_date,end_date,notes,link,progressed_at,"
+            "english_title\n"
+            "1,tmdb,movie,X,http://x.jpg,,,Completed,8,1,,,,,,"
+        )
+        file = BytesIO(csv_content.encode("utf-8"))
+        with (
+            patch(
+                "integrations.imports.docket.app.models.Item.objects.update_or_create",
+                side_effect=ValueError("boom"),
+            ),
+            self.assertRaises(MediaImportUnexpectedError),
+        ):
+            docket.importer(file, self.user, "new")

@@ -103,3 +103,67 @@ class GoodReadsEdgeCaseTests(TestCase):
         file = BytesIO(csv_content)
         _, warnings = goodreads.importer(file, self.user, "new")
         self.assertIn("Nonexistent Book", warnings)
+
+    @patch("integrations.imports.goodreads.services.search")
+    def test_provider_api_error_warns_and_continues(self, mock_search):
+        from app.providers import services as svc
+
+        mock_search.side_effect = svc.ProviderAPIError(
+            Sources.HARDCOVER.value,
+            type(
+                "Err",
+                (),
+                {
+                    "response": type(
+                        "R",
+                        (),
+                        {"status_code": 500, "text": "boom"},
+                    )(),
+                },
+            )(),
+        )
+        csv_content = (
+            b"Title,ISBN13,media_id,Exclusive Shelf,My Rating,Number of Pages,"
+            b"Private Notes,Date Added,Date Read\n"
+            b"Bad Book,1234,42,read,3,100,,2024/01/01,2024/06/01\n"
+        )
+        file = BytesIO(csv_content)
+        _, warnings = goodreads.importer(file, self.user, "new")
+        self.assertIn("Error processing entry", warnings)
+
+    @patch("integrations.imports.goodreads.services.search")
+    def test_unexpected_error_raised(self, mock_search):
+        from integrations.imports.helpers import MediaImportUnexpectedError
+
+        mock_search.side_effect = ValueError("explode")
+        csv_content = (
+            b"Title,ISBN13,Exclusive Shelf,My Rating,Number of Pages,"
+            b"Private Notes,Date Added,Date Read\n"
+            b"X,123,read,3,100,,2024/01/01,2024/06/01\n"
+        )
+        file = BytesIO(csv_content)
+        with self.assertRaises(MediaImportUnexpectedError):
+            goodreads.importer(file, self.user, "new")
+
+    @patch("integrations.imports.helpers.should_process_media")
+    @patch("integrations.imports.goodreads.services.search")
+    def test_should_process_returns_false_skips(self, mock_search, mock_should):
+        mock_search.return_value = {
+            "results": [
+                {
+                    "media_id": "9",
+                    "title": "Skipped",
+                    "image": "http://example.com/i.jpg",
+                    "source": Sources.HARDCOVER.value,
+                },
+            ],
+        }
+        mock_should.return_value = False
+        csv_content = (
+            b"Title,ISBN13,Exclusive Shelf,My Rating,Number of Pages,"
+            b"Private Notes,Date Added,Date Read\n"
+            b"Skipped,1,read,3,100,,2024/01/01,2024/06/01\n"
+        )
+        file = BytesIO(csv_content)
+        counts, _ = goodreads.importer(file, self.user, "new")
+        self.assertEqual(counts.get(MediaTypes.BOOK.value, 0), 0)

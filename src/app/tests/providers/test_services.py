@@ -898,3 +898,27 @@ class GetFilterOptionsTests(TestCase):
     def test_unknown_provider_key(self):
         result = services.get_filter_options("nonexistent")
         self.assertEqual(result, [])
+
+
+class FakeRedisInTestModeTests(TestCase):
+    def test_returns_fakeredis_pool(self):
+        pool = services.get_redis_connection()
+        self.assertTrue(
+            pool.connection_class.__module__.startswith("fakeredis"),
+        )
+
+
+class SuggestApiEdgeTests(TestCase):
+    def test_empty_query_returns_empty(self):
+        self.assertEqual(services.search_suggest_api("", [MediaTypes.ANIME.value]), [])
+
+    def test_whitespace_query_returns_empty(self):
+        self.assertEqual(
+            services.search_suggest_api("   ", [MediaTypes.ANIME.value]), []
+        )
+
+    def test_no_tasks_for_unsearchable_type_returns_empty(self):
+        self.assertEqual(
+            services.search_suggest_api("foo", [MediaTypes.SEASON.value]),
+            [],
+        )
