@@ -28,17 +28,16 @@ class CustomListManager(models.Manager):
         )
 
     def get_user_lists_with_item(self, user, item):
-        """Return user lists with item membership status."""
+        """Return user lists, annotated with whether each contains `item`."""
+        has_item = models.Exists(
+            CustomListItem.objects.filter(
+                custom_list_id=models.OuterRef("id"),
+                item=item,
+            ),
+        )
+        qs = self.filter(Q(owner=user) | Q(collaborators=user))
         return (
-            self.filter(Q(owner=user) | Q(collaborators=user))
-            .annotate(
-                has_item=models.Exists(
-                    CustomListItem.objects.filter(
-                        custom_list_id=models.OuterRef("id"),
-                        item=item,
-                    ),
-                ),
-            )
+            qs.annotate(has_item=has_item)
             .prefetch_related("collaborators")
             .distinct()
             .order_by("name")
