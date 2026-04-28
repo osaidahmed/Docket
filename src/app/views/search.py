@@ -27,71 +27,84 @@ def media_search(request):
     layout = request.GET.get("layout", "list")
 
     if not query:
-        if media_type == "all":
-            return render(
-                request,
-                "app/search_unified.html",
-                {
-                    "grouped_results": [],
-                    "media_type": "all",
-                    "query": "",
-                    "layout": layout,
-                },
-            )
+        return _render_empty_search(request, media_type, layout)
+    if media_type == "all":
+        return _render_unified_search(request, query, layout)
+    return _render_typed_search(request, media_type, query, layout)
+
+
+def _render_empty_search(request, media_type, layout):
+    """Render the empty-query search page (unified or per-type)."""
+    if media_type == "all":
         return render(
             request,
-            "app/search.html",
+            "app/search_unified.html",
             {
-                "data": {"results": []},
-                "source": config.get_default_source_name(media_type).value,
-                "media_type": media_type,
+                "grouped_results": [],
+                "media_type": "all",
+                "query": "",
                 "layout": layout,
             },
         )
+    return render(
+        request,
+        "app/search.html",
+        {
+            "data": {"results": []},
+            "source": config.get_default_source_name(media_type).value,
+            "media_type": media_type,
+            "layout": layout,
+        },
+    )
 
-    if media_type == "all":
-        enabled_types = request.user.get_enabled_media_types()
-        grouped_results = services.search_all(query, enabled_types)
 
-        for group in grouped_results:
-            group["results"] = helpers.enrich_items_with_user_data(
-                request, group["results"], "search"
-            )
-
-        context = {
+def _render_unified_search(request, query, layout):
+    """Render the all-types unified search page."""
+    enabled_types = request.user.get_enabled_media_types()
+    grouped_results = services.search_all(query, enabled_types)
+    for group in grouped_results:
+        group["results"] = helpers.enrich_items_with_user_data(
+            request,
+            group["results"],
+            "search",
+        )
+    return render(
+        request,
+        "app/search_unified.html",
+        {
             "grouped_results": grouped_results,
             "media_type": "all",
             "query": query,
             "layout": layout,
-        }
-        return render(request, "app/search_unified.html", context)
-
-    media_type = request.user.update_preference(
-        "last_search_type",
-        media_type,
+        },
     )
-    page = int(request.GET.get("page", 1))
 
+
+def _render_typed_search(request, media_type, query, layout):
+    """Render search results for a specific media type."""
+    media_type = request.user.update_preference("last_search_type", media_type)
+    page = int(request.GET.get("page", 1))
     source = request.GET.get(
         "source",
         config.get_default_source_name(media_type).value,
     )
-
     data = services.search(media_type, query, page, source)
-
     if data.get("results"):
         data["results"] = helpers.enrich_items_with_user_data(
-            request, data["results"], "search"
+            request,
+            data["results"],
+            "search",
         )
-
-    context = {
-        "data": data,
-        "source": source,
-        "media_type": media_type,
-        "layout": layout,
-    }
-
-    return render(request, "app/search.html", context)
+    return render(
+        request,
+        "app/search.html",
+        {
+            "data": data,
+            "source": source,
+            "media_type": media_type,
+            "layout": layout,
+        },
+    )
 
 
 def _search_parent_media(request, model, media_type, template):
