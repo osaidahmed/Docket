@@ -249,36 +249,7 @@ def browse(category, page):
     if data is None:
         now_timestamp = int(timezone.now().timestamp())
         offset = (page - 1) * settings.PER_PAGE
-
-        base_type_filter = "game_type = (0,1,2,3,4,5,6,7,8,9,10)"
-        nsfw_filter = "" if settings.IGDB_NSFW else " & themes != (42)"
-
-        category_queries = {
-            "popular": (
-                f"where {base_type_filter}{nsfw_filter}"
-                " & total_rating_count > 50;"
-                " sort total_rating_count desc;"
-            ),
-            "top_rated": (
-                f"where {base_type_filter}{nsfw_filter}"
-                " & total_rating_count > 100;"
-                " sort total_rating desc;"
-            ),
-            "recent": (
-                f"where {base_type_filter}{nsfw_filter}"
-                f" & first_release_date < {now_timestamp}"
-                " & first_release_date != null;"
-                " sort first_release_date desc;"
-            ),
-            "anticipated": (
-                f"where {base_type_filter}{nsfw_filter}"
-                f" & first_release_date > {now_timestamp}"
-                " & hypes > 0;"
-                " sort hypes desc;"
-            ),
-        }
-
-        query_clause = category_queries[category]
+        query_clause = _build_category_query_clause(category, now_timestamp)
         multiquery = (
             'query games "BrowseResults" {'
             "fields name,cover.image_id,summary;"
@@ -307,6 +278,37 @@ def browse(category, page):
         cache.set(cache_key, data)
 
     return data
+
+
+def _build_category_query_clause(category, now_timestamp):
+    """Build the IGDB where/sort clause for a browse category."""
+    base_type_filter = "game_type = (0,1,2,3,4,5,6,7,8,9,10)"
+    nsfw_filter = "" if settings.IGDB_NSFW else " & themes != (42)"
+    queries = {
+        "popular": (
+            f"where {base_type_filter}{nsfw_filter}"
+            " & total_rating_count > 50;"
+            " sort total_rating_count desc;"
+        ),
+        "top_rated": (
+            f"where {base_type_filter}{nsfw_filter}"
+            " & total_rating_count > 100;"
+            " sort total_rating desc;"
+        ),
+        "recent": (
+            f"where {base_type_filter}{nsfw_filter}"
+            f" & first_release_date < {now_timestamp}"
+            " & first_release_date != null;"
+            " sort first_release_date desc;"
+        ),
+        "anticipated": (
+            f"where {base_type_filter}{nsfw_filter}"
+            f" & first_release_date > {now_timestamp}"
+            " & hypes > 0;"
+            " sort hypes desc;"
+        ),
+    }
+    return queries[category]
 
 
 def browse_filtered(filters, page):
