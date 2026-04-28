@@ -35,15 +35,18 @@ class CustomSignupForm(SignupForm):
         self.fields["password2"].widget.attrs["placeholder"] = "Confirm your password"
 
 
+def _demo_guard(form, user, field, action):
+    if user.is_demo:
+        form.add_error(field, f"{action} is not allowed for the demo account.")
+
+
 class UserUpdateForm(forms.ModelForm):
     """Custom form for updating username."""
 
     def clean(self):
         """Check if the user is demo before changing the password."""
         cleaned_data = super().clean()
-        if self.instance.is_demo:
-            msg = "Changing the username is not allowed for the demo account."
-            self.add_error("username", msg)
+        _demo_guard(self, self.instance, "username", "Changing the username")
         return cleaned_data
 
     def __init__(self, *args, **kwargs):
@@ -64,9 +67,7 @@ class PasswordChangeForm(PasswordChangeForm):
     def clean(self):
         """Check if the user is demo before changing the password."""
         cleaned_data = super().clean()
-        if self.user.is_demo:
-            msg = "Changing the password is not allowed for the demo account."
-            self.add_error("new_password2", msg)
+        _demo_guard(self, self.user, "new_password2", "Changing the password")
         return cleaned_data
 
     def __init__(self, *args, **kwargs):
