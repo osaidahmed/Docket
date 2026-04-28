@@ -181,14 +181,11 @@ def explore_type(request, media_type):
     if routed is not None:
         return routed
     categories = config.get_explore_categories(media_type)
-    has_discover = config.get_discover_sections(media_type) is not None
-
     params = _parse_explore_params(request, categories)
     filter_definitions = config.get_explore_filters(media_type)
     active_filters = _extract_active_filters(request, filter_definitions)
     if active_filters.get("sort_by"):
         active_filters["order"] = params["order"]
-
     resolved_filters = (
         _resolve_filter_options(filter_definitions) if filter_definitions else None
     )
@@ -230,7 +227,7 @@ def explore_type(request, media_type):
         year=year,
         season_name=season_name,
     ).to_template_context(
-        has_discover=has_discover,
+        has_discover=config.get_discover_sections(media_type) is not None,
         current_view="browse",
         text_color=config.get_text_color(media_type),
     )

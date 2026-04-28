@@ -306,6 +306,26 @@ def get_people(response):
     return [person["name"] for person in people[:5] if isinstance(person, dict)]
 
 
+def _filter_publisher_volumes(items, current_id, limit):
+    """Drop the current volume and trim the sibling-publisher list to limit."""
+    cards = []
+    for item in items:
+        if str(item["id"]) == current_id:
+            continue
+        cards.append(
+            {
+                "media_id": str(item["id"]),
+                "source": Sources.COMICVINE.value,
+                "media_type": MediaTypes.COMIC.value,
+                "title": item["name"],
+                "image": get_image(item),
+            }
+        )
+        if len(cards) == limit:
+            break
+    return cards
+
+
 def get_publisher_comics(publisher_id, current_id, limit=15):
     """Get comics from the same publisher."""
     cache_key = f"{Sources.COMICVINE.value}_publisher_{publisher_id}_{current_id}"
@@ -317,7 +337,7 @@ def get_publisher_comics(publisher_id, current_id, limit=15):
             "format": "json",
             "field_list": "id,name,image,start_year,publisher",
             "filter": f"publisher:{publisher_id}",
-            "limit": limit + 1,  # Get one extra to account for current comic
+            "limit": limit + 1,
         }
 
         try:
@@ -331,19 +351,7 @@ def get_publisher_comics(publisher_id, current_id, limit=15):
         except requests.exceptions.HTTPError as error:
             handle_error(error)
 
-        # Filter out the current comic and format the response
-        data = [
-            {
-                "media_id": str(item["id"]),
-                "source": Sources.COMICVINE.value,
-                "media_type": MediaTypes.COMIC.value,
-                "title": item["name"],
-                "image": get_image(item),
-            }
-            for item in response["results"]
-            if str(item["id"]) != current_id
-        ][:limit]
-
+        data = _filter_publisher_volumes(response["results"], current_id, limit)
         cache.set(cache_key, data)
 
     return data

@@ -339,27 +339,23 @@ def browse(media_type, category, page, year=None, season=None):
     return handler()
 
 
+_BROWSE_FILTERED_HANDLERS = {
+    MediaTypes.MOVIE.value: lambda f, p: tmdb.discover(MediaTypes.MOVIE.value, f, p),
+    MediaTypes.TV.value: lambda f, p: tmdb.discover(MediaTypes.TV.value, f, p),
+    MediaTypes.ANIME.value: lambda f, p: jikan.browse(MediaTypes.ANIME.value, f, p),
+    MediaTypes.MANGA.value: lambda f, p: jikan.browse(MediaTypes.MANGA.value, f, p),
+    MediaTypes.GAME.value: lambda f, p: igdb.browse_filtered(f, p),  # noqa: PLW0108
+}
+
+
 def browse_filtered(media_type, filters, page):
     """Browse media with filter parameters."""
+    handler = _BROWSE_FILTERED_HANDLERS.get(media_type)
+    if handler is not None:
+        return handler(filters, page)
     from app import helpers as app_helpers  # noqa: PLC0415
 
-    filter_handlers = {
-        MediaTypes.MOVIE.value: lambda: tmdb.discover(
-            MediaTypes.MOVIE.value, filters, page
-        ),
-        MediaTypes.TV.value: lambda: tmdb.discover(MediaTypes.TV.value, filters, page),
-        MediaTypes.ANIME.value: lambda: jikan.browse(
-            MediaTypes.ANIME.value, filters, page
-        ),
-        MediaTypes.MANGA.value: lambda: jikan.browse(
-            MediaTypes.MANGA.value, filters, page
-        ),
-        MediaTypes.GAME.value: lambda: igdb.browse_filtered(filters, page),
-    }
-    handler = filter_handlers.get(media_type)
-    if handler is None:
-        return app_helpers.format_search_response(page, 24, 0, [])
-    return handler()
+    return app_helpers.format_search_response(page, 24, 0, [])
 
 
 def get_filter_options(provider_key):

@@ -203,70 +203,72 @@ def get_edition_details(edition_data):
     }
 
 
+_BROWSE_ORDER_BY = {
+    "popular": "{users_read_count: desc}",
+    "top_rated": "{rating: desc_nulls_last}",
+}
+
+_BROWSE_QUERY_TEMPLATE = """
+query BrowseBooks($limit: Int!, $offset: Int!) {{
+  books(
+    order_by: {order_by},
+    limit: $limit,
+    offset: $offset,
+    where: {{cached_image: {{_is_null: false}}}}
+  ) {{
+    id
+    title
+    cached_image(path: "url")
+    description
+  }}
+}}
+"""
+
+
+def _hardcover_browse_card(book_item):
+    """Format a Hardcover browse-result row from a books query entry."""
+    return {
+        "media_id": book_item["id"],
+        "source": Sources.HARDCOVER.value,
+        "media_type": MediaTypes.BOOK.value,
+        "title": book_item["title"],
+        "image": book_item.get("cached_image") or settings.IMG_NONE,
+        "synopsis": book_item.get("description") or "",
+    }
+
+
 def browse(category, page):
     """Browse books on Hardcover by category."""
     cache_key = (
         f"browse_{Sources.HARDCOVER.value}_{MediaTypes.BOOK.value}_{category}_{page}"
     )
-    data = cache.get(cache_key)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
-    if data is None:
-        order_by_map = {
-            "popular": "{users_read_count: desc}",
-            "top_rated": "{rating: desc_nulls_last}",
-        }
-        order_by = order_by_map[category]
-        offset = (page - 1) * settings.PER_PAGE
+    offset = (page - 1) * settings.PER_PAGE
+    query = _BROWSE_QUERY_TEMPLATE.format(order_by=_BROWSE_ORDER_BY[category])
+    response = _hardcover_request(
+        query,
+        {"limit": settings.PER_PAGE, "offset": offset},
+    )
 
-        browse_query = f"""
-        query BrowseBooks($limit: Int!, $offset: Int!) {{
-          books(
-            order_by: {order_by},
-            limit: $limit,
-            offset: $offset,
-            where: {{cached_image: {{_is_null: false}}}}
-          ) {{
-            id
-            title
-            cached_image(path: "url")
-            description
-          }}
-        }}
-        """
+    results = [_hardcover_browse_card(b) for b in response["data"]["books"]]
+    if len(results) == settings.PER_PAGE:
+        total_results = max(offset + settings.PER_PAGE * 5, len(results))
+        total_exact = False
+    else:
+        total_results = offset + len(results)
+        total_exact = True
 
-        response = _hardcover_request(
-            browse_query,
-            {
-                "limit": settings.PER_PAGE,
-                "offset": offset,
-            },
-        )
-
-        books = response["data"]["books"]
-        results = [
-            {
-                "media_id": book_item["id"],
-                "source": Sources.HARDCOVER.value,
-                "media_type": MediaTypes.BOOK.value,
-                "title": book_item["title"],
-                "image": book_item.get("cached_image") or settings.IMG_NONE,
-                "synopsis": book_item.get("description") or "",
-            }
-            for book_item in books
-        ]
-
-        if len(results) == settings.PER_PAGE:
-            total_results = max(offset + settings.PER_PAGE * 5, len(results))
-            total_exact = False
-        else:
-            total_results = offset + len(results)
-            total_exact = True
-
-        data = helpers.format_search_response(
-            page, settings.PER_PAGE, total_results, results, total_exact=total_exact
-        )
-        cache.set(cache_key, data)
-
+    data = helpers.format_search_response(
+        page,
+        settings.PER_PAGE,
+        total_results,
+        results,
+        total_exact=total_exact,
+    )
+    cache.set(cache_key, data)
     return data
 
 

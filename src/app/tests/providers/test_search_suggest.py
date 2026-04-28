@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.test import TestCase
 
 from app.models import Sources
@@ -8,6 +9,11 @@ from app.providers import tmdb
 
 class TMDBSearchMultiTests(TestCase):
     """Test the tmdb.search_multi() function."""
+
+    def setUp(self):
+        # search_multi caches by (query, limit); tests share "Breaking" + default
+        # limit, so a cached response from one test would mask another's mock.
+        cache.clear()
 
     @patch("app.providers.services.api_request")
     def test_returns_tv_and_movie_results(self, mock_api):

@@ -144,29 +144,28 @@ def update_references(items, kind, user):
 def bulk_create_media(bulk_media_list, user):
     """Bulk create all media objects."""
     for media_type, bulk_media in bulk_media_list.items():
-        if not bulk_media:
-            continue
+        if bulk_media:
+            _bulk_create_for_type(media_type, bulk_media, user)
 
-        model = apps.get_model(app_label="app", model_name=media_type)
 
-        logger.info("Bulk importing %s", media_type)
+def _bulk_create_for_type(media_type, bulk_media, user):
+    """Bulk-create one media-type batch, rewiring season/episode references first."""
+    model = apps.get_model(app_label="app", model_name=media_type)
+    logger.info("Bulk importing %s", media_type)
 
-        # Update references for seasons and episodes
-        if media_type == MediaTypes.SEASON.value:
-            logger.info("Updating references for season to existing TV shows")
-            update_references(bulk_media, "season", user)
-        elif media_type == MediaTypes.EPISODE.value:
-            logger.info(
-                "Updating references for episodes to existing TV seasons",
-            )
-            update_references(bulk_media, "episode", user)
+    if media_type == MediaTypes.SEASON.value:
+        logger.info("Updating references for season to existing TV shows")
+        update_references(bulk_media, "season", user)
+    elif media_type == MediaTypes.EPISODE.value:
+        logger.info("Updating references for episodes to existing TV seasons")
+        update_references(bulk_media, "episode", user)
 
-        bulk_create_with_history(
-            bulk_media,
-            model,
-            batch_size=500,
-            default_user=user,
-        )
+    bulk_create_with_history(
+        bulk_media,
+        model,
+        batch_size=500,
+        default_user=user,
+    )
 
 
 def create_import_schedule(

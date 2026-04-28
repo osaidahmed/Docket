@@ -75,7 +75,9 @@ def flaresolverr_get(url):
         response.raise_for_status()
     except requests.exceptions.RequestException as error:
         logger.warning(
-            "flaresolverr fetch failed: %s (%s)", url, type(error).__name__,
+            "flaresolverr fetch failed: %s (%s)",
+            url,
+            type(error).__name__,
         )
         msg = str(error)
         raise LinkProviderError(msg) from error

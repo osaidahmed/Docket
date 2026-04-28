@@ -43,6 +43,22 @@ def handle_error(error):
     )
 
 
+_NSFW_EXCLUDE_GENRES = ["Adult", "Hentai", "Doujinshi"]
+_BROWSE_ORDERBY = {"releases": "year", "rating": "rating"}
+
+
+def _manga_card(record):
+    """Build a thin search/browse card for a MangaUpdates series record."""
+    return {
+        "media_id": record["series_id"],
+        "source": Sources.MANGAUPDATES.value,
+        "media_type": MediaTypes.MANGA.value,
+        "title": record["title"],
+        "image": get_image_url(record),
+        "synopsis": record.get("description", ""),
+    }
+
+
 def search(query, page):
     """Search for media on MangaUpdates."""
     cache_key = (
@@ -51,7 +67,6 @@ def search(query, page):
     data = cache.get(cache_key)
 
     if data is None:
-        url = f"{base_url}/series/search"
         per_page = 30
         params = {
             "search": query,
@@ -59,44 +74,26 @@ def search(query, page):
             "perpage": per_page,
             "page": page,
         }
-
         if not settings.MAL_NSFW:
-            params["exclude_genre"] = [
-                "Adult",
-                "Hentai",
-                "Doujinshi",
-            ]
+            params["exclude_genre"] = _NSFW_EXCLUDE_GENRES
 
         try:
             response = services.api_request(
                 Sources.MANGAUPDATES.value,
                 "POST",
-                url,
+                f"{base_url}/series/search",
                 params=params,
             )
         except requests.exceptions.HTTPError as error:
             response = handle_error(error)
 
-        results = [
-            {
-                "media_id": media["record"]["series_id"],
-                "source": Sources.MANGAUPDATES.value,
-                "media_type": MediaTypes.MANGA.value,
-                "title": media["record"]["title"],
-                "image": get_image_url(media["record"]),
-                "synopsis": media["record"].get("description", ""),
-            }
-            for media in response["results"]
-        ]
-
-        total_results = response["total_hits"]
+        results = [_manga_card(media["record"]) for media in response["results"]]
         data = helpers.format_search_response(
             page,
             per_page,
-            total_results,
+            response["total_hits"],
             results,
         )
-
         cache.set(cache_key, data)
 
     return data
@@ -105,53 +102,38 @@ def search(query, page):
 def browse(category, page):
     """Browse manga on MangaUpdates by category."""
     cache_key = f"browse_{Sources.MANGAUPDATES.value}_{category}_{page}"
-    data = cache.get(cache_key)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
-    if data is None:
-        url = f"{base_url}/series/search"
-        per_page = 24
-        params = {
-            "search": "",
-            "perpage": per_page,
-            "page": page,
-        }
+    per_page = 24
+    params = {"search": "", "perpage": per_page, "page": page}
+    orderby = _BROWSE_ORDERBY.get(category)
+    if orderby:
+        params["orderby"] = orderby
+    if not settings.MAL_NSFW:
+        params["exclude_genre"] = _NSFW_EXCLUDE_GENRES
 
-        if category == "releases":
-            params["orderby"] = "year"
-        elif category == "rating":
-            params["orderby"] = "rating"
+    try:
+        response = services.api_request(
+            Sources.MANGAUPDATES.value,
+            "POST",
+            f"{base_url}/series/search",
+            params=params,
+        )
+    except requests.exceptions.HTTPError as error:
+        response = handle_error(error)
+        if response is None:
+            return helpers.format_search_response(page, per_page, 0, [])
 
-        if not settings.MAL_NSFW:
-            params["exclude_genre"] = ["Adult", "Hentai", "Doujinshi"]
-
-        try:
-            response = services.api_request(
-                Sources.MANGAUPDATES.value,
-                "POST",
-                url,
-                params=params,
-            )
-        except requests.exceptions.HTTPError as error:
-            response = handle_error(error)
-            if response is None:
-                return helpers.format_search_response(page, per_page, 0, [])
-
-        results = [
-            {
-                "media_id": media["record"]["series_id"],
-                "source": Sources.MANGAUPDATES.value,
-                "media_type": MediaTypes.MANGA.value,
-                "title": media["record"]["title"],
-                "image": get_image_url(media["record"]),
-                "synopsis": media["record"].get("description", ""),
-            }
-            for media in response.get("results", [])
-        ]
-
-        total_results = response.get("total_hits", 0)
-        data = helpers.format_search_response(page, per_page, total_results, results)
-        cache.set(cache_key, data)
-
+    results = [_manga_card(media["record"]) for media in response.get("results", [])]
+    data = helpers.format_search_response(
+        page,
+        per_page,
+        response.get("total_hits", 0),
+        results,
+    )
+    cache.set(cache_key, data)
     return data
 
 
@@ -163,52 +145,75 @@ def manga(media_id):
 async def async_manga(media_id):
     """Asynchronous implementation of manga metadata retrieval."""
     cache_key = f"{Sources.MANGAUPDATES.value}_{MediaTypes.MANGA.value}_{media_id}"
-    data = cache.get(cache_key)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
-    if data is None:
-        url = f"{base_url}/series/{media_id}"
-
-        try:
-            response = services.api_request(Sources.MANGAUPDATES.value, "GET", url)
-        except requests.exceptions.HTTPError as error:
-            handle_error(error)
-
-        # Run related_manga and recommendations concurrently
-        related_task = asyncio.create_task(
-            get_related_series(response["related_series"]),
+    try:
+        response = services.api_request(
+            Sources.MANGAUPDATES.value,
+            "GET",
+            f"{base_url}/series/{media_id}",
         )
-        recommendations_task = asyncio.create_task(
-            get_recommendations(response["recommendations"]),
-        )
+    except requests.exceptions.HTTPError as error:
+        handle_error(error)
 
-        data = {
-            "media_id": media_id,
-            "source": Sources.MANGAUPDATES.value,
-            "source_url": response["url"],
-            "media_type": MediaTypes.MANGA.value,
-            "title": response["title"],
-            "image": get_image_url(response),
-            "synopsis": response["description"],
-            "max_progress": get_max_progress(response),
-            "genres": get_genres(response["genres"]),
-            "score": get_score(response["bayesian_rating"]),
-            "score_count": response["rating_votes"],
-            "details": {
-                "format": response["type"],
-                "authors": get_authors(response["authors"]),
-                "year": response["year"],
-                "status_in_country_of_origin": get_status(response["status"]),
-                "latest_chapter_translated": response["latest_chapter"],
-            },
-            "related": {
-                "related_manga": await related_task,
-                "recommendations": await recommendations_task,
-            },
-        }
+    related_task = asyncio.create_task(
+        _fetch_series_concurrently(
+            response["related_series"],
+            "related_series_name",
+            "related_series_id",
+        ),
+    )
+    recs_task = asyncio.create_task(
+        _fetch_series_concurrently(
+            response["recommendations"],
+            "series_name",
+            "series_id",
+        ),
+    )
 
-        cache.set(cache_key, data)
-
+    data = _assemble_manga_metadata(media_id, response)
+    data["related"] = {
+        "related_manga": await related_task,
+        "recommendations": await recs_task,
+    }
+    cache.set(cache_key, data)
     return data
+
+
+def _assemble_manga_metadata(media_id, response):
+    """Build the top-level manga metadata dict (related sub-dict added by caller)."""
+    data = {"media_id": media_id, "source": Sources.MANGAUPDATES.value}
+    data["source_url"] = response["url"]
+    data["media_type"] = MediaTypes.MANGA.value
+    data["title"] = response["title"]
+    data["image"] = get_image_url(response)
+    data["synopsis"] = response["description"]
+    data["max_progress"] = get_max_progress(response)
+    data["genres"] = get_genres(response["genres"])
+    data["score"] = get_score(response["bayesian_rating"])
+    data["score_count"] = response["rating_votes"]
+    data["details"] = {
+        "format": response["type"],
+        "authors": get_authors(response["authors"]),
+        "year": response["year"],
+        "status_in_country_of_origin": get_status(response["status"]),
+        "latest_chapter_translated": response["latest_chapter"],
+    }
+    return data
+
+
+async def _fetch_series_concurrently(items, name_field, id_field):
+    """Concurrently fetch related/recommended series via fetch_series_data."""
+    async with aiohttp.ClientSession() as session:
+        tasks = [
+            fetch_series_data(session, f"{base_url}/series/{item[id_field]}", item)
+            for item in items
+            if item[name_field]
+        ]
+        results = await asyncio.gather(*tasks)
+    return [item for item in results if item is not None]
 
 
 def get_image_url(response):
@@ -257,34 +262,6 @@ def get_score(score):
     if score:
         return round(score, 1)
     return None
-
-
-async def get_related_series(related):
-    """Return list of related media for the selected media asynchronously."""
-    async with aiohttp.ClientSession() as session:
-        tasks = [
-            fetch_series_data(
-                session,
-                f"{base_url}/series/{item['related_series_id']}",
-                item,
-            )
-            for item in related
-            if item["related_series_name"]
-        ]
-        results = await asyncio.gather(*tasks)
-    return [item for item in results if item is not None]
-
-
-async def get_recommendations(recommendations):
-    """Return list of recommended media for the selected media asynchronously."""
-    async with aiohttp.ClientSession() as session:
-        tasks = [
-            fetch_series_data(session, f"{base_url}/series/{item['series_id']}", item)
-            for item in recommendations
-            if item["series_name"]
-        ]
-        results = await asyncio.gather(*tasks)
-    return [item for item in results if item is not None]
 
 
 async def fetch_series_data(session, url, item):

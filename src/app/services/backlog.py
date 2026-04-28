@@ -346,25 +346,29 @@ def count_archive(user):
     if cached is not None:
         return cached
 
-    count = 0
-    for media_type in user.get_active_media_types():
-        model = apps.get_model(app_label="app", model_name=media_type)
-        statuses = (
-            model.objects.filter(user=user)
-            .annotate(
-                row_number=Window(
-                    expression=RowNumber(),
-                    partition_by=[F("item")],
-                    order_by=F("created_at").desc(),
-                )
-            )
-            .filter(row_number=1)
-            .values_list("status", flat=True)
-        )
-        count += sum(1 for s in statuses if s == Status.COMPLETED.value)
-
+    count = sum(
+        _count_completed_for_type(user, mt) for mt in user.get_active_media_types()
+    )
     cache.set(cache_key, count, timeout=ARCHIVE_COUNT_TIMEOUT)
     return count
+
+
+def _count_completed_for_type(user, media_type):
+    """Count items for a single media type whose latest row is COMPLETED."""
+    model = apps.get_model(app_label="app", model_name=media_type)
+    statuses = (
+        model.objects.filter(user=user)
+        .annotate(
+            row_number=Window(
+                expression=RowNumber(),
+                partition_by=[F("item")],
+                order_by=F("created_at").desc(),
+            )
+        )
+        .filter(row_number=1)
+        .values_list("status", flat=True)
+    )
+    return sum(1 for s in statuses if s == Status.COMPLETED.value)
 
 
 def invalidate_archive_count(user):

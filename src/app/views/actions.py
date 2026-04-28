@@ -13,9 +13,15 @@ from app.forms import get_form_class
 from app.helpers import get_media_model, resolve_item
 from app.link_providers import tasks as link_tasks
 from app.mixins import disable_fetch_releases
-from app.models import BasicMedia, Item, Status
+from app.models import BasicMedia, Status
 from app.providers import services
 from app.services import backlog, recent
+from app.views._backlog_save import commit_backlog_form
+from app.views._rewatch import (
+    create_rewatch_instance,
+    find_rewatch_instance,
+    resolve_rewatch_item,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,28 +101,20 @@ def quick_rewatch(request):
     item_data = {"media_id": media_id, "source": source, "media_type": media_type}
 
     active = [Status.IN_PROGRESS.value, Status.PLANNING.value, Status.PAUSED.value]
-    existing_active = (
-        BasicMedia.objects.filter_media(
-            request.user, media_id, media_type, source, season_number=season_number
-        )
-        .filter(status__in=active)
-        .select_related("item")
-        .first()
+    existing_active = find_rewatch_instance(
+        request.user,
+        media_id,
+        media_type,
+        source,
+        season_number,
+        active,
     )
     if existing_active:
         item_data["title"] = existing_active.item.title
         return _render_search_action(request, item_data, existing_active)
 
-    kwargs = {"media_id": media_id, "source": source, "media_type": media_type}
-    if season_number:
-        kwargs["season_number"] = season_number
-    item = Item.objects.get(**kwargs)
-
-    model = get_media_model(media_type)
-    instance = model.objects.create(
-        item=item, user=request.user, status=Status.PLANNING.value, is_rewatch=True
-    )
-    link_tasks.generate_link.delay(instance.pk, media_type)
+    item = resolve_rewatch_item(media_id, source, media_type, season_number)
+    instance = create_rewatch_instance(item, request.user, media_type)
 
     if source_context == "archive":
         response = render(
@@ -127,13 +125,13 @@ def quick_rewatch(request):
         response["HX-Refresh"] = "true"
         return response
 
-    completed_instance = (
-        BasicMedia.objects.filter_media(
-            request.user, media_id, media_type, source, season_number=season_number
-        )
-        .filter(status__in=[Status.COMPLETED.value, Status.DROPPED.value])
-        .select_related("item")
-        .first()
+    completed_instance = find_rewatch_instance(
+        request.user,
+        media_id,
+        media_type,
+        source,
+        season_number,
+        [Status.COMPLETED.value, Status.DROPPED.value],
     )
 
     item_data["title"] = item.title
@@ -321,39 +319,26 @@ def backlog_save(request):
     source_context = request.POST.get("source_context")
 
     media = BasicMedia.objects.get_media(request.user, media_type, instance_id)
-
-    old_status = media.status
-    old_is_rewatch = media.is_rewatch
-    old_is_pinned = media.is_pinned
+    pre_save = (media.status, media.is_rewatch, media.is_pinned)
     form = get_form_class(media_type)(request.POST, instance=media)
-
     if not form.is_valid():
         return _render_backlog_form_errors(request, media, source_context, form.errors)
 
-    form.save()
-    if media.status != old_status:
-        backlog.invalidate_archive_count(request.user)
-    is_pinned_submitted = "is_pinned" in request.POST
-    _update_pin_order(request.user, media, old_is_pinned, is_pinned_submitted)
-    logger.info("%s updated from backlog.", form.instance)
-
-    rewatch_cancelled = _check_rewatch_cancelled(
-        request.user, media, media_type, old_is_rewatch
+    rewatch_cancelled, state_changed = commit_backlog_form(
+        request,
+        media,
+        media_type,
+        form,
+        pre_save,
     )
-    if rewatch_cancelled:
-        media.delete()
-
-    state_changed = (
-        media.status != old_status
-        or media.is_rewatch != old_is_rewatch
-        or is_pinned_submitted != old_is_pinned
-    )
-
     if rewatch_cancelled or media.status == Status.DROPPED.value:
         return _build_dropped_response(request, rewatch_cancelled, source_context)
-
     return _render_backlog_save_response(
-        request, media_type, instance_id, source_context, state_changed
+        request,
+        media_type,
+        instance_id,
+        source_context,
+        state_changed,
     )
 
 

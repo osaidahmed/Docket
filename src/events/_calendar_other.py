@@ -1,8 +1,4 @@
-"""Per-item calendar processing for non-TV/anime/comic media types.
-
-Split from calendar_processors.py to keep the main module's per-file
-cyclomatic complexity below threshold.
-"""
+"""Per-item calendar processing for non-TV/anime/comic media types."""
 
 import logging
 

@@ -1,4 +1,4 @@
-"""Pure helpers for the MAL provider, kept separate to respect the file's fn-budget."""
+"""MAL provider helpers."""
 
 from datetime import datetime
 

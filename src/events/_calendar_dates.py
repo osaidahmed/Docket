@@ -1,9 +1,4 @@
-"""Date-parsing helpers for calendar processors.
-
-Lives outside calendar_processors.py to break the circular import between
-calendar_processors and the per-media-type processor modules (e.g.
-_calendar_other) that need date_parser.
-"""
+"""Date-parsing helpers for calendar processors."""
 
 from datetime import datetime
 from zoneinfo import ZoneInfo

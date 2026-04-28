@@ -350,7 +350,10 @@ class AddByLinkAPIFailureTests(TestCase):
         """When provider API raises, the result shows 'API search failed'."""
         response = self.client.post(
             reverse("add_by_link_process"),
-            {"media_type": "anime", "links": "https://hianime.to/watch/one-punch-man-100"},
+            {
+                "media_type": "anime",
+                "links": "https://hianime.to/watch/one-punch-man-100",
+            },
         )
         self.assertEqual(response.context["failed_count"], 1)
         self.assertIn("API search failed", response.context["failed"][0]["reason"])

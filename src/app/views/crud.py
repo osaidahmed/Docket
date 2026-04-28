@@ -8,9 +8,13 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from app import config, helpers
 from app.forms import EpisodeForm, ManualItemForm, get_form_class
-from app.models import BasicMedia, Item, MediaTypes, Season, Sources, Status
+from app.models import BasicMedia, MediaTypes, Status
 from app.providers import services
 from app.services import backlog
+from app.views._crud_handlers import (
+    resolve_or_build_media_instance,
+    resolve_or_create_episode_season,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -139,33 +143,14 @@ def media_save(request):
     season_number = request.POST.get("season_number")
     instance_id = request.POST.get("instance_id")
 
-    if instance_id:
-        instance = BasicMedia.objects.get_media(
-            request.user,
-            media_type,
-            instance_id,
-        )
-    else:
-        metadata = services.get_media_metadata(
-            media_type,
-            media_id,
-            source,
-            [season_number],
-        )
-        item, _ = Item.objects.get_or_create(
-            media_id=media_id,
-            source=source,
-            media_type=media_type,
-            season_number=season_number,
-            defaults={
-                "title": metadata["title"],
-                "english_title": metadata.get("english_title", ""),
-                "image": metadata["image"],
-                "synopsis": metadata.get("synopsis", ""),
-            },
-        )
-        model = helpers.get_media_model(media_type)
-        instance = model(item=item, user=request.user)
+    instance = resolve_or_build_media_instance(
+        request.user,
+        media_type,
+        media_id,
+        source,
+        season_number,
+        instance_id,
+    )
 
     form_class = get_form_class(media_type)
     form = form_class(request.POST, instance=instance)
@@ -219,43 +204,12 @@ def episode_save(request):
         logger.error("Form validation failed: %s", form.errors)
         return HttpResponseBadRequest("Invalid form data")
 
-    try:
-        related_season = Season.objects.get(
-            item__media_id=media_id,
-            item__source=source,
-            item__season_number=season_number,
-            item__episode_number=None,
-            user=request.user,
-        )
-    except Season.DoesNotExist:
-        tv_with_seasons_metadata = services.get_media_metadata(
-            "tv_with_seasons",
-            media_id,
-            source,
-            [season_number],
-        )
-        season_metadata = tv_with_seasons_metadata[f"season/{season_number}"]
-
-        item, _ = Item.objects.get_or_create(
-            media_id=media_id,
-            source=Sources.TMDB.value,
-            media_type=MediaTypes.SEASON.value,
-            season_number=season_number,
-            defaults={
-                "title": tv_with_seasons_metadata["title"],
-                "image": season_metadata["image"],
-            },
-        )
-        related_season = Season.objects.create(
-            item=item,
-            user=request.user,
-            score=None,
-            status=Status.IN_PROGRESS.value,
-            notes="",
-        )
-
-        logger.info("%s did not exist, it was created successfully.", related_season)
-
+    related_season = resolve_or_create_episode_season(
+        request.user,
+        media_id,
+        source,
+        season_number,
+    )
     related_season.watch(episode_number, form.cleaned_data["end_date"])
 
     return helpers.redirect_back(request)

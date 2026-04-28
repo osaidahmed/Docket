@@ -438,33 +438,29 @@ def get_level(count):
 
 def get_filtered_historical_data(start_date, end_date, user):
     """Return [{"date": datetime.date, "count": int}]."""
-    historical_models = BasicMedia.objects.get_historical_models()
     local_tz = timezone.get_current_timezone()
-
     day_buckets = defaultdict(int)
 
-    for model_name in historical_models:
-        model = apps.get_model("app", model_name)
-
-        qs = model.objects.filter(history_user_id=user)
-
-        if start_date:
-            qs = qs.filter(history_date__gte=start_date)
-        if end_date:
-            qs = qs.filter(history_date__lte=end_date)
-
-        # We only need the timestamp, stream results to keep memory usage flat
-        for ts in qs.values_list("history_date", flat=True).iterator(chunk_size=2_000):
-            aware_ts = timezone.localtime(ts, local_tz)
-
-            day_buckets[aware_ts.date()] += 1
+    for ts in _iter_history_timestamps(user, start_date, end_date):
+        day_buckets[timezone.localtime(ts, local_tz).date()] += 1
 
     combined_data = [
         {"date": day, "count": count} for day, count in day_buckets.items()
     ]
-
     logger.info("%s - built historical data (%s rows)", user, len(combined_data))
     return combined_data
+
+
+def _iter_history_timestamps(user, start_date, end_date):
+    """Yield history_date values across all historical models for a user."""
+    for model_name in BasicMedia.objects.get_historical_models():
+        model = apps.get_model("app", model_name)
+        qs = model.objects.filter(history_user_id=user)
+        if start_date:
+            qs = qs.filter(history_date__gte=start_date)
+        if end_date:
+            qs = qs.filter(history_date__lte=end_date)
+        yield from qs.values_list("history_date", flat=True).iterator(chunk_size=2_000)
 
 
 def calculate_day_of_week_stats(date_counts, start_date):

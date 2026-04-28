@@ -27,6 +27,59 @@ def handle_error(error):
     )
 
 
+_SEARCH_FIELDS = "title,key,editions,editions.key,editions.cover_i,editions.title"
+_BROWSE_TRENDING_URL = "https://openlibrary.org/trending/daily.json"
+
+
+def _search_card(doc):
+    """Build a search-result card from a top-edition doc; None if no editions."""
+    editions = doc["editions"]["docs"]
+    if not editions:
+        return None
+    top = editions[0]
+    title = doc["title"]
+    edition_title = top["title"]
+    display_title = f"{edition_title}: {title}" if edition_title != title else title
+    return {
+        "media_id": extract_openlibrary_id(top["key"]),
+        "source": Sources.OPENLIBRARY.value,
+        "media_type": MediaTypes.BOOK.value,
+        "title": display_title,
+        "image": get_image_url(top),
+        "synopsis": "",
+    }
+
+
+def _resolve_browse_media_id(work):
+    """Pick the media_id for a browse work; fall back to the cover edition."""
+    editions = work.get("editions", {}).get("docs", [])
+    if editions:
+        return extract_openlibrary_id(editions[0].get("key", ""))
+    return work.get("cover_edition_key")
+
+
+def _browse_card(work):
+    """Build a browse card from a trending work; None if no resolvable id."""
+    media_id = _resolve_browse_media_id(work)
+    if not media_id:
+        return None
+    return {
+        "media_id": media_id,
+        "source": Sources.OPENLIBRARY.value,
+        "media_type": MediaTypes.BOOK.value,
+        "title": work.get("title", "Unknown"),
+        "image": get_image_url(work),
+        "synopsis": "",
+    }
+
+
+def _estimate_browse_total(results, offset):
+    """Return (total_results, total_exact) for a trending-browse page."""
+    if len(results) == settings.PER_PAGE:
+        return max(offset + settings.PER_PAGE * 5, len(results)), False
+    return offset + len(results), True
+
+
 def search(query, page):
     """Search for books on Open Library."""
     cache_key = (
@@ -35,57 +88,30 @@ def search(query, page):
     data = cache.get(cache_key)
 
     if data is None:
-        params = {
-            "q": query,
-            "fields": "title,key,editions,editions.key,editions.cover_i,editions.title",
-            "limit": settings.PER_PAGE,
-            "page": page,
-        }
-
         try:
             response = services.api_request(
                 Sources.OPENLIBRARY.value,
                 "GET",
                 search_url,
-                params=params,
+                params={
+                    "q": query,
+                    "fields": _SEARCH_FIELDS,
+                    "limit": settings.PER_PAGE,
+                    "page": page,
+                },
             )
         except requests.RequestException as e:
             handle_error(e)
 
-        results = []
-        for doc in response.get("docs", []):
-            if doc["editions"]["docs"] == []:
-                continue
-
-            top_edition = doc["editions"]["docs"][0]
-            media_id = extract_openlibrary_id(top_edition["key"])
-            title = doc["title"]
-            edition_title = top_edition["title"]
-
-            if edition_title != title:
-                result_title = f"{edition_title}: {title}"
-            else:
-                result_title = title
-
-            results.append(
-                {
-                    "media_id": media_id,
-                    "source": Sources.OPENLIBRARY.value,
-                    "media_type": MediaTypes.BOOK.value,
-                    "title": result_title,
-                    "image": get_image_url(top_edition),
-                    "synopsis": "",
-                },
-            )
-
-        total_results = response["numFound"]
+        results = [
+            card for doc in response.get("docs", []) if (card := _search_card(doc))
+        ]
         data = helpers.format_search_response(
             page,
             settings.PER_PAGE,
-            total_results,
+            response["numFound"],
             results,
         )
-
         cache.set(cache_key, data)
     return data
 
@@ -99,53 +125,26 @@ def browse(category, page):
 
     if data is None:
         offset = (page - 1) * settings.PER_PAGE
-        url = "https://openlibrary.org/trending/daily.json"
-        params = {
-            "limit": settings.PER_PAGE,
-            "offset": offset,
-        }
-
         try:
             response = services.api_request(
                 Sources.OPENLIBRARY.value,
                 "GET",
-                url,
-                params=params,
+                _BROWSE_TRENDING_URL,
+                params={"limit": settings.PER_PAGE, "offset": offset},
             )
         except requests.RequestException as e:
             handle_error(e)
 
-        results = []
-        for work in response.get("works", []):
-            editions = work.get("editions", {}).get("docs", [])
-            if editions:
-                media_id = extract_openlibrary_id(editions[0].get("key", ""))
-            else:
-                media_id = work.get("cover_edition_key")
-
-            if not media_id:
-                continue
-
-            results.append(
-                {
-                    "media_id": media_id,
-                    "source": Sources.OPENLIBRARY.value,
-                    "media_type": MediaTypes.BOOK.value,
-                    "title": work.get("title", "Unknown"),
-                    "image": get_image_url(work),
-                    "synopsis": "",
-                }
-            )
-
-        if len(results) == settings.PER_PAGE:
-            total_results = max(offset + settings.PER_PAGE * 5, len(results))
-            total_exact = False
-        else:
-            total_results = offset + len(results)
-            total_exact = True
-
+        results = [
+            card for work in response.get("works", []) if (card := _browse_card(work))
+        ]
+        total_results, total_exact = _estimate_browse_total(results, offset)
         data = helpers.format_search_response(
-            page, settings.PER_PAGE, total_results, results, total_exact=total_exact
+            page,
+            settings.PER_PAGE,
+            total_results,
+            results,
+            total_exact=total_exact,
         )
         cache.set(cache_key, data)
 
@@ -185,50 +184,46 @@ def book(media_id):
     return asyncio.run(async_book(media_id))
 
 
+def _fetch_book_and_work(media_id):
+    """Fetch the book record and (when present) its parent work record."""
+    try:
+        response_book = services.api_request(
+            Sources.OPENLIBRARY.value,
+            "GET",
+            f"https://openlibrary.org/books/{media_id}.json",
+        )
+    except requests.RequestException as e:
+        handle_error(e)
+
+    works = response_book.get("works", [])
+    if not works:
+        return response_book, {}
+
+    work_id = extract_openlibrary_id(works[0]["key"])
+    try:
+        response_work = services.api_request(
+            Sources.OPENLIBRARY.value,
+            "GET",
+            f"https://openlibrary.org/works/{work_id}.json",
+        )
+    except requests.RequestException as e:
+        handle_error(e)
+    return response_book, response_work
+
+
 async def async_book(media_id):
     """Asynchronous implementation of book metadata retrieval."""
     cache_key = f"{Sources.OPENLIBRARY.value}_{MediaTypes.BOOK.value}_{media_id}"
     data = cache.get(cache_key)
 
     if data is None:
-        book_url = f"https://openlibrary.org/books/{media_id}.json"
+        response_book, response_work = _fetch_book_and_work(media_id)
 
-        try:
-            response_book = services.api_request(
-                Sources.OPENLIBRARY.value,
-                "GET",
-                book_url,
-            )
-        except requests.RequestException as e:
-            handle_error(e)
-
-        works = response_book.get("works", [])
-        if works:
-            work = works[0]
-            work_id = extract_openlibrary_id(work["key"])
-            work_url = f"https://openlibrary.org/works/{work_id}.json"
-
-            try:
-                response_work = services.api_request(
-                    Sources.OPENLIBRARY.value,
-                    "GET",
-                    work_url,
-                )
-            except requests.RequestException as e:
-                handle_error(e)
-        else:
-            response_work = {}
-
-        # Run authors, editions, and ratings concurrently
-        authors_task = asyncio.create_task(
-            get_authors(response_work),
-        )
+        authors_task = asyncio.create_task(get_authors(response_work))
         editions_task = asyncio.create_task(
             get_editions(response_book, response_work),
         )
-        ratings_task = asyncio.create_task(
-            get_ratings(response_work),
-        )
+        ratings_task = asyncio.create_task(get_ratings(response_work))
         score, score_count = await ratings_task
 
         data = {
