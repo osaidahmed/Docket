@@ -291,22 +291,20 @@ def get_min_age(item):
     return f"{minage}+" if minage else None
 
 
+def _xml_stat(item, xpath, cast):
+    return services.extract_xml_attr(item, xpath, cast=cast)
+
+
 def get_score(item):
     """Return the average rating."""
-    return services.extract_xml_attr(
-        item,
-        ".//statistics/ratings/average",
-        cast=lambda v: round(float(v), 1),
+    return _xml_stat(
+        item, ".//statistics/ratings/average", lambda v: round(float(v), 1)
     )
 
 
 def get_score_count(item):
     """Return the number of ratings."""
-    return services.extract_xml_attr(
-        item,
-        ".//statistics/ratings/usersrated",
-        cast=int,
-    )
+    return _xml_stat(item, ".//statistics/ratings/usersrated", int)
 
 
 def get_categories(item):
