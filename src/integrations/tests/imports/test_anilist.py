@@ -95,8 +95,19 @@ class ImportAniList(TestCase):
             datetime(2025, 6, 4, 10, 11, 17, tzinfo=UTC),
         )
 
-    def test_user_not_found(self):
+    @patch("requests.Session.post")
+    def test_user_not_found(self, mock_post):
         """Test that an error is raised if the user is not found."""
+        error_response = Mock(spec=requests.Response)
+        error_response.status_code = 404
+        error_response.json.return_value = {
+            "errors": [{"message": "User not found"}],
+        }
+        error_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            response=error_response,
+        )
+        mock_post.return_value = error_response
+
         self.assertRaises(
             helpers.MediaImportError,
             anilist.importer,
