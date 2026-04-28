@@ -30,7 +30,7 @@ class ExploreContext:
     year: int | None = None
     season_name: str | None = None
 
-    def to_template_context(self) -> dict:
+    def to_template_context(self, **extras) -> dict:
         """Render this context object into the dict the explore template expects."""
         ctx = {
             "data": self.data,
@@ -66,6 +66,7 @@ class ExploreContext:
                     "seasons": config.ANIME_SEASONS,
                 }
             )
+        ctx.update(extras)
         return ctx
 
 
@@ -176,15 +177,11 @@ def _apply_hide_watched_anime(request, media_type, data):
 @require_GET
 def explore_type(request, media_type):
     """Browse media of a specific type by category, with optional filters."""
+    routed = _resolve_explore_route(request, media_type)
+    if routed is not None:
+        return routed
     categories = config.get_explore_categories(media_type)
-    if categories is None:
-        return redirect("explore")
-
     has_discover = config.get_discover_sections(media_type) is not None
-    if request.GET.get("view") == "discover" and has_discover:
-        from app.views.discover import render_discover  # noqa: PLC0415
-
-        return render_discover(request, media_type)
 
     params = _parse_explore_params(request, categories)
     filter_definitions = config.get_explore_filters(media_type)
@@ -213,12 +210,6 @@ def explore_type(request, media_type):
             "explore",
         )
 
-    extra_params = _build_extra_params(
-        active_filters,
-        year,
-        season_name,
-        hide_watched_anime,
-    )
     context = ExploreContext(
         data=data,
         media_type=media_type,
@@ -226,24 +217,42 @@ def explore_type(request, media_type):
         category=params["category"],
         layout=params["layout"],
         order=params["order"],
-        extra_params=extra_params,
+        extra_params=_build_extra_params(
+            active_filters,
+            year,
+            season_name,
+            hide_watched_anime,
+        ),
         hide_watched_anime=hide_watched_anime,
         resolved_filters=resolved_filters,
         active_filters=active_filters,
         expanded_filters=expanded_filters,
         year=year,
         season_name=season_name,
-    ).to_template_context()
-    context["has_discover"] = has_discover
-    context["current_view"] = "browse"
-    context["text_color"] = config.get_text_color(media_type)
-
+    ).to_template_context(
+        has_discover=has_discover,
+        current_view="browse",
+        text_color=config.get_text_color(media_type),
+    )
     template = (
         "app/explore_results.html"
         if request.headers.get("HX-Request")
         else "app/explore_type.html"
     )
     return render(request, template, context)
+
+
+def _resolve_explore_route(request, media_type):
+    """Return a redirect/discover response if explore_type should short-circuit."""
+    if config.get_explore_categories(media_type) is None:
+        return redirect("explore")
+    if request.GET.get("view") == "discover" and (
+        config.get_discover_sections(media_type) is not None
+    ):
+        from app.views.discover import render_discover  # noqa: PLC0415
+
+        return render_discover(request, media_type)
+    return None
 
 
 def _parse_explore_params(request, categories):
