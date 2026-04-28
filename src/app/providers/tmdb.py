@@ -119,18 +119,11 @@ def search_multi(query, limit=5):
     """Search TMDB for TV and movie results using the multi endpoint."""
     cache_key = f"suggest_{Sources.TMDB.value}_multi_{query}_{limit}"
     data = cache.get(cache_key)
-
     if data is None:
         url = f"{base_url}/search/multi"
-        params = {
-            **base_params,
-            "query": query,
-            "page": 1,
-        }
-
+        params = {**base_params, "query": query, "page": 1}
         if settings.TMDB_NSFW:
             params["include_adult"] = "true"
-
         try:
             response = services.api_request(
                 Sources.TMDB.value,
@@ -140,7 +133,6 @@ def search_multi(query, limit=5):
             )
         except requests.exceptions.HTTPError as error:
             handle_error(error)
-
         filtered = [
             {
                 "media_id": media["id"],
@@ -154,20 +146,7 @@ def search_multi(query, limit=5):
         ]
         data = filtered[:limit]
         cache.set(cache_key, data)
-
     return data
-
-
-_BROWSE_ENDPOINT_MAP = {
-    ("tv", "trending"): "/trending/tv/week",
-    ("tv", "popular"): "/tv/popular",
-    ("tv", "top_rated"): "/tv/top_rated",
-    ("tv", "on_the_air"): "/tv/on_the_air",
-    ("movie", "trending"): "/trending/movie/week",
-    ("movie", "popular"): "/movie/popular",
-    ("movie", "top_rated"): "/movie/top_rated",
-    ("movie", "now_playing"): "/movie/now_playing",
-}
 
 
 def get_backdrop_url(path):
@@ -190,152 +169,6 @@ def _format_browse_result(media, media_type, *, include_backdrop=False):
     if include_backdrop:
         result["backdrop"] = get_backdrop_url(media.get("backdrop_path"))
     return result
-
-
-def _browse_tmdb(
-    media_type,
-    category,
-    page,
-    *,
-    include_backdrop=False,
-    cache_prefix="browse",
-    cache_timeout=None,
-):
-    """Core TMDB browse logic shared by browse() and browse_for_discover()."""
-    cache_key = f"{cache_prefix}_{Sources.TMDB.value}_{media_type}_{category}_{page}"
-    data = cache.get(cache_key)
-
-    if data is None:
-        endpoint = _BROWSE_ENDPOINT_MAP.get((media_type, category))
-        url = f"{base_url}{endpoint}"
-        params = {**base_params, "page": page}
-
-        try:
-            response = services.api_request(
-                Sources.TMDB.value,
-                "GET",
-                url,
-                params=params,
-            )
-        except requests.exceptions.HTTPError as error:
-            handle_error(error)
-
-        results = [
-            _format_browse_result(m, media_type, include_backdrop=include_backdrop)
-            for m in response["results"]
-        ]
-
-        data = helpers.format_search_response(
-            page,
-            20,
-            response["total_results"],
-            results,
-            max_pages=500,
-        )
-        cache.set(cache_key, data, timeout=cache_timeout)
-
-    return data
-
-
-def browse(media_type, category, page):
-    """Browse media on TMDB by category."""
-    return _browse_tmdb(media_type, category, page)
-
-
-def browse_for_discover(media_type, category, page):
-    """Browse media for discover page, including backdrop images."""
-    return _browse_tmdb(
-        media_type,
-        category,
-        page,
-        include_backdrop=True,
-        cache_prefix="discover",
-        cache_timeout=60 * 60 * 6,
-    )
-
-
-def discover(media_type, filters, page):
-    """Browse media using TMDB discover endpoint with filters."""
-    filter_hash = _build_discover_filter_hash(media_type, filters)
-    cache_key = f"discover_{Sources.TMDB.value}_{media_type}_{filter_hash}_{page}"
-    data = cache.get(cache_key)
-
-    if data is None:
-        url = f"{base_url}/discover/{media_type}"
-        params = _build_discover_params(media_type, filters, page)
-
-        try:
-            response = services.api_request(
-                Sources.TMDB.value, "GET", url, params=params
-            )
-        except requests.exceptions.HTTPError as error:
-            handle_error(error)
-
-        results = [
-            {
-                "media_id": media["id"],
-                "source": Sources.TMDB.value,
-                "media_type": media_type,
-                "title": get_title(media),
-                "image": get_image_url(media.get("poster_path")),
-                "synopsis": media.get("overview", ""),
-            }
-            for media in response["results"]
-        ]
-
-        data = helpers.format_search_response(
-            page, 20, response["total_results"], results, max_pages=500
-        )
-        cache.set(cache_key, data)
-
-    return data
-
-
-def _build_discover_params(media_type, filters, page):
-    params = {**base_params, "page": page}
-    if settings.TMDB_NSFW:
-        params["include_adult"] = "true"
-    sort_by = filters.get("sort_by", "popularity")
-    order = filters.get("order", "desc")
-    params["sort_by"] = f"{sort_by}.{order}"
-    if filters.get("genres"):
-        params["with_genres"] = filters["genres"]
-    if filters.get("year"):
-        year_key = (
-            "primary_release_year"
-            if media_type == MediaTypes.MOVIE.value
-            else "first_air_date_year"
-        )
-        params[year_key] = filters["year"]
-    if filters.get("min_score"):
-        params["vote_average.gte"] = filters["min_score"]
-        params["vote_count.gte"] = 50
-    return params
-
-
-def get_genre_list(media_type):
-    """Fetch the genre list from TMDB for a given media type."""
-    cache_key = f"tmdb_{media_type}_genres"
-    data = cache.get(cache_key)
-
-    if data is None:
-        url = f"{base_url}/genre/{media_type}/list"
-        try:
-            response = services.api_request(
-                Sources.TMDB.value, "GET", url, params=base_params
-            )
-        except requests.exceptions.HTTPError as error:
-            handle_error(error)
-
-        data = [{"id": g["id"], "name": g["name"]} for g in response.get("genres", [])]
-        cache.set(cache_key, data, timeout=60 * 60 * 24 * 7)
-
-    return data
-
-
-def _build_discover_filter_hash(media_type, filters):
-    parts = [media_type, *[f"{k}={filters[k]}" for k in sorted(filters) if filters[k]]]
-    return "_".join(parts) if len(parts) > 1 else "nofilter"
 
 
 def find(external_id, external_source):
@@ -371,60 +204,60 @@ def movie(media_id):
     """Return the metadata for the selected movie from The Movie Database."""
     cache_key = f"{Sources.TMDB.value}_{MediaTypes.MOVIE.value}_{media_id}"
     data = cache.get(cache_key)
-
     if data is None:
         url = f"{base_url}/movie/{media_id}"
         params = {
             **base_params,
             "append_to_response": "recommendations,external_ids,credits",
         }
-
         try:
             response = services.api_request(
                 Sources.TMDB.value, "GET", url, params=params
             )
         except requests.exceptions.HTTPError as error:
             handle_error(error)
-
-        collection_response = _fetch_movie_collection(response)
-        collection_items = get_collection(collection_response)
-        collection_ids = {item["media_id"] for item in collection_items}
-        recommended_items = response.get("recommendations", {}).get("results", [])
-
-        data = {
-            "media_id": media_id,
-            "source": Sources.TMDB.value,
-            "source_url": f"https://www.themoviedb.org/movie/{media_id}",
-            "media_type": MediaTypes.MOVIE.value,
-            "title": response["title"],
-            "max_progress": 1,
-            "image": get_image_url(response["poster_path"]),
-            "synopsis": response["overview"] or "No synopsis available.",
-            "genres": get_genres(response["genres"]),
-            "score": get_score(response["vote_average"]),
-            "score_count": response["vote_count"],
-            "details": {
-                "format": "Movie",
-                "release_date": response["release_date"] or None,
-                "status": response["status"],
-                "runtime": get_readable_duration(response["runtime"]),
-                "studios": get_companies(response["production_companies"]),
-                "country": get_country(response["production_countries"]),
-                "languages": get_languages(response["spoken_languages"]),
-            },
-            "cast": _build_cast_list(response.get("credits", {})),
-            "related": {
-                collection_response.get("name", "collection"): collection_items,
-                "recommendations": get_related(
-                    [r for r in recommended_items if r["id"] not in collection_ids],
-                    MediaTypes.MOVIE.value,
-                ),
-            },
-            "external_links": get_external_links(response.get("external_ids", {})),
-        }
-
+        data = _build_movie_metadata(media_id, response)
         cache.set(cache_key, data)
+    return data
 
+
+def _build_movie_metadata(media_id, response):
+    """Assemble the cached metadata dict for a TMDB movie response."""
+    collection_response = _fetch_movie_collection(response)
+    collection_items = get_collection(collection_response)
+    collection_ids = {item["media_id"] for item in collection_items}
+    recommended_items = response.get("recommendations", {}).get("results", [])
+    data = {
+        "media_id": media_id,
+        "source": Sources.TMDB.value,
+        "source_url": f"https://www.themoviedb.org/movie/{media_id}",
+        "media_type": MediaTypes.MOVIE.value,
+        "title": response["title"],
+        "max_progress": 1,
+        "image": get_image_url(response["poster_path"]),
+        "synopsis": response["overview"] or "No synopsis available.",
+        "genres": get_genres(response["genres"]),
+        "score": get_score(response["vote_average"]),
+        "score_count": response["vote_count"],
+        "details": {
+            "format": "Movie",
+            "release_date": response["release_date"] or None,
+            "status": response["status"],
+            "runtime": get_readable_duration(response["runtime"]),
+            "studios": get_companies(response["production_companies"]),
+            "country": get_country(response["production_countries"]),
+            "languages": get_languages(response["spoken_languages"]),
+        },
+        "cast": _build_cast_list(response.get("credits", {})),
+        "external_links": get_external_links(response.get("external_ids", {})),
+    }
+    data["related"] = {
+        collection_response.get("name", "collection"): collection_items,
+        "recommendations": get_related(
+            [r for r in recommended_items if r["id"] not in collection_ids],
+            MediaTypes.MOVIE.value,
+        ),
+    }
     return data
 
 
@@ -574,28 +407,18 @@ def tv_with_seasons(media_id, season_numbers):
 def tv(media_id):
     """Return the metadata for the selected tv show from The Movie Database."""
     cache_key = f"{Sources.TMDB.value}_{MediaTypes.TV.value}_{media_id}"
-    data = cache.get(cache_key)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
-    if data is None:
-        url = f"{base_url}/tv/{media_id}"
-        params = {
-            **base_params,
-            "append_to_response": "recommendations,external_ids",
-        }
-
-        try:
-            response = services.api_request(
-                Sources.TMDB.value,
-                "GET",
-                url,
-                params=params,
-            )
-        except requests.exceptions.HTTPError as error:
-            handle_error(error)
-
-        data = process_tv(response)
-        cache.set(cache_key, data)
-
+    url = f"{base_url}/tv/{media_id}"
+    params = {**base_params, "append_to_response": "recommendations,external_ids"}
+    try:
+        response = services.api_request(Sources.TMDB.value, "GET", url, params=params)
+    except requests.exceptions.HTTPError as error:
+        handle_error(error)
+    data = process_tv(response)
+    cache.set(cache_key, data)
     return data
 
 
@@ -616,22 +439,7 @@ def process_tv(response):
         "genres": get_genres(response["genres"]),
         "score": get_score(response["vote_average"]),
         "score_count": response["vote_count"],
-        "details": {
-            "format": "TV",
-            "first_air_date": response["first_air_date"] or None,
-            "last_air_date": response["last_air_date"],
-            "status": response["status"],
-            "seasons": response["number_of_seasons"],
-            "episodes": num_episodes,
-            "runtime": (
-                get_readable_duration(response["episode_run_time"][0])
-                if response["episode_run_time"]
-                else None
-            ),
-            "studios": get_companies(response["production_companies"]),
-            "country": get_country(response["production_countries"]),
-            "languages": get_languages(response["spoken_languages"]),
-        },
+        "details": _build_tv_details(response, num_episodes),
         "related": {
             "seasons": get_related(
                 response["seasons"],
@@ -650,31 +458,34 @@ def process_tv(response):
     }
 
 
+def _build_tv_details(response, num_episodes):
+    """Build the 'details' subdict for process_tv."""
+    return {
+        "format": "TV",
+        "first_air_date": response["first_air_date"] or None,
+        "last_air_date": response["last_air_date"],
+        "status": response["status"],
+        "seasons": response["number_of_seasons"],
+        "episodes": num_episodes,
+        "runtime": (
+            get_readable_duration(response["episode_run_time"][0])
+            if response["episode_run_time"]
+            else None
+        ),
+        "studios": get_companies(response["production_companies"]),
+        "country": get_country(response["production_countries"]),
+        "languages": get_languages(response["spoken_languages"]),
+    }
+
+
 def process_season(response):
     """Process the metadata for the selected season from The Movie Database."""
     episodes = response["episodes"]
-    num_episodes = len(episodes)
-
-    runtimes = []
-    total_runtime = 0
-    score_count = 0
-
-    for episode in episodes:
-        if episode["runtime"] is not None:
-            runtimes.append(episode["runtime"])
-            total_runtime += episode["runtime"]
-        score_count += episode["vote_count"]
-
-    avg_runtime = (
-        get_readable_duration(sum(runtimes) / len(runtimes)) if runtimes else None
-    )
-    total_runtime = get_readable_duration(total_runtime) if total_runtime else None
-
+    avg_runtime, total_runtime, score_count = _aggregate_episode_stats(episodes)
     today_str = datetime.now(tz=UTC).date().isoformat()
     aired_episodes = [
         ep for ep in episodes if ep.get("air_date") and ep["air_date"] <= today_str
     ]
-
     return {
         "source": Sources.TMDB.value,
         "media_type": MediaTypes.SEASON.value,
@@ -690,12 +501,29 @@ def process_season(response):
             "last_air_date": (
                 response["episodes"][-1]["air_date"] if response["episodes"] else None
             ),
-            "episodes": num_episodes,
+            "episodes": len(episodes),
             "runtime": avg_runtime,
             "total_runtime": total_runtime,
         },
         "episodes": response["episodes"],
     }
+
+
+def _aggregate_episode_stats(episodes):
+    """Return (avg_runtime, total_runtime, score_count) across episodes."""
+    runtimes = []
+    total_runtime = 0
+    score_count = 0
+    for ep in episodes:
+        if ep["runtime"] is not None:
+            runtimes.append(ep["runtime"])
+            total_runtime += ep["runtime"]
+        score_count += ep["vote_count"]
+    avg_runtime = (
+        get_readable_duration(sum(runtimes) / len(runtimes)) if runtimes else None
+    )
+    total_runtime = get_readable_duration(total_runtime) if total_runtime else None
+    return avg_runtime, total_runtime, score_count
 
 
 def get_image_url(path):
@@ -810,75 +638,16 @@ def get_collection(collection_response):
     ]
 
 
-def process_episodes(season_metadata, episodes_in_db):
-    """Process the episodes for the selected season."""
-    episodes_metadata = []
-
-    # Convert the queryset to a dictionary for efficient lookups
-    tracked_episodes = {}
-    for ep in episodes_in_db:
-        episode_number = ep.item.episode_number
-        if episode_number not in tracked_episodes:
-            tracked_episodes[episode_number] = []
-        tracked_episodes[episode_number].append(ep)
-
-    for episode in season_metadata["episodes"]:
-        episode_number = episode["episode_number"]
-
-        episodes_metadata.append(
-            {
-                "media_id": season_metadata["media_id"],
-                "media_type": MediaTypes.EPISODE.value,
-                "source": Sources.TMDB.value,
-                "season_number": season_metadata["season_number"],
-                "episode_number": episode_number,
-                "air_date": episode["air_date"],  # when unknown, response returns null
-                "image": get_image_url(episode["still_path"]),
-                "title": episode["name"],
-                "overview": episode["overview"],
-                "history": tracked_episodes.get(episode_number, []),
-                "runtime": get_readable_duration(episode["runtime"]),
-            },
-        )
-    return episodes_metadata
-
-
-def find_next_episode(episode_number, episodes_metadata):
-    """Find the next episode number."""
-    # Find the current episode in the sorted list
-    current_episode_index = None
-    for index, episode in enumerate(episodes_metadata):
-        if episode["episode_number"] == episode_number:
-            current_episode_index = index
-            break
-
-    # If episode not found or it's the last episode, return None
-    if current_episode_index is None or current_episode_index + 1 >= len(
-        episodes_metadata,
-    ):
-        return None
-
-    # Return the next episode number
-    return episodes_metadata[current_episode_index + 1]["episode_number"]
-
-
-def episode(media_id, season_number, episode_number):
-    """Return the metadata for the selected episode from The Movie Database."""
-    tv_metadata = tv_with_seasons(media_id, [season_number])
-    season_metadata = tv_metadata[f"season/{season_number}"]
-
-    for episode in season_metadata["episodes"]:
-        if episode["episode_number"] == int(episode_number):
-            return {
-                "title": season_metadata["title"],
-                "season_title": season_metadata["season_title"],
-                "episode_title": episode["name"],
-                "image": get_image_url(episode["still_path"]),
-            }
-
-    # Episode not found - throw ProviderAPIError
-    msg = (
-        f"Episode {episode_number} not found in season {season_number} "
-        f"for {Sources.TMDB.label} with ID {media_id}"
-    )
-    raise services.ProviderAPIError(Sources.TMDB.value, 404, msg)
+from app.providers._tmdb_browse import (  # noqa: E402, F401
+    _build_discover_filter_hash,
+    _build_discover_params,
+    browse,
+    browse_for_discover,
+    discover,
+    get_genre_list,
+)
+from app.providers._tmdb_episodes import (  # noqa: E402, F401
+    episode,
+    find_next_episode,
+    process_episodes,
+)
