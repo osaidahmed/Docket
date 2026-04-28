@@ -527,12 +527,13 @@ def get_start_date(response):
     """Return the start date of the game."""
     # when no release date, first_release_date is not present in the response
     # e.g game: 210710
-    ts = response.get("first_release_date")
-    if ts is None:
+    try:
+        return timezone.datetime.fromtimestamp(
+            response["first_release_date"],
+            tz=timezone.get_current_timezone(),
+        ).strftime("%Y-%m-%d")
+    except KeyError:
         return None
-    return timezone.datetime.fromtimestamp(
-        ts, tz=timezone.get_current_timezone()
-    ).strftime("%Y-%m-%d")
 
 
 def get_list(response, field):
@@ -548,11 +549,10 @@ def get_companies(response):
     """Return the companies involved in the game."""
     # when no companies, involved_companies is not present in the response
     # e.g game: 238417
-    return _safe_extract(
-        response,
-        "involved_companies",
-        lambda cs: ", ".join(c["company"]["name"] for c in cs),
-    )
+    companies = response.get("involved_companies")
+    if companies is None:
+        return None
+    return ", ".join(c["company"]["name"] for c in companies)
 
 
 def get_score(response):
