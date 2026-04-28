@@ -292,19 +292,31 @@ def create_entry(request):
         helpers.form_error_messages(form, request)
         return redirect("create_entry")
 
-    try:
-        item = form.save()
-    except IntegrityError:
-        media_name = form.cleaned_data["title"]
-        if form.cleaned_data.get("season_number"):
-            media_name += f" - Season {form.cleaned_data['season_number']}"
-        if form.cleaned_data.get("episode_number"):
-            media_name += f" - Episode {form.cleaned_data['episode_number']}"
-
-        logger.exception("%s already exists in the database.", media_name)
-        messages.error(request, f"{media_name} already exists in the database.")
+    item = _save_manual_item(form, request)
+    if item is None:
         return redirect("create_entry")
 
+    return _save_manual_media_form(item, form, request)
+
+
+def _save_manual_item(form, request):
+    """Persist a ManualItemForm; return the Item or None on duplicate-name."""
+    try:
+        return form.save()
+    except IntegrityError:
+        cleaned = form.cleaned_data
+        media_name = cleaned["title"]
+        if cleaned.get("season_number"):
+            media_name += f" - Season {cleaned['season_number']}"
+        if cleaned.get("episode_number"):
+            media_name += f" - Episode {cleaned['episode_number']}"
+        logger.exception("%s already exists in the database.", media_name)
+        messages.error(request, f"{media_name} already exists in the database.")
+        return None
+
+
+def _save_manual_media_form(item, parent_form, request):
+    """Validate and save the media-specific form for a manually created item."""
     updated_request = request.POST.copy()
     updated_request.update({"source": item.source, "media_id": item.media_id})
     media_form = get_form_class(item.media_type)(updated_request)
@@ -312,18 +324,16 @@ def create_entry(request):
     if not media_form.is_valid():
         logger.error(media_form.errors.as_json())
         helpers.form_error_messages(media_form, request)
-
         item.delete()
         logger.info("%s was deleted due to media form validation failure", item)
         return redirect("create_entry")
 
     media_form.instance.user = request.user
     media_form.instance.item = item
-    _assign_parent_relationship(media_form, item, form)
+    _assign_parent_relationship(media_form, item, parent_form)
     media_form.save()
 
     msg = f"{item} added successfully."
     messages.success(request, msg)
     logger.info(msg)
-
     return redirect("create_entry")
