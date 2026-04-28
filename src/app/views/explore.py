@@ -186,20 +186,11 @@ def explore_type(request, media_type):
 
         return render_discover(request, media_type)
 
-    category = request.GET.get("category", categories[0]["slug"])
-    page = int(request.GET.get("page", 1))
-    layout = request.GET.get("layout", "list")
-    order = request.GET.get("order", "desc")
-
-    valid_slugs = {c["slug"] for c in categories}
-    if category not in valid_slugs:
-        category = categories[0]["slug"]
-
+    params = _parse_explore_params(request, categories)
     filter_definitions = config.get_explore_filters(media_type)
     active_filters = _extract_active_filters(request, filter_definitions)
-
     if active_filters.get("sort_by"):
-        active_filters["order"] = order
+        active_filters["order"] = params["order"]
 
     resolved_filters = (
         _resolve_filter_options(filter_definitions) if filter_definitions else None
@@ -207,28 +198,34 @@ def explore_type(request, media_type):
     expanded_filters = _get_expanded_filters(resolved_filters, active_filters)
 
     data, year, season_name = _fetch_browse_data(
-        request, media_type, category, active_filters, page
+        request,
+        media_type,
+        params["category"],
+        active_filters,
+        params["page"],
     )
-
-    _annotate_tmdb_airing(data, media_type, category)
+    _annotate_tmdb_airing(data, media_type, params["category"])
     hide_watched_anime = _apply_hide_watched_anime(request, media_type, data)
-
     if data.get("results"):
         data["results"] = helpers.enrich_items_with_user_data(
-            request, data["results"], "explore"
+            request,
+            data["results"],
+            "explore",
         )
 
     extra_params = _build_extra_params(
-        active_filters, year, season_name, hide_watched_anime
+        active_filters,
+        year,
+        season_name,
+        hide_watched_anime,
     )
-
     context = ExploreContext(
         data=data,
         media_type=media_type,
         categories=categories,
-        category=category,
-        layout=layout,
-        order=order,
+        category=params["category"],
+        layout=params["layout"],
+        order=params["order"],
         extra_params=extra_params,
         hide_watched_anime=hide_watched_anime,
         resolved_filters=resolved_filters,
@@ -237,14 +234,29 @@ def explore_type(request, media_type):
         year=year,
         season_name=season_name,
     ).to_template_context()
-
     context["has_discover"] = has_discover
     context["current_view"] = "browse"
     context["text_color"] = config.get_text_color(media_type)
 
-    if request.headers.get("HX-Request"):
-        return render(request, "app/explore_results.html", context)
-    return render(request, "app/explore_type.html", context)
+    template = (
+        "app/explore_results.html"
+        if request.headers.get("HX-Request")
+        else "app/explore_type.html"
+    )
+    return render(request, template, context)
+
+
+def _parse_explore_params(request, categories):
+    """Extract category/page/layout/order GET params, defaulting to first category."""
+    category = request.GET.get("category", categories[0]["slug"])
+    if category not in {c["slug"] for c in categories}:
+        category = categories[0]["slug"]
+    return {
+        "category": category,
+        "page": int(request.GET.get("page", 1)),
+        "layout": request.GET.get("layout", "list"),
+        "order": request.GET.get("order", "desc"),
+    }
 
 
 VISIBLE_CHIP_COUNT = 12
@@ -254,22 +266,27 @@ def _get_expanded_filters(resolved_filters, active_filters):
     """Return set of filter keys that should start with chips expanded."""
     if not resolved_filters or not active_filters:
         return set()
-    expanded = set()
-    for f in resolved_filters:
-        if f.get("type") != "multi_select":
-            continue
-        selected = set(active_filters.get(f["key"], "").split(","))
-        selected.discard("")
-        if not selected:
-            continue
-        overflow_values = {
-            o["value"]
-            for i, o in enumerate(f.get("options", []))
-            if i >= VISIBLE_CHIP_COUNT
-        }
-        if selected & overflow_values:
-            expanded.add(f["key"])
-    return expanded
+    return {
+        f["key"]
+        for f in resolved_filters
+        if _filter_has_overflow_selection(f, active_filters)
+    }
+
+
+def _filter_has_overflow_selection(filter_def, active_filters):
+    """Whether any selected option for this filter falls in the overflow chips."""
+    if filter_def.get("type") != "multi_select":
+        return False
+    selected = set(active_filters.get(filter_def["key"], "").split(","))
+    selected.discard("")
+    if not selected:
+        return False
+    overflow_values = {
+        o["value"]
+        for i, o in enumerate(filter_def.get("options", []))
+        if i >= VISIBLE_CHIP_COUNT
+    }
+    return bool(selected & overflow_values)
 
 
 def _dedup_options(raw_options):
