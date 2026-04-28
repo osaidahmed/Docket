@@ -1048,39 +1048,40 @@ class Season(Media):
             self.item.media_id,
             self.item.source,
         )
-
-        season_number = self.item.season_number
-        seasons_to_create = []
+        current_season = self.item.season_number
 
         with transaction.atomic():
+            seasons_to_create = []
             for season_data in tv_metadata["related"]["seasons"]:
-                sn = season_data["season_number"]
-                if sn <= season_number or sn == 0:
-                    continue
-
-                item, _ = Item.objects.get_or_create(
-                    media_id=self.item.media_id,
-                    source=self.item.source,
-                    media_type=MediaTypes.SEASON.value,
-                    season_number=sn,
-                    defaults={
-                        "title": self.item.title,
-                        "image": season_data["image"],
-                    },
+                instance = self._build_planning_season_if_missing(
+                    season_data,
+                    current_season,
                 )
-
-                if not Season.objects.filter(item=item, user=self.user).exists():
-                    seasons_to_create.append(
-                        Season(
-                            item=item,
-                            user=self.user,
-                            related_tv=self.related_tv,
-                            status=Status.PLANNING.value,
-                        )
-                    )
-
+                if instance is not None:
+                    seasons_to_create.append(instance)
             if seasons_to_create:
                 bulk_create_with_history(seasons_to_create, Season)
+
+    def _build_planning_season_if_missing(self, season_data, current_season_number):
+        """Build a PLANNING Season for a future season number, or None if it exists."""
+        sn = season_data["season_number"]
+        if sn <= current_season_number or sn == 0:
+            return None
+        item, _ = Item.objects.get_or_create(
+            media_id=self.item.media_id,
+            source=self.item.source,
+            media_type=MediaTypes.SEASON.value,
+            season_number=sn,
+            defaults={"title": self.item.title, "image": season_data["image"]},
+        )
+        if Season.objects.filter(item=item, user=self.user).exists():
+            return None
+        return Season(
+            item=item,
+            user=self.user,
+            related_tv=self.related_tv,
+            status=Status.PLANNING.value,
+        )
 
 
 class Episode(models.Model):
