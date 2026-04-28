@@ -156,48 +156,45 @@ def send_notifications(events, users, title):
 
 def get_user_releases(users, target_events):
     """Get user releases with optimized queries that avoid N+1 problems."""
-    user_exclusions = {}
-    for user in users:
-        user_exclusions[user.id] = set(
+    user_exclusions = {
+        user.id: set(
             user.notification_excluded_items.values_list("id", flat=True),
         )
-
-    user_enabled_types = {}
-    for user in users:
-        user_enabled_types[user.id] = user.get_active_media_types()
-
+        for user in users
+    }
+    user_enabled_types = {user.id: user.get_active_media_types() for user in users}
     user_tracking_data = get_all_user_tracking_data(
         users,
         target_events,
         user_exclusions,
     )
+
     user_releases = {}
     for user in users:
-        user_events = []
-        enabled_types = user_enabled_types[user.id]
-        excluded_items = user_exclusions.get(user.id, set())
-
-        for event in target_events.values():
-            # Check if user has excluded this item
-            if event.item.media_type != Season and event.item.id in excluded_items:
-                continue
-
-            # Check if user is tracking this media type
-            if event.item.media_type not in enabled_types:
-                continue
-
-            # Check if user is tracking this item
-            if is_user_tracking_item(
+        user_events = [
+            event
+            for event in target_events.values()
+            if _event_matches_user(
+                event,
                 user,
-                event.item,
+                user_enabled_types[user.id],
+                user_exclusions.get(user.id, set()),
                 user_tracking_data,
-            ):
-                user_events.append(event)
-
+            )
+        ]
         if user_events:
             user_releases[user.id] = user_events
 
     return user_releases
+
+
+def _event_matches_user(event, user, enabled_types, excluded_items, user_tracking_data):
+    """Whether this user should receive a notification for this event."""
+    if event.item.media_type != Season and event.item.id in excluded_items:
+        return False
+    if event.item.media_type not in enabled_types:
+        return False
+    return is_user_tracking_item(user, event.item, user_tracking_data)
 
 
 def get_all_user_tracking_data(users, target_events, user_exclusions):
