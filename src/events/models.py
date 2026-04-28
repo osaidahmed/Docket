@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from django.db import models
 from django.db.models import (
@@ -249,8 +249,4 @@ class Event(models.Model):
     @property
     def is_min_datetime(self):
         """Check if the event datetime is a placeholder (datetime.min)."""
-        return (
-            self.datetime.year == 1
-            and self.datetime.month == 1
-            and self.datetime.day == 1
-        )
+        return self.datetime.date() == date.min
