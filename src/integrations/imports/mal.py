@@ -146,12 +146,6 @@ class MyAnimeListImporter:
         list_status = content["list_status"]
         status = self._get_status(list_status["status"])
 
-        try:
-            image_url = content["node"]["main_picture"]["large"]
-        except KeyError:
-            image_url = settings.IMG_NONE
-
-        # Check if we should process this entry based on mode
         if not helpers.should_process_media(
             self.existing_media,
             self.to_delete,
@@ -162,49 +156,25 @@ class MyAnimeListImporter:
         ):
             return
 
-        item, _ = app.models.Item.objects.get_or_create(
-            media_id=str(content["node"]["id"]),
-            source=Sources.MAL.value,
-            media_type=media_type,
-            defaults={
-                "title": content["node"]["title"],
-                "english_title": self._get_english_title(content["node"]),
-                "image": image_url,
-            },
-        )
-
+        item, _ = self._get_or_create_mal_item(content, media_type)
         model = apps.get_model(app_label="app", model_name=media_type)
         updated_at = parse_datetime(list_status.get("updated_at"))
-
         progress, repeats, status = self._get_progress_and_repeats(
             list_status,
             media_type,
             status,
         )
 
-        if repeats >= 1:
-            for _ in range(repeats):
-                max_progress = content["node"].get("num_episodes") or content[
-                    "node"
-                ].get(
-                    "num_chapters",
-                )
-                instance = model(
-                    item=item,
-                    user=self.user,
-                    score=list_status["score"],
-                    progress=max_progress or 0,
-                    status=Status.COMPLETED.value,
-                    start_date=self._parse_mal_date(list_status.get("start_date")),
-                    end_date=self._parse_mal_date(list_status.get("finish_date")),
-                    notes=list_status["comments"],
-                    is_rewatch=True,
-                )
+        self._maybe_create_mal_repeats(
+            item,
+            model,
+            content,
+            list_status,
+            updated_at,
+            media_type,
+            repeats,
+        )
 
-                instance._history_date = updated_at
-                self.bulk_media[media_type].append(instance)
-
-        # Add current status entry
         instance = model(
             item=item,
             user=self.user,
@@ -217,6 +187,54 @@ class MyAnimeListImporter:
         )
         instance._history_date = updated_at
         self.bulk_media[media_type].append(instance)
+
+    def _get_or_create_mal_item(self, content, media_type):
+        """Get or create the Item row for a MAL content entry."""
+        try:
+            image_url = content["node"]["main_picture"]["large"]
+        except KeyError:
+            image_url = settings.IMG_NONE
+        return app.models.Item.objects.get_or_create(
+            media_id=str(content["node"]["id"]),
+            source=Sources.MAL.value,
+            media_type=media_type,
+            defaults={
+                "title": content["node"]["title"],
+                "english_title": self._get_english_title(content["node"]),
+                "image": image_url,
+            },
+        )
+
+    def _maybe_create_mal_repeats(
+        self,
+        item,
+        model,
+        content,
+        list_status,
+        updated_at,
+        media_type,
+        repeats,
+    ):
+        """Create completed-rewatch instances for entries with reconsume count > 0."""
+        if repeats < 1:
+            return
+        max_progress = content["node"].get("num_episodes") or content["node"].get(
+            "num_chapters"
+        )
+        for _ in range(repeats):
+            instance = model(
+                item=item,
+                user=self.user,
+                score=list_status["score"],
+                progress=max_progress or 0,
+                status=Status.COMPLETED.value,
+                start_date=self._parse_mal_date(list_status.get("start_date")),
+                end_date=self._parse_mal_date(list_status.get("finish_date")),
+                notes=list_status["comments"],
+                is_rewatch=True,
+            )
+            instance._history_date = updated_at
+            self.bulk_media[media_type].append(instance)
 
     @staticmethod
     def _get_progress_and_repeats(list_status, media_type, status):
