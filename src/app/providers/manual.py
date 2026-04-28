@@ -43,13 +43,18 @@ def season(media_id, season_number):
     return tv_metadata[f"season/{season_number}"]
 
 
-def get_season_items(media_id):
-    """Get all season items for a media ID."""
+def _manual_items_filter(media_id, media_type, **extra):
     return models.Item.objects.filter(
         media_id=media_id,
         source=Sources.MANUAL.value,
-        media_type=MediaTypes.SEASON.value,
+        media_type=media_type,
+        **extra,
     )
+
+
+def get_season_items(media_id):
+    """Get all season items for a media ID."""
+    return _manual_items_filter(media_id, MediaTypes.SEASON.value)
 
 
 def process_seasons(season_items, response):
@@ -97,10 +102,9 @@ def build_season_response(season, episodes_response, season_episodes):
 
 def get_season_episodes(season):
     """Get all episodes for a season."""
-    return models.Item.objects.filter(
-        media_id=season.media_id,
-        source=Sources.MANUAL.value,
-        media_type=MediaTypes.EPISODE.value,
+    return _manual_items_filter(
+        season.media_id,
+        MediaTypes.EPISODE.value,
         season_number=season.season_number,
     ).order_by("episode_number")
 
