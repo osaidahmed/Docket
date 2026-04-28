@@ -8,7 +8,7 @@ from django.core.cache import cache
 
 from app import helpers
 from app.models import MediaTypes, Sources
-from app.providers import services
+from app.providers import _mal_helpers, services
 
 _ONGOING_ANIME_STATUSES = frozenset({"currently_airing"})
 
@@ -415,36 +415,19 @@ def get_season(response):
 def get_broadcast(response):
     """Return the broadcast day and time for the media."""
     start_date = response.get("start_date")
-    if not start_date:
-        return None
-
-    # when unknown broadcast, value is not present in the response
-    # e.g anime: 38869
-    broadcast = response.get("broadcast")
-    if not broadcast:
-        return None
-
-    # when unknown start time, value is not present in the broadcast dict
-    start_time = broadcast.get("start_time") if broadcast else None
-    if not start_time:
+    # when unknown broadcast / start time, fields are absent (e.g anime: 38869)
+    broadcast = response.get("broadcast") or {}
+    start_time = broadcast.get("start_time")
+    if not start_date or not start_time:
         return None
 
     japan_timezone = ZoneInfo("Asia/Tokyo")
-    # Try parsing with different date formats
-    try:
-        date_obj = datetime.strptime(start_date, "%Y-%m-%d").replace(
-            tzinfo=japan_timezone,
-        )
-    except ValueError:
-        date_obj = datetime.strptime(start_date, "%Y-%m").replace(tzinfo=japan_timezone)
-
+    date_obj = _mal_helpers.parse_jst_start_date(start_date, japan_timezone)
     broadcast_time_japan = datetime.strptime(
         f"{date_obj.strftime('%Y-%m-%d')} {start_time}",
         "%Y-%m-%d %H:%M",
     ).replace(tzinfo=japan_timezone)
-
-    broadcast_time_local = broadcast_time_japan.astimezone(settings.TZ)
-    return broadcast_time_local.strftime("%A %H:%M")
+    return broadcast_time_japan.astimezone(settings.TZ).strftime("%A %H:%M")
 
 
 def get_source(response):
