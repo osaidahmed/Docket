@@ -14,6 +14,7 @@ from django_celery_beat.models import CrontabSchedule, PeriodicTask
 from simple_history.utils import bulk_create_with_history
 
 import app
+from app._types import is_episode_media, is_season_media
 from app.models import MediaTypes
 
 logger = logging.getLogger(__name__)
@@ -153,10 +154,10 @@ def _bulk_create_for_type(media_type, bulk_media, user):
     model = apps.get_model(app_label="app", model_name=media_type)
     logger.info("Bulk importing %s", media_type)
 
-    if media_type == MediaTypes.SEASON.value:
+    if is_season_media(media_type):
         logger.info("Updating references for season to existing TV shows")
         update_references(bulk_media, "season", user)
-    elif media_type == MediaTypes.EPISODE.value:
+    elif is_episode_media(media_type):
         logger.info("Updating references for episodes to existing TV seasons")
         update_references(bulk_media, "episode", user)
 

@@ -1,4 +1,5 @@
 from app import models
+from app._types import is_movie_media
 from app.models import MediaTypes, Sources
 
 
@@ -31,7 +32,7 @@ def metadata(media_id, media_type):
         num_episodes = process_seasons(season_items, response)
         response["max_progress"] = num_episodes
         response["details"]["episodes"] = num_episodes
-    elif media_type == MediaTypes.MOVIE.value:
+    elif is_movie_media(media_type):
         response["max_progress"] = 1
 
     return response

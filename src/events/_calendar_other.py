@@ -3,7 +3,8 @@
 import logging
 
 from app import config
-from app.models import MediaTypes, Sources
+from app._types import is_movie_media
+from app.models import Sources
 from app.providers import services
 from events._calendar_dates import date_parser
 from events.calendar import SENTINEL_DATETIME
@@ -35,7 +36,7 @@ def process_other(item, events_bulk):
     )
 
     if content_datetime is not None:
-        if item.media_type == MediaTypes.MOVIE.value:
+        if is_movie_media(item.media_type):
             content_number = None
 
         events_bulk.append(

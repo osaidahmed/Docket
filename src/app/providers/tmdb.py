@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from app import helpers
+from app._types import is_season_media
 from app.models import MediaTypes, Sources
 from app.providers import services
 
@@ -600,7 +601,7 @@ def get_related(related_medias, media_type, parent_response=None):
             "media_type": media_type,
             "image": get_image_url(media["poster_path"]),
         }
-        if media_type == MediaTypes.SEASON.value:
+        if is_season_media(media_type):
             data["media_id"] = parent_response["id"]
             data["title"] = parent_response["name"]
             data["season_number"] = media["season_number"]

@@ -8,6 +8,7 @@ from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
 from app import config, helpers
+from app._types import is_season_media
 from app.models import BasicMedia, Item, MediaTypes, Sources
 from app.providers import manual, services, tmdb
 from app.services import backlog, recent
@@ -197,7 +198,7 @@ def sync_metadata(request, source, media_type, media_id, season_number=None):
         )
 
     cache_key = f"{source}_{media_type}_{media_id}"
-    if media_type == MediaTypes.SEASON.value:
+    if is_season_media(media_type):
         cache_key += f"_{season_number}"
 
     ttl = cache.ttl(cache_key)
@@ -233,7 +234,7 @@ def sync_metadata(request, source, media_type, media_id, season_number=None):
         if season_number:
             title += f" - Season {season_number}"
 
-        if media_type == MediaTypes.SEASON.value:
+        if is_season_media(media_type):
             _sync_season_episodes(source, media_id, season_number, metadata, title)
 
         item.fetch_releases(delay=False)

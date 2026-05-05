@@ -7,6 +7,7 @@ import requests
 from django.core.cache import cache
 
 from app import helpers
+from app._types import is_anime_media, is_manga_media
 from app.models import MediaTypes, Sources
 from app.providers import services
 
@@ -151,7 +152,7 @@ def _clean_html(text):
 
 def _anilist_type(media_type):
     """Map Docket media type to AniList MediaType enum."""
-    return "MANGA" if media_type == MediaTypes.MANGA.value else "ANIME"
+    return "MANGA" if is_manga_media(media_type) else "ANIME"
 
 
 def _format_media(media, media_type):
@@ -176,7 +177,7 @@ def _format_media(media, media_type):
 
 def _formats_for_type(media_type):
     """Return the allowed format list for a media type."""
-    if media_type == MediaTypes.MANGA.value:
+    if is_manga_media(media_type):
         return _MANGA_FORMATS
     return _ANIME_FORMATS
 
@@ -258,7 +259,7 @@ def recently_updated(media_type, page=1, per_page=24):
     For manga: uses UPDATED_AT_DESC query.
     """
     cache_key = f"anilist_recently_updated_{media_type}_{page}_{per_page}"
-    if media_type == MediaTypes.ANIME.value:
+    if is_anime_media(media_type):
         compute = lambda: _recently_aired_anime(page, per_page)  # noqa: E731
     else:
         compute = lambda: _cached_media_query(  # noqa: E731

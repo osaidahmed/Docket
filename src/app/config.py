@@ -20,22 +20,28 @@ from app._media_type_config import (  # noqa: F401  (re-exports for external cal
     SEASON_START_MONTH,
     STATUS_CONFIG,
 )
-from app.models import MediaTypes
+from app._media_type_registry import MEDIA_TYPE_REGISTRY
+from app._types import MediaTypes, is_season_media
+
+
+def _types_with_config_key(key):
+    return [mt for mt, spec in MEDIA_TYPE_REGISTRY.items() if key in spec.config]
 
 
 def get_explorable_types():
     """Return media type values that support explore/browse."""
-    return [mt for mt, cfg in MEDIA_TYPE_CONFIG.items() if "explore_categories" in cfg]
+    return _types_with_config_key("explore_categories")
 
 
 def get_searchable_types():
     """Return media type values that have a sample_query (i.e., are searchable)."""
-    return [mt for mt, cfg in MEDIA_TYPE_CONFIG.items() if "sample_query" in cfg]
+    return _types_with_config_key("sample_query")
 
 
 def get_config(media_type):
     """Get the full config dictionary for a media type."""
-    return MEDIA_TYPE_CONFIG.get(media_type)
+    spec = MEDIA_TYPE_REGISTRY.get(media_type)
+    return spec.config if spec else None
 
 
 def get_property(media_type, prop_name):
@@ -65,7 +71,7 @@ def get_sample_query(media_type):
 
 def get_sample_search_url(media_type):
     """Get the full sample search URL."""
-    if media_type == MediaTypes.SEASON.value:
+    if is_season_media(media_type):
         media_type = MediaTypes.TV.value
 
     query = get_sample_query(media_type)

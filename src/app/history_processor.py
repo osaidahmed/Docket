@@ -2,7 +2,8 @@ from django.apps import apps
 from django.template.defaultfilters import pluralize
 
 from app import config, helpers
-from app.models import MediaTypes, Status
+from app._types import is_game_media, is_movie_media
+from app.models import Status
 from app.templatetags import app_tags
 
 
@@ -56,7 +57,7 @@ def organize_changes(changes, media_type, user):
     end_date_change = None
 
     for change in changes:
-        if change.field == "progress" and media_type == MediaTypes.MOVIE.value:
+        if change.field == "progress" and is_movie_media(media_type):
             continue
 
         change_data = {
@@ -91,7 +92,7 @@ def _should_skip_creation_field(field, new_record, media_type):
         return True
     if not hasattr(new_record, field.attname):
         return True
-    return field.name == "progress" and media_type == MediaTypes.MOVIE.value
+    return field.name == "progress" and is_movie_media(media_type)
 
 
 def collect_creation_changes(new_record, history_model, media_type, user):
@@ -210,7 +211,7 @@ def _fmt_progress_initial(_field_name, new_value, media_type):
     if not media_type:
         return f"Set progress to {new_value}"
     verb = config.get_verb(media_type, past_tense=True).title()
-    if media_type == MediaTypes.GAME.value:
+    if is_game_media(media_type):
         return f"{verb} for {helpers.minutes_to_hhmm(new_value)}"
     unit = config.get_unit(media_type, short=False).lower()
     return f"{verb} up to {unit} {new_value}"
@@ -254,7 +255,7 @@ def _fmt_progress_change(_field_name, old_value, new_value, media_type):
     diff = new_value - old_value
     diff_abs = abs(diff)
 
-    if media_type == MediaTypes.GAME.value:
+    if is_game_media(media_type):
         if diff > 0:
             return f"Added {helpers.minutes_to_hhmm(diff_abs)} of playtime"
         return f"Removed {helpers.minutes_to_hhmm(diff_abs)} of playtime"

@@ -5,6 +5,7 @@ from django.apps import apps
 from django.db.models import Field, Prefetch
 
 from app import helpers
+from app._types import is_episode_media, is_game_media
 from app.models import Episode, Item, MediaTypes, Season
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ def generate_rows(user):
 
         filter_kwargs = (
             {"related_season__user": user}
-            if media_type == MediaTypes.EPISODE.value
+            if is_episode_media(media_type)
             else {"user": user}
         )
 
@@ -70,8 +71,7 @@ def generate_rows(user):
                 getattr(media, field, "") for field in fields["track"]
             ]
 
-            if media_type == MediaTypes.GAME.value:
-                # calculate index of progress field
+            if is_game_media(media_type):
                 progress_index = fields["track"].index("progress")
                 row[progress_index + len(fields["item"])] = helpers.minutes_to_hhmm(
                     media.progress,

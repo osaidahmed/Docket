@@ -7,7 +7,7 @@ from app._media_type_config import (
     MONTH_TO_SEASON,
     SEASON_START_MONTH,
 )
-from app.models import MediaTypes
+from app._types import is_anime_media
 
 
 def is_announced_media(metadata):
@@ -35,7 +35,7 @@ def is_upcoming_category(media_type, category, year=None, season_name=None):
         return True
     if (
         category == "seasonal"
-        and media_type == MediaTypes.ANIME.value
+        and is_anime_media(media_type)
         and year is not None
         and season_name is not None
     ):

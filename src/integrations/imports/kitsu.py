@@ -8,6 +8,7 @@ from django.conf import settings
 from django.utils.dateparse import parse_datetime
 
 import app
+from app._types import is_anime_media
 from app.models import MediaTypes, Sources, Status
 from integrations.imports import helpers
 from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
@@ -137,7 +138,7 @@ class KitsuImporter:
         """Get all media entries for a user from Kitsu."""
         url = f"{self.KITSU_API_BASE_URL}/library-entries"
 
-        if media_type == MediaTypes.ANIME.value:
+        if is_anime_media(media_type):
             media_fields = "canonicalTitle,posterImage,episodeCount,mappings"
         else:
             media_fields = "canonicalTitle,posterImage,chapterCount,mappings"

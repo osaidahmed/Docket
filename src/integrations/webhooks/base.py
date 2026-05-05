@@ -3,6 +3,7 @@ import logging
 from django.utils import timezone
 
 import app
+from app._types import is_movie_media, is_tv_media
 from app.models import MediaTypes, Sources, Status
 from integrations.webhooks import _anime_mapper
 
@@ -53,9 +54,9 @@ class BaseWebhookProcessor:
         title = self._get_media_title(payload)
         logger.info("Received webhook for %s: %s", media_type, title)
 
-        if media_type == MediaTypes.TV.value:
+        if is_tv_media(media_type):
             self._process_tv(payload, user, ids)
-        elif media_type == MediaTypes.MOVIE.value:
+        elif is_movie_media(media_type):
             self._process_movie(payload, user, ids)
 
     def _process_tv(self, payload, user, ids):

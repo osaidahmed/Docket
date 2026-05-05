@@ -1,10 +1,9 @@
-from app._types import MediaTypes
+from app._types import is_episode_media, is_season_media
 
 
 def build_item_filter(media_type, item_ids, user, status_filter):
     """Build filter kwargs for an item-level Media query."""
-    is_episode = media_type == MediaTypes.EPISODE.value
-    prefix = "related_season__" if is_episode else ""
+    prefix = "related_season__" if is_episode_media(media_type) else ""
     filter_kwargs = {"item__in": item_ids, f"{prefix}user": user}
     if status_filter:
         filter_kwargs[f"{prefix}status"] = status_filter
@@ -14,7 +13,7 @@ def build_item_filter(media_type, item_ids, user, status_filter):
 def get_media_params(user, media_type, instance_id):
     """Build filter kwargs for fetching one Media instance by id."""
     params = {"id": instance_id}
-    if media_type == MediaTypes.EPISODE.value:
+    if is_episode_media(media_type):
         params["related_season__user"] = user
     else:
         params["user"] = user
@@ -30,10 +29,10 @@ def filter_media_params(
         "item__source": source,
         "item__media_id": media_id,
     }
-    if media_type == MediaTypes.SEASON.value:
+    if is_season_media(media_type):
         params["item__season_number"] = season_number
         params["user"] = user
-    elif media_type == MediaTypes.EPISODE.value:
+    elif is_episode_media(media_type):
         params["item__season_number"] = season_number
         params["item__episode_number"] = episode_number
         params["related_season__user"] = user

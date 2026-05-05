@@ -3,6 +3,7 @@ import json
 
 from django.apps import apps
 
+from app._types import MediaTypes
 from users.models import (
     DateFormatChoices,
     HomeTruncationChoices,
@@ -63,7 +64,6 @@ def queue_link_backfill(user):
     is safe (and re-attempts any prior misses).
     """
     from app.link_providers import tasks as link_tasks  # noqa: PLC0415
-    from app.models import MediaTypes  # noqa: PLC0415
 
     prefs = user.link_preferences or {}
     valid_types = set(MediaTypes.values)

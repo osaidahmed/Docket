@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from app import helpers
+from app._types import is_manga_media
 from app.models import MediaTypes, Sources
 from app.providers import services
 
@@ -58,7 +59,7 @@ def browse(media_type, filters, page):
                 "image": _get_image_url(item),
                 "synopsis": item.get("synopsis") or "",
                 "is_ongoing": not item.get("chapters")
-                if media_type == MediaTypes.MANGA.value
+                if is_manga_media(media_type)
                 else item.get("status") == "Currently Airing",
             }
             for item in response.get("data", [])

@@ -5,7 +5,8 @@ from django.conf import settings
 from django.core.cache import cache
 
 from app import helpers
-from app.models import MediaTypes, Sources
+from app._types import is_movie_media
+from app.models import Sources
 from app.providers import services
 from app.providers import tmdb as _tmdb
 
@@ -134,7 +135,7 @@ def _build_discover_params(media_type, filters, page):
     if filters.get("year"):
         year_key = (
             "primary_release_year"
-            if media_type == MediaTypes.MOVIE.value
+            if is_movie_media(media_type)
             else "first_air_date_year"
         )
         params[year_key] = filters["year"]

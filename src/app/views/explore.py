@@ -5,6 +5,7 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_GET
 
 from app import config, helpers
+from app._types import is_anime_media, is_manga_media
 from app.models import MediaTypes
 from app.providers import services
 from app.services.recommendations import _add_title_variants, _matches_cross_media
@@ -40,7 +41,7 @@ class ExploreContext:
             "layout": self.layout,
             "extra_params": self.extra_params,
             "hide_watched_anime": self.hide_watched_anime,
-            "is_manga": self.media_type == MediaTypes.MANGA.value,
+            "is_manga": is_manga_media(self.media_type),
             "is_upcoming": config.is_upcoming_category(
                 self.media_type,
                 self.category,
@@ -54,7 +55,7 @@ class ExploreContext:
             "is_tmdb_type": self.media_type in TMDB_TYPES,
             "order": self.order,
         }
-        if self.category == "seasonal" and self.media_type == MediaTypes.ANIME.value:
+        if self.category == "seasonal" and is_anime_media(self.media_type):
             year = self.year or 0
             ctx.update(
                 {
@@ -116,7 +117,7 @@ def _fetch_browse_data(request, media_type, category, active_filters, page):
             active_filters["sort_by"] = "popularity"
         return services.browse_filtered(media_type, active_filters, page), None, None
 
-    if category == "seasonal" and media_type == MediaTypes.ANIME.value:
+    if category == "seasonal" and is_anime_media(media_type):
         return _fetch_seasonal_anime(request, category, page)
 
     return services.browse(media_type, category, page), None, None

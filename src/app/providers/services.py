@@ -10,6 +10,7 @@ from redis import ConnectionPool
 from requests.adapters import HTTPAdapter
 from requests_ratelimiter import LimiterAdapter, LimiterSession
 
+from app._types import is_anime_media, is_episode_media, is_season_media
 from app.models import MediaTypes, Sources
 from app.providers import (
     anilist,
@@ -238,11 +239,18 @@ def get_media_metadata(
     season_numbers=None,
     episode_number=None,
 ):
-    """Return the metadata for the selected media."""
+    """Return the metadata for the selected media.
+
+    Provider-dispatch registry: (media_type) -> callable that fetches metadata
+    from the chosen provider. Sibling to app._media_type_registry, which hosts
+    media-type behavior hooks (prefetch, filter, calendar, import). Providers
+    and behavior are intentionally separate — a source swap (e.g. OpenLibrary
+    -> Hardcover for books) doesn't affect prefetch shape.
+    """
     if source == Sources.MANUAL.value:
-        if media_type == MediaTypes.SEASON.value:
+        if is_season_media(media_type):
             return manual.season(media_id, season_numbers[0])
-        if media_type == MediaTypes.EPISODE.value:
+        if is_episode_media(media_type):
             return manual.episode(media_id, season_numbers[0], episode_number)
         if media_type == "tv_with_seasons":
             media_type = MediaTypes.TV.value
@@ -307,7 +315,7 @@ def browse(media_type, category, page, year=None, season=None):
     """Browse media by category and return the results."""
     from app import helpers as app_helpers  # noqa: PLC0415
 
-    if category == "seasonal" and media_type == MediaTypes.ANIME.value:
+    if category == "seasonal" and is_anime_media(media_type):
         return mal.browse_seasonal(year, season, page)
 
     browse_handlers = {

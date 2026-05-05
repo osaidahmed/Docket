@@ -6,6 +6,7 @@ from django.conf import settings
 from django.utils.dateparse import parse_datetime
 
 import app
+from app._types import is_season_media
 from app.models import MediaTypes, Sources, Status
 from app.providers import services
 from integrations.imports import _trakt_helpers, helpers
@@ -202,7 +203,7 @@ class TraktImporter:
             )
         except services.ProviderAPIError as error:
             if error.status_code == requests.codes.not_found:
-                if media_type == MediaTypes.SEASON.value:
+                if is_season_media(media_type):
                     title = f"{title} S{season_number}"
                 self.warnings.append(
                     f"{title}: not found in {Sources.TMDB.label} with ID {tmdb_id}.",
@@ -349,9 +350,7 @@ class TraktImporter:
         tmdb_id = self._get_tmdb_id(media_data)
         if not tmdb_id:
             return None
-        parent_type = (
-            MediaTypes.TV.value if media_type == MediaTypes.SEASON.value else media_type
-        )
+        parent_type = MediaTypes.TV.value if is_season_media(media_type) else media_type
         if not helpers.should_process_media(
             self.existing_media,
             self.to_delete,
@@ -598,7 +597,7 @@ class TraktImporter:
 
         updated_at = self._get_entry_timestamp(entry)
 
-        if media_type == MediaTypes.SEASON.value:
+        if is_season_media(media_type):
             tv_obj = self._get_tv_obj(tmdb_id, media_data, updated_at)
             if not tv_obj:
                 return

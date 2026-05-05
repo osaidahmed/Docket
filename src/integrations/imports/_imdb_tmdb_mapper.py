@@ -1,6 +1,7 @@
 import logging
 
 import app
+from app._types import is_movie_media, is_tv_media
 from app.models import MediaTypes
 from app.providers.services import ProviderAPIError
 
@@ -55,10 +56,10 @@ def lookup_in_tmdb(imdb_id, title_type):
 
     media_type = IMDB_TYPE_MAPPING.get(title_type, "")
 
-    if media_type == MediaTypes.MOVIE.value and response.get("movie_results"):
+    if is_movie_media(media_type) and response.get("movie_results"):
         return _movie_card(response["movie_results"][0])
 
-    if media_type == MediaTypes.TV.value and response.get("tv_results"):
+    if is_tv_media(media_type) and response.get("tv_results"):
         return _tv_card(response["tv_results"][0])
 
     return None

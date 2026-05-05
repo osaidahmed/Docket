@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 import app
+from app._types import is_anime_media, is_movie_media, is_tv_media
 from app.models import MediaTypes, Sources, Status
 from app.providers import services
 from integrations.imports import _simkl_helpers, helpers
@@ -309,7 +310,7 @@ class SimklImporter:
 
     def _fetch_simkl_metadata(self, media_type, entry, media_id, title):
         """Fetch provider metadata for a Simkl entry by media type."""
-        if media_type == MediaTypes.TV.value:
+        if is_tv_media(media_type):
             season_numbers = [s["number"] for s in entry.get("seasons", [])]
             return self._fetch_metadata_safe(
                 lambda: app.providers.tmdb.tv_with_seasons(media_id, season_numbers),
@@ -317,7 +318,7 @@ class SimklImporter:
                 Sources.TMDB,
                 media_id,
             )
-        if media_type == MediaTypes.MOVIE.value:
+        if is_movie_media(media_type):
             return self._fetch_metadata_safe(
                 lambda: app.providers.tmdb.movie(media_id),
                 title,
@@ -333,14 +334,14 @@ class SimklImporter:
 
     def _build_extra_kwargs(self, media_type, entry, status):
         """Build media-type-specific instance kwargs for the model constructor."""
-        if media_type == MediaTypes.MOVIE.value:
+        if is_movie_media(media_type):
             last_watched = self._get_date(entry.get("last_watched_at"))
             return {
                 "progress": 1 if status == Status.COMPLETED.value else 0,
                 "start_date": last_watched,
                 "end_date": last_watched,
             }
-        if media_type == MediaTypes.ANIME.value:
+        if is_anime_media(media_type):
             return {
                 "progress": entry["watched_episodes_count"],
                 "start_date": self._get_start_date(entry),

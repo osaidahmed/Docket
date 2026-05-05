@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 import app
+from app._types import is_anime_media
 from app.models import MediaTypes, Sources, Status
 from integrations.imports import helpers
 from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
@@ -239,7 +240,7 @@ class MyAnimeListImporter:
     @staticmethod
     def _get_progress_and_repeats(list_status, media_type, status):
         """Extract progress, repeats, and adjusted status from MAL entry."""
-        is_anime = media_type == MediaTypes.ANIME.value
+        is_anime = is_anime_media(media_type)
         progress = (
             list_status["num_episodes_watched"]
             if is_anime

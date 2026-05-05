@@ -5,7 +5,9 @@ from zoneinfo import ZoneInfo
 import requests
 from django.core.cache import cache
 
-from app.models import Item, MediaTypes, Sources
+from app._media_type_registry import MEDIA_TYPE_REGISTRY
+from app._types import MediaTypes, is_anime_media
+from app.models import Item, Sources
 from app.providers import comicvine, services, tmdb
 from events._calendar_dates import date_parser
 from events._calendar_other import process_other
@@ -45,14 +47,12 @@ def _process_items(items_to_process):
     anime_to_process = []
 
     for item in items_to_process:
-        if item.media_type == MediaTypes.ANIME.value:
+        if is_anime_media(item.media_type):
             anime_to_process.append(item)
-        elif item.media_type == MediaTypes.TV.value:
-            process_tv(item, events_bulk)
-        elif item.media_type == MediaTypes.COMIC.value:
-            process_comic(item, events_bulk)
-        else:
-            process_other(item, events_bulk)
+            continue
+        spec = MEDIA_TYPE_REGISTRY.get(item.media_type)
+        processor = (spec.calendar_processor if spec else None) or process_other
+        processor(item, events_bulk)
 
     process_anime_bulk(anime_to_process, events_bulk)
     return events_bulk
@@ -512,3 +512,7 @@ def anilist_date_parser(start_date):
     )
 
     return dt.timestamp()
+
+
+MEDIA_TYPE_REGISTRY[MediaTypes.TV.value].calendar_processor = process_tv
+MEDIA_TYPE_REGISTRY[MediaTypes.COMIC.value].calendar_processor = process_comic

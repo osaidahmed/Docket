@@ -5,6 +5,8 @@ import time
 
 from celery import shared_task
 
+from app._types import Sources
+
 # Register nested task modules with Celery's autodiscover (which only scans
 # `<app>/tasks.py`, not nested submodules).
 from app.link_providers import tasks as _link_provider_tasks  # noqa: F401
@@ -17,7 +19,7 @@ def refresh_anime_relationships_task(user_id):
     """Fetch related anime data from MAL to populate grouping relationships."""
     from django.contrib.auth import get_user_model  # noqa: PLC0415
 
-    from app.models import Anime, ItemRelationship, Sources  # noqa: PLC0415
+    from app.models import Anime, ItemRelationship  # noqa: PLC0415
     from app.providers import mal  # noqa: PLC0415
 
     user = get_user_model().objects.get(id=user_id)
@@ -40,7 +42,7 @@ def refresh_anime_relationships_task(user_id):
             if related:
                 mal._save_anime_relationships(anime.item.media_id, related)
             time.sleep(0.5)
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.debug(
                 "Skipping relationship fetch for anime %s",
                 anime.item.media_id,

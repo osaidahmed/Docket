@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from app import helpers
+from app._types import is_anime_media, is_manga_media
 from app.models import MediaTypes, Sources
 from app.providers import _mal_helpers, services
 
@@ -19,7 +20,7 @@ def _is_ongoing(node, media_type):
     For manga, mirrors the backlog logic: unknown chapter count = ongoing.
     For anime, uses the API airing status.
     """
-    if media_type == MediaTypes.MANGA.value:
+    if is_manga_media(media_type):
         return not node.get("num_chapters")
     return node.get("status") in _ONGOING_ANIME_STATUSES
 
@@ -268,7 +269,7 @@ def manga(media_id):
 
 def _build_metadata_base(response, media_id, media_type):
     """Build shared metadata dict for anime/manga."""
-    slug = "anime" if media_type == MediaTypes.ANIME.value else "manga"
+    slug = "anime" if is_anime_media(media_type) else "manga"
     return {
         "media_id": media_id,
         "source": Sources.MAL.value,

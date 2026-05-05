@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 from django.utils.encoding import iri_to_uri
 from django.utils.http import url_has_allowed_host_and_scheme
 
+from app._types import is_season_media
 from app.models import BasicMedia, Item, MediaTypes, Status
 
 VALID_MEDIA_TYPES = frozenset(MediaTypes.values)
@@ -147,7 +148,7 @@ def enrich_items_with_user_data(request, items, section_name):
 def _build_media_lookup(items, user):
     media_type = items[0]["media_type"]
     source = items[0]["source"]
-    is_season = media_type == MediaTypes.SEASON.value
+    is_season = is_season_media(media_type)
 
     q_objects = Q()
     for item in items:

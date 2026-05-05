@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from app import _media_sorting, config
+from app._types import is_season_media
 from app.models import BasicMedia, MediaTypes, Status
 from app.services import backlog, grouping
 from app.services import recommendations as recs_service
@@ -180,7 +181,7 @@ def progress_edit(request, media_type, instance_id):
     elif operation == "decrease":
         media.decrease_progress()
 
-    if media_type == MediaTypes.SEASON.value:
+    if is_season_media(media_type):
         media.refresh_from_db()
         prefetch_related_objects([media], "episodes")
 

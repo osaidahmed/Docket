@@ -1,6 +1,6 @@
 """Static configuration data for media types and statuses."""
 
-from app.models import MediaTypes, Sources, Status
+from app._types import MediaTypes, Sources, Status
 
 # --- Color Constants ---
 COLORS = {

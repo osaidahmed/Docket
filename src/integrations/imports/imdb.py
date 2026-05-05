@@ -6,7 +6,8 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 import app
-from app.models import MediaTypes, Sources, Status
+from app._types import is_movie_media
+from app.models import Sources, Status
 from integrations.imports import helpers
 from integrations.imports._csv_decoder import decode_csv_file
 from integrations.imports._dedup_two_pass import TwoPassDeduplicator
@@ -243,7 +244,7 @@ class IMDBImporter:
 
         # Movies can have progress and end_date set directly.
         # TV shows manage their own progress and dates through episodes.
-        if media_type == MediaTypes.MOVIE.value and status == Status.COMPLETED.value:
+        if is_movie_media(media_type) and status == Status.COMPLETED.value:
             params["progress"] = 1
             params["end_date"] = most_recent_date
 

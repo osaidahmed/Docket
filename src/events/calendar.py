@@ -6,6 +6,7 @@ from django.db.models import Exists, OuterRef, Q, Subquery
 from django.utils import timezone
 from simple_history.utils import bulk_update_with_history
 
+from app._types import is_season_media
 from app.models import TV, Item, MediaTypes, Sources, Status
 from events.models import Event
 
@@ -100,8 +101,7 @@ def auto_move_completed_to_planning(events_bulk):
     media_ids_with_future = {
         event.item.media_id
         for event in events_bulk
-        if event.item.media_type == MediaTypes.SEASON.value
-        and event.datetime > current_time
+        if is_season_media(event.item.media_type) and event.datetime > current_time
     }
 
     if not media_ids_with_future:

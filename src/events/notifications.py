@@ -8,7 +8,8 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 
-from app.models import TV, MediaTypes, Season
+from app._types import is_season_media
+from app.models import TV, Season
 from app.templatetags import app_tags
 from events.models import INACTIVE_TRACKING_STATUSES, Event
 
@@ -205,7 +206,7 @@ def get_all_user_tracking_data(users, target_events, user_exclusions):
     season_items = []
     for event in target_events.values():
         media_type = event.item.media_type
-        if media_type == MediaTypes.SEASON.value:
+        if is_season_media(media_type):
             season_items.append(event.item)
         else:
             items_by_type[media_type].append(event.item.id)
@@ -339,8 +340,7 @@ def is_user_tracking_item(user, item, user_tracking_data):
     """Check if user is tracking item using pre-fetched data."""
     media_type = item.media_type
 
-    # Handle TV seasons
-    if media_type == MediaTypes.SEASON.value:
+    if is_season_media(media_type):
         key = (user.id, item.id)
         return user_tracking_data.get(key, False)
 
@@ -405,7 +405,7 @@ def format_notification(releases):
 
 def _format_type_header(media_type):
     icon = app_tags.unicode_icon(media_type)
-    if media_type == MediaTypes.SEASON.value:
+    if is_season_media(media_type):
         return f"{icon}  TV Shows"
     return f"{icon}  {app_tags.media_type_readable_plural(media_type)}"
 

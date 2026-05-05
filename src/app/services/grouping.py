@@ -2,6 +2,7 @@ from collections import defaultdict, deque
 
 from django.db.models import Q
 
+from app._types import is_anime_media, is_season_media
 from app.models import ItemRelationship, MediaTypes, RelationType, Status
 
 _STATUS_PRIORITY = {
@@ -25,9 +26,9 @@ def group_media_list(media_items, media_type):
     if not items or media_type not in _GROUPABLE_TYPES:
         return _annotate_ungrouped(items)
 
-    if media_type == MediaTypes.SEASON.value:
+    if is_season_media(media_type):
         return _apply_tv_grouping(items)
-    if media_type == MediaTypes.ANIME.value:
+    if is_anime_media(media_type):
         return _apply_anime_grouping(items)
 
     return _annotate_ungrouped(items)
@@ -80,7 +81,7 @@ def _apply_tv_grouping(items):
     non_season = []
 
     for item in items:
-        if item.item.media_type == MediaTypes.SEASON.value:
+        if is_season_media(item.item.media_type):
             key = (item.item.media_id, item.item.source)
             show_groups[key].append(item)
         else:

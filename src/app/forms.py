@@ -4,6 +4,7 @@ from django import forms
 from django.conf import settings
 
 from app import config
+from app._types import is_episode_media, is_season_media
 from app.models import (
     TV,
     Anime,
@@ -121,7 +122,7 @@ class ManualItemForm(forms.ModelForm):
         self.fields["title"].required = False
 
     def _validate_parent(self, cleaned_data, media_type):
-        if media_type == MediaTypes.SEASON.value:
+        if is_season_media(media_type):
             parent = cleaned_data.get("parent_tv")
             if not parent:
                 self.add_error(
@@ -148,7 +149,7 @@ class ManualItemForm(forms.ModelForm):
         cleaned_data["image"] = cleaned_data.get("image") or settings.IMG_NONE
         media_type = cleaned_data.get("media_type")
 
-        if media_type in (MediaTypes.SEASON.value, MediaTypes.EPISODE.value):
+        if is_season_media(media_type) or is_episode_media(media_type):
             self._validate_parent(cleaned_data, media_type)
         else:
             if not cleaned_data.get("title"):
@@ -163,10 +164,10 @@ class ManualItemForm(forms.ModelForm):
         instance = super().save(commit=False)
         instance.source = Sources.MANUAL.value
 
-        if instance.media_type == MediaTypes.SEASON.value:
+        if is_season_media(instance.media_type):
             parent_tv = self.cleaned_data["parent_tv"]
             instance.media_id = parent_tv.manual_media_id
-        elif instance.media_type == MediaTypes.EPISODE.value:
+        elif is_episode_media(instance.media_type):
             parent_season = self.cleaned_data["parent_season"]
             instance.media_id = parent_season.manual_media_id
             instance.season_number = parent_season.manual_season_number

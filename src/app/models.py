@@ -24,7 +24,7 @@ from simple_history.utils import bulk_create_with_history, bulk_update_with_hist
 import app
 import events
 from app import providers
-from app._types import MediaTypes
+from app._types import MediaTypes, Sources, Status, is_season_media
 from app.mixins import CalendarTriggerMixin, disable_fetch_releases
 
 logger = logging.getLogger(__name__)
@@ -34,20 +34,6 @@ def _aggregate_dates(seasons, field, agg_fn):
     """Collect non-null date values from seasons and aggregate with agg_fn."""
     dates = [getattr(s, field) for s in seasons if getattr(s, field)]
     return agg_fn(dates) if dates else None
-
-
-class Sources(models.TextChoices):
-    """Choices for the source of the item."""
-
-    TMDB = "tmdb", "The Movie Database"
-    MAL = "mal", "MyAnimeList"
-    MANGAUPDATES = "mangaupdates", "MangaUpdates"
-    IGDB = "igdb", "Internet Game Database"
-    OPENLIBRARY = "openlibrary", "Open Library"
-    HARDCOVER = "hardcover", "Hardcover"
-    COMICVINE = "comicvine", "Comic Vine"
-    BGG = "bgg", "BoardGameGeek"
-    MANUAL = "manual", "Manual"
 
 
 class Item(CalendarTriggerMixin, models.Model):
@@ -177,8 +163,7 @@ class Item(CalendarTriggerMixin, models.Model):
         if self._disable_calendar_triggers:
             return
 
-        if self.media_type == MediaTypes.SEASON.value:
-            # Get or create the TV item for this season
+        if is_season_media(self.media_type):
             try:
                 tv_item = Item.objects.get(
                     media_id=self.media_id,
@@ -246,16 +231,6 @@ class ItemRelationship(models.Model):
 
 
 from app.managers import MediaManager  # noqa: E402  (circular import workaround)
-
-
-class Status(models.TextChoices):
-    """Choices for item status."""
-
-    COMPLETED = "Completed", "Completed"
-    IN_PROGRESS = "In progress", "In Progress"
-    PLANNING = "Planning", "Planning"
-    PAUSED = "Paused", "Paused"
-    DROPPED = "Dropped", "Dropped"
 
 
 class Media(models.Model):

@@ -7,6 +7,12 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from app import config, helpers
+from app._types import (
+    is_episode_media,
+    is_game_media,
+    is_season_media,
+    is_tv_media,
+)
 from app.forms import EpisodeForm, ManualItemForm, get_form_class
 from app.models import BasicMedia, MediaTypes, Status
 from app.providers import services
@@ -83,7 +89,7 @@ def _resolve_track_title(media, metadata, media_type, season_number):
     if media:
         return media.item
     title = metadata["title"]
-    if media_type == MediaTypes.SEASON.value:
+    if is_season_media(media_type):
         title += f" S{season_number}"
     return title
 
@@ -115,7 +121,7 @@ def track_modal(request, source, media_type, media_id, season_number=None):
     }
 
     title = _resolve_track_title(media, metadata, media_type, season_number)
-    if media and media_type == MediaTypes.GAME.value:
+    if media and is_game_media(media_type):
         initial_data["progress"] = helpers.minutes_to_hhmm(media.progress)
 
     form = get_form_class(media_type)(instance=media, initial=initial_data)
@@ -220,16 +226,16 @@ def _get_create_entry_media_types(user):
     media_types = []
     for mt in user.get_enabled_media_types():
         media_types.append(mt)
-        if mt == MediaTypes.TV.value:
+        if is_tv_media(mt):
             media_types.extend([MediaTypes.SEASON.value, MediaTypes.EPISODE.value])
     return media_types
 
 
 def _assign_parent_relationship(media_form, item, form):
     """Set the parent TV/season relationship on the media form instance."""
-    if item.media_type == MediaTypes.SEASON.value:
+    if is_season_media(item.media_type):
         media_form.instance.related_tv = form.cleaned_data["parent_tv"]
-    elif item.media_type == MediaTypes.EPISODE.value:
+    elif is_episode_media(item.media_type):
         media_form.instance.related_season = form.cleaned_data["parent_season"]
 
 
