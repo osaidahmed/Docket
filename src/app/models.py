@@ -448,6 +448,11 @@ class TV(Media):
             self._start_next_available_season()
 
     @property
+    def manual_media_id(self):
+        """Expose underlying item.media_id for manual entry forms."""
+        return self.item.media_id
+
+    @property
     def _non_special_seasons(self):
         if not hasattr(self, "_cached_non_special"):
             self._cached_non_special = [
@@ -673,6 +678,16 @@ class Season(Media):
     def __str__(self):
         """Return the title of the media and season number."""
         return f"{self.item.title} S{self.item.season_number}"
+
+    @property
+    def manual_media_id(self):
+        """Expose underlying item.media_id for manual entry forms."""
+        return self.item.media_id
+
+    @property
+    def manual_season_number(self):
+        """Expose underlying item.season_number for manual entry forms."""
+        return self.item.season_number
 
     def _on_completed(self):
         """Handle season completion: backfill, create episodes, auto-advance."""

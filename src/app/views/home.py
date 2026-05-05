@@ -8,7 +8,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
-from app import config
+from app import _media_sorting, config
 from app.models import BasicMedia, MediaTypes, Status
 from app.services import backlog, grouping
 from app.services import recommendations as recs_service
@@ -335,7 +335,7 @@ def _build_medialist_context(
     effective_sort_dir = (
         params["sort_dir"]
         if params["sort_dir"] in ("asc", "desc")
-        else BasicMedia.objects._DEFAULT_SORT_DIRS.get(sort_filter, "desc")
+        else _media_sorting.default_sort_dir(sort_filter)
     )
     export_cfg = request.user.export_txt_config or {}
     return {

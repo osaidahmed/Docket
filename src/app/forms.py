@@ -165,11 +165,11 @@ class ManualItemForm(forms.ModelForm):
 
         if instance.media_type == MediaTypes.SEASON.value:
             parent_tv = self.cleaned_data["parent_tv"]
-            instance.media_id = parent_tv.item.media_id
+            instance.media_id = parent_tv.manual_media_id
         elif instance.media_type == MediaTypes.EPISODE.value:
             parent_season = self.cleaned_data["parent_season"]
-            instance.media_id = parent_season.item.media_id
-            instance.season_number = parent_season.item.season_number
+            instance.media_id = parent_season.manual_media_id
+            instance.season_number = parent_season.manual_season_number
         else:
             instance.media_id = Item.generate_manual_id(instance.media_type)
 

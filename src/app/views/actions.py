@@ -16,6 +16,7 @@ from app.mixins import disable_fetch_releases
 from app.models import BasicMedia, Status
 from app.providers import services
 from app.services import backlog, recent
+from app.views import _backlog_helpers
 from app.views._backlog_save import commit_backlog_form
 from app.views._rewatch import (
     create_rewatch_instance,
@@ -374,30 +375,8 @@ def _render_backlog_save_response(
     return response
 
 
-def _update_pin_order(user, media, old_is_pinned, is_pinned_submitted):
-    """Update pin_order after a backlog save."""
-    if is_pinned_submitted == old_is_pinned:
-        return
-    if is_pinned_submitted:
-        max_order = _get_max_pin_order(user)
-        media.pin_order = 0 if max_order is None else max_order + 1
-    else:
-        media.pin_order = None
-    media.save(update_fields=["pin_order"])
-
-
-def _check_rewatch_cancelled(user, media, media_type, old_is_rewatch):
-    """Check if a rewatch was cancelled (unmarked while in Planning)."""
-    return (
-        old_is_rewatch
-        and not media.is_rewatch
-        and media.status == Status.PLANNING.value
-        and BasicMedia.objects.filter_media(
-            user, media.item.media_id, media_type, media.item.source
-        )
-        .filter(status__in=[Status.COMPLETED.value, Status.DROPPED.value])
-        .exists()
-    )
+_update_pin_order = _backlog_helpers.update_pin_order
+_check_rewatch_cancelled = _backlog_helpers.check_rewatch_cancelled
 
 
 def _render_backlog_form_errors(request, media, source_context, errors):
@@ -521,29 +500,7 @@ def _dispatch_bulk_action(action, items, model, value, user, instance_ids):
     return None
 
 
-def _get_max_pin_order(user):
-    """Get the highest pin_order across all media types for a user."""
-    from django.db import connection  # noqa: PLC0415
-
-    media_types = user.get_active_media_types()
-    if not media_types:
-        return None
-
-    parts = []
-    params = []
-    for mt in media_types:
-        model = get_media_model(mt)
-        table = model._meta.db_table
-        parts.append(
-            f"SELECT MAX(pin_order) AS max_pin FROM {table}"  # noqa: S608
-            " WHERE user_id = %s AND pin_order IS NOT NULL",
-        )
-        params.append(user.id)
-
-    query = f"SELECT MAX(max_pin) FROM ({' UNION ALL '.join(parts)}) sub"  # noqa: S608
-    with connection.cursor() as cursor:
-        cursor.execute(query, params)
-        return cursor.fetchone()[0]
+_get_max_pin_order = _backlog_helpers.get_max_pin_order
 
 
 @require_POST

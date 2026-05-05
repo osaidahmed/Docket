@@ -12,6 +12,12 @@ _DEFAULT_SORT_DIRS = {
     "end_date": "desc",
 }
 
+
+def default_sort_dir(sort_filter):
+    """Return the default sort direction for a sort field."""
+    return _DEFAULT_SORT_DIRS.get(sort_filter, "desc")
+
+
 _TV_SORT_FIELDS = {
     "start_date": (
         "calculated_start_date",
