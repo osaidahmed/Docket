@@ -2,11 +2,9 @@ import secrets
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django_celery_beat.models import PeriodicTask
-from django_celery_results.models import TaskResult
 
 from app.models import Item, MediaTypes, Status
-from users import helpers
+from users import _import_history
 
 EXCLUDED_SEARCH_TYPES = [MediaTypes.SEASON.value, MediaTypes.EPISODE.value]
 
@@ -199,21 +197,6 @@ def _value_in_field_choices(value, field):
     if not (hasattr(field, "choices") and field.choices):
         return True
     return value in {choice[0] for choice in field.choices}
-
-
-_IMPORT_TASKS = {
-    "trakt": "Import from Trakt",
-    "simkl": "Import from SIMKL",
-    "myanimelist": "Import from MyAnimeList",
-    "anilist": "Import from AniList",
-    "kitsu": "Import from Kitsu",
-    "docket": "Import from Docket",
-    "hltb": "Import from HowLongToBeat",
-    "steam": "Import from Steam",
-    "imdb": "Import from IMDB",
-    "goodreads": "Import from GoodReads",
-}
-_TASK_TO_SOURCE = {v: k for k, v in _IMPORT_TASKS.items()}
 
 
 class User(AbstractUser):
@@ -602,54 +585,11 @@ class User(AbstractUser):
 
     def _collect_task_results(self):
         """Build the recent-import history list for this user."""
-        task_results = TaskResult.objects.filter(
-            task_kwargs__contains=f"'user_id': {self.id},",
-            task_name__in=_IMPORT_TASKS.values(),
-        ).order_by("-date_done")  # Most recent first
-
-        results = []
-        for task in task_results:
-            processed_task = helpers.process_task_result(task)
-            results.append(
-                {
-                    "task": processed_task,
-                    "source": _TASK_TO_SOURCE[task.task_name],
-                    "date": task.date_done,
-                    "status": task.status,
-                    "summary": processed_task.summary,
-                    "errors": processed_task.errors,
-                },
-            )
-        return results
+        return _import_history.collect_task_results(self)
 
     def _collect_periodic_tasks(self):
         """Build the active import-schedule list for this user."""
-        periodic_tasks = PeriodicTask.objects.filter(
-            task__in=_IMPORT_TASKS.values(),
-            kwargs__contains=f'"user_id": {self.id},',
-            enabled=True,
-        ).select_related("crontab")
-
-        schedules = []
-        for periodic_task in periodic_tasks:
-            schedule_info = helpers.get_next_run_info(periodic_task)
-            if not schedule_info:
-                continue
-            username = ""
-            if " for " in periodic_task.name:
-                username = periodic_task.name.split(" for ")[1].split(" at ")[0]
-            schedules.append(
-                {
-                    "task": periodic_task,
-                    "source": _TASK_TO_SOURCE.get(periodic_task.task, "unknown"),
-                    "username": username,
-                    "last_run": periodic_task.last_run_at,
-                    "next_run": schedule_info["next_run"],
-                    "schedule": schedule_info["frequency"],
-                    "mode": schedule_info["mode"],
-                },
-            )
-        return schedules
+        return _import_history.collect_periodic_tasks(self)
 
     def regenerate_token(self):
         """Regenerate the user's token."""
