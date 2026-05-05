@@ -94,24 +94,21 @@ class ProviderAPIError(Exception):
 
     def __init__(self, provider, error, details=None):
         """Initialize the exception with the provider name or status code."""
+        from app.providers._error_helpers import (  # noqa: PLC0415
+            extract_log_text,
+            extract_status_code,
+            format_provider_label,
+        )
+
         self.provider = provider
-        if isinstance(error, int):
-            self.status_code = error
-            log_text = details or ""
-        else:
-            self.status_code = error.response.status_code
-            log_text = error.response.text
+        self.status_code = extract_status_code(error)
+        log_text = extract_log_text(error, details)
+        label = format_provider_label(provider)
 
-        try:
-            provider = Sources(provider).label
-        except ValueError:
-            provider = provider.title()
-
-        logger.error("%s error: %s", provider, log_text)
+        logger.error("%s error: %s", label, log_text)
 
         message = (
-            f"There was an error contacting the {provider} API "
-            f"(HTTP {self.status_code})"
+            f"There was an error contacting the {label} API (HTTP {self.status_code})"
         )
         if details:
             message += f": {details}"

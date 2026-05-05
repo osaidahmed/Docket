@@ -7,14 +7,7 @@ from django.core.cache import cache
 from app import helpers
 from app.models import MediaTypes, Sources
 from app.providers import services
-from app.providers.tmdb import (
-    _format_browse_result,
-    base_params,
-    base_url,
-    get_image_url,
-    get_title,
-    handle_error,
-)
+from app.providers import tmdb as _tmdb
 
 _BROWSE_ENDPOINT_MAP = {
     ("tv", "trending"): "/trending/tv/week",
@@ -43,8 +36,8 @@ def _browse_tmdb(
 
     if data is None:
         endpoint = _BROWSE_ENDPOINT_MAP.get((media_type, category))
-        url = f"{base_url}{endpoint}"
-        params = {**base_params, "page": page}
+        url = f"{_tmdb.base_url}{endpoint}"
+        params = {**_tmdb.base_params, "page": page}
 
         try:
             response = services.api_request(
@@ -54,10 +47,12 @@ def _browse_tmdb(
                 params=params,
             )
         except requests.exceptions.HTTPError as error:
-            handle_error(error)
+            _tmdb.handle_error(error)
 
         results = [
-            _format_browse_result(m, media_type, include_backdrop=include_backdrop)
+            _tmdb._format_browse_result(
+                m, media_type, include_backdrop=include_backdrop
+            )
             for m in response["results"]
         ]
 
@@ -97,7 +92,7 @@ def discover(media_type, filters, page):
     data = cache.get(cache_key)
 
     if data is None:
-        url = f"{base_url}/discover/{media_type}"
+        url = f"{_tmdb.base_url}/discover/{media_type}"
         params = _build_discover_params(media_type, filters, page)
 
         try:
@@ -105,15 +100,15 @@ def discover(media_type, filters, page):
                 Sources.TMDB.value, "GET", url, params=params
             )
         except requests.exceptions.HTTPError as error:
-            handle_error(error)
+            _tmdb.handle_error(error)
 
         results = [
             {
                 "media_id": media["id"],
                 "source": Sources.TMDB.value,
                 "media_type": media_type,
-                "title": get_title(media),
-                "image": get_image_url(media.get("poster_path")),
+                "title": _tmdb.get_title(media),
+                "image": _tmdb.get_image_url(media.get("poster_path")),
                 "synopsis": media.get("overview", ""),
             }
             for media in response["results"]
@@ -128,7 +123,7 @@ def discover(media_type, filters, page):
 
 
 def _build_discover_params(media_type, filters, page):
-    params = {**base_params, "page": page}
+    params = {**_tmdb.base_params, "page": page}
     if settings.TMDB_NSFW:
         params["include_adult"] = "true"
     sort_by = filters.get("sort_by", "popularity")
@@ -155,13 +150,13 @@ def get_genre_list(media_type):
     data = cache.get(cache_key)
 
     if data is None:
-        url = f"{base_url}/genre/{media_type}/list"
+        url = f"{_tmdb.base_url}/genre/{media_type}/list"
         try:
             response = services.api_request(
-                Sources.TMDB.value, "GET", url, params=base_params
+                Sources.TMDB.value, "GET", url, params=_tmdb.base_params
             )
         except requests.exceptions.HTTPError as error:
-            handle_error(error)
+            _tmdb.handle_error(error)
 
         data = [{"id": g["id"], "name": g["name"]} for g in response.get("genres", [])]
         cache.set(cache_key, data, timeout=60 * 60 * 24 * 7)
