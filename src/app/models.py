@@ -24,6 +24,7 @@ from simple_history.utils import bulk_create_with_history, bulk_update_with_hist
 import app
 import events
 from app import providers
+from app._types import MediaTypes
 from app.mixins import CalendarTriggerMixin, disable_fetch_releases
 
 logger = logging.getLogger(__name__)
@@ -47,21 +48,6 @@ class Sources(models.TextChoices):
     COMICVINE = "comicvine", "Comic Vine"
     BGG = "bgg", "BoardGameGeek"
     MANUAL = "manual", "Manual"
-
-
-class MediaTypes(models.TextChoices):
-    """Choices for the media type of the item."""
-
-    ANIME = "anime", "Anime"
-    MANGA = "manga", "Manga"
-    TV = "tv", "TV Show"
-    SEASON = "season", "TV Season"
-    EPISODE = "episode", "Episode"
-    MOVIE = "movie", "Movie"
-    GAME = "game", "Game"
-    BOOK = "book", "Book"
-    COMIC = "comic", "Comic"
-    BOARDGAME = "boardgame", "Board Game"
 
 
 class Item(CalendarTriggerMixin, models.Model):

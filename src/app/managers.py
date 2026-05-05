@@ -8,6 +8,7 @@ from django.utils import timezone
 
 import events
 import users
+from app._types import MediaTypes
 
 
 class MediaManager(models.Manager):
@@ -15,8 +16,6 @@ class MediaManager(models.Manager):
 
     def get_historical_models(self):
         """Return list of historical model names."""
-        from app.models import MediaTypes  # noqa: PLC0415
-
         return [f"historical{media_type}" for media_type in MediaTypes.values]
 
     def get_media_list(
