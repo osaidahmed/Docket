@@ -12,15 +12,21 @@ from app._types import MediaTypes
 class MediaManager(models.Manager):
     """Custom manager for media models."""
 
+    def _model_for(self, media_type):
+        """Resolve a sibling model in this manager's app by media_type."""
+        app_label = self.model._meta.app_label if self.model else "app"
+        return apps.get_model(app_label, media_type)
+
     def get_historical_models(self):
         """Return list of historical model names."""
+        _ = self.model
         return [f"historical{media_type}" for media_type in MediaTypes.values]
 
     def get_media_list(
         self, user, media_type, status_filter, sort_filter, search=None, sort_dir=None
     ):
         """Get media list based on filters, sorting and search."""
-        model = apps.get_model(app_label="app", model_name=media_type)
+        model = self._model_for(media_type)
         queryset = model.objects.filter(user=user.id)
 
         if isinstance(status_filter, list):
@@ -57,18 +63,22 @@ class MediaManager(models.Manager):
 
     def annotate_max_progress(self, media_list, media_type):
         """Annotate max_progress for all media items."""
+        _ = self.model
         _media_prefetch.annotate_max_progress(media_list, media_type, timezone.now())
 
     def _apply_prefetch_related(self, queryset, media_type):
         """Attach prefetch_related calls based on media type."""
+        _ = self.model
         return _media_prefetch.apply_prefetch_related(queryset, media_type)
 
     def _annotate_tv_released_episodes(self, tv_list, current_datetime):
         """Annotate tv list with released episode counts up to current_datetime."""
+        _ = self.model
         _media_prefetch._annotate_tv_released_episodes(tv_list, current_datetime)
 
     def _sort_media_list(self, queryset, sort_filter, media_type=None, sort_dir=None):
         """Sort media list using SQL-side annotations."""
+        _ = self.model
         return _media_sorting.sort_media_list(
             queryset, sort_filter, media_type, sort_dir
         )
@@ -78,7 +88,7 @@ class MediaManager(models.Manager):
         media_by_item_id = {}
 
         for media_type in media_types:
-            model = apps.get_model("app", media_type)
+            model = self._model_for(media_type)
             filter_kwargs = _media_filters.build_item_filter(
                 media_type, item_ids, user, status_filter
             )
@@ -93,13 +103,13 @@ class MediaManager(models.Manager):
 
     def get_media(self, user, media_type, instance_id):
         """Get user media object given the media type and item."""
-        model = apps.get_model(app_label="app", model_name=media_type)
+        model = self._model_for(media_type)
         params = _media_filters.get_media_params(user, media_type, instance_id)
         return model.objects.get(**params)
 
     def get_media_prefetch(self, user, media_type, instance_id):
         """Get user media object with prefetch_related applied."""
-        model = apps.get_model(app_label="app", model_name=media_type)
+        model = self._model_for(media_type)
         params = _media_filters.get_media_params(user, media_type, instance_id)
 
         queryset = model.objects.filter(**params)
@@ -118,7 +128,7 @@ class MediaManager(models.Manager):
         episode_number=None,
     ):
         """Filter media objects based on parameters."""
-        model = apps.get_model(app_label="app", model_name=media_type)
+        model = self._model_for(media_type)
         params = _media_filters.filter_media_params(
             media_type,
             media_id,
