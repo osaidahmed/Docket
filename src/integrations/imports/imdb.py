@@ -1,6 +1,5 @@
 import logging
 from collections import defaultdict
-from csv import DictReader
 
 from django.apps import apps
 from django.utils import timezone
@@ -11,7 +10,9 @@ import app.providers
 from app.models import MediaTypes, Sources, Status
 from app.providers.services import ProviderAPIError
 from integrations.imports import helpers
-from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
+from integrations.imports._csv_decoder import decode_csv_file
+from integrations.imports._dedup_two_pass import TwoPassDeduplicator
+from integrations.imports.helpers import MediaImportUnexpectedError
 
 logger = logging.getLogger(__name__)
 
@@ -76,37 +77,30 @@ class IMDBImporter:
 
     def import_data(self):
         """Import all user data from CSV."""
-        try:
-            decoded_file = self.file.read().decode("utf-8").splitlines()
-        except UnicodeDecodeError as e:
-            msg = "Invalid file format. Please upload a CSV file."
-            raise MediaImportError(msg) from e
+        rows = list(decode_csv_file(self.file))
+        dedup = TwoPassDeduplicator()
 
-        reader = DictReader(decoded_file)
-        rows = list(reader)
-
-        # Track media IDs and their titles from the import file
-        media_id_counts = defaultdict(int)
-        media_id_titles = defaultdict(list)
-
-        # First pass: identify duplicates and validate entries
         for row in rows:
             try:
-                self._process_first_pass(row, media_id_counts, media_id_titles)
+                self._process_first_pass(row, dedup)
             except Exception as error:
                 error_msg = f"Error processing entry: {row}"
                 raise MediaImportUnexpectedError(error_msg) from error
 
-        # Second pass: add non-duplicates to bulk_media
         for row in rows:
             try:
-                self._process_second_pass(row, media_id_counts)
+                self._process_second_pass(row, dedup)
             except Exception as error:
                 error_msg = f"Error processing entry: {row}"
                 raise MediaImportUnexpectedError(error_msg) from error
 
-        # Add consolidated warnings for duplicates
-        self._add_duplicate_warnings(media_id_counts, media_id_titles)
+        for warning in dedup.duplicate_warnings(
+            lambda titles, media_id: (
+                f"{titles}: They were matched to the same TMDB ID {media_id} "
+                "- none imported"
+            ),
+        ):
+            self.warnings.append(warning)
 
         helpers.cleanup_existing_media(self.to_delete, self.user)
         helpers.bulk_create_media(self.bulk_media, self.user)
@@ -119,7 +113,7 @@ class IMDBImporter:
         deduplicated_messages = "\n".join(dict.fromkeys(self.warnings))
         return imported_counts, deduplicated_messages if self.warnings else None
 
-    def _process_first_pass(self, row, media_id_counts, media_id_titles):
+    def _process_first_pass(self, row, dedup):
         """First pass to identify duplicate entries and validate data."""
         imdb_id = self._extract_imdb_id(row)
 
@@ -150,13 +144,11 @@ class IMDBImporter:
             )
             return
 
-        media_id = tmdb_data["media_id"]
-        media_id_counts[media_id] += 1
-        media_id_titles[media_id].append(title)
+        dedup.record(tmdb_data["media_id"], title)
 
-    def _process_second_pass(self, row, media_id_counts):
+    def _process_second_pass(self, row, dedup):
         """Second pass to process non-duplicate entries."""
-        resolved = self._validate_imdb_entry(row, media_id_counts)
+        resolved = self._validate_imdb_entry(row, dedup)
         if not resolved:
             return
         media_type, tmdb_data = resolved
@@ -164,7 +156,7 @@ class IMDBImporter:
         instance = self._create_media_instance(item, row, media_type)
         self.bulk_media[media_type].append(instance)
 
-    def _validate_imdb_entry(self, row, media_id_counts):
+    def _validate_imdb_entry(self, row, dedup):
         """Validate an IMDB row. Return (media_type, tmdb_data) or None to skip."""
         metadata = self._resolve_imdb_metadata(row)
         if not metadata:
@@ -174,7 +166,7 @@ class IMDBImporter:
         if not self._should_keep_imdb_entry(
             tmdb_data["media_id"],
             media_type,
-            media_id_counts,
+            dedup,
         ):
             return None
         return media_type, tmdb_data
@@ -192,9 +184,9 @@ class IMDBImporter:
             return None
         return title_type, tmdb_data
 
-    def _should_keep_imdb_entry(self, media_id, media_type, media_id_counts):
+    def _should_keep_imdb_entry(self, media_id, media_type, dedup):
         """Drop entries seen multiple times or filtered out by import mode."""
-        if media_id_counts[media_id] > 1:
+        if not dedup.is_unique(media_id):
             return False
         return helpers.should_process_media(
             self.existing_media,
@@ -204,17 +196,6 @@ class IMDBImporter:
             str(media_id),
             self.mode,
         )
-
-    def _add_duplicate_warnings(self, media_id_counts, media_id_titles):
-        """Add warnings for duplicate entries."""
-        for media_id, count in media_id_counts.items():
-            if count > 1:
-                titles = media_id_titles[media_id]
-                title_list = helpers.join_with_commas_and(titles)
-                self.warnings.append(
-                    f"{title_list}: They were matched to the same TMDB ID {media_id} "
-                    "- none imported",
-                )
 
     def _extract_imdb_id(self, row):
         """Extract and clean IMDB ID from row."""

@@ -1,6 +1,5 @@
 import logging
 from collections import defaultdict
-from csv import DictReader
 
 from django.apps import apps
 from django.conf import settings
@@ -13,6 +12,7 @@ from app.models import MediaTypes, Sources
 from app.providers import services
 from app.templatetags import app_tags
 from integrations.imports import helpers
+from integrations.imports._csv_decoder import decode_csv_file
 from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
 
 logger = logging.getLogger(__name__)
@@ -57,15 +57,7 @@ class DocketImporter:
 
     def import_data(self):
         """Import all user data from the CSV file."""
-        try:
-            decoded_file = self.file.read().decode("utf-8").splitlines()
-        except UnicodeDecodeError as e:
-            msg = "Invalid file format. Please upload a CSV file."
-            raise MediaImportError(msg) from e
-
-        reader = DictReader(decoded_file)
-
-        for row in reader:
+        for row in decode_csv_file(self.file):
             try:
                 self._process_row(row)
             except services.ProviderAPIError as error:
