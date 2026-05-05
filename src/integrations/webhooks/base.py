@@ -1,10 +1,10 @@
 import logging
 
-from django.core.cache import cache
 from django.utils import timezone
 
 import app
 from app.models import MediaTypes, Sources, Status
+from integrations.webhooks import _anime_mapper
 
 logger = logging.getLogger(__name__)
 
@@ -164,64 +164,30 @@ class BaseWebhookProcessor:
 
     def _fetch_mapping_data(self):
         """Fetch anime mapping data with caching."""
-        data = cache.get("anime_mapping_data")
-        if data is None:
-            url = "https://raw.githubusercontent.com/Kometa-Team/Anime-IDs/refs/heads/master/anime_ids.json"
-            data = app.providers.services.api_request("GITHUB", "GET", url)
-            cache.set("anime_mapping_data", data)
-        return data
+        return _anime_mapper.fetch_mapping_data()
 
     def _get_mal_id_from_tvdb(
         self, mapping_data, tvdb_id, season_number, episode_number
     ):
-        matching_entries = [
-            entry
-            for entry in mapping_data.values()
-            if entry.get("tvdb_id") == tvdb_id
-            and entry.get("tvdb_season") == season_number
-            and "mal_id" in entry
-        ]
-
-        if not matching_entries:
-            return None, None
-
-        matching_entries.sort(key=lambda x: x.get("tvdb_epoffset", 0))
-        for i, entry in enumerate(matching_entries):
-            current_offset = entry.get("tvdb_epoffset", 0)
-            next_offset = (
-                matching_entries[i + 1].get("tvdb_epoffset", float("inf"))
-                if i < len(matching_entries) - 1
-                else float("inf")
-            )
-
-            if current_offset < episode_number <= next_offset:
-                mal_id = self._parse_mal_id(entry["mal_id"])
-                return mal_id, episode_number - current_offset
-
-        return None, None
+        return _anime_mapper.mal_id_from_tvdb(
+            mapping_data, tvdb_id, season_number, episode_number
+        )
 
     def _find_mal_id_in_mapping(self, mapping_data, field, value):
         """Find MAL ID from mapping data by matching a field value."""
-        for entry in mapping_data.values():
-            if entry.get(field) == value and "mal_id" in entry:
-                return self._parse_mal_id(entry["mal_id"])
-        return None
+        return _anime_mapper.find_mal_id_in_mapping(mapping_data, field, value)
 
     def _get_mal_id_from_tmdb_movie(self, mapping_data, tmdb_movie_id):
         """Find MAL ID from TMDB movie mapping."""
-        return self._find_mal_id_in_mapping(
-            mapping_data, "tmdb_movie_id", tmdb_movie_id
-        )
+        return _anime_mapper.mal_id_from_tmdb_movie(mapping_data, tmdb_movie_id)
 
     def _get_mal_id_from_imdb(self, mapping_data, imdb_id):
         """Find MAL ID from IMDB ID mapping."""
-        return self._find_mal_id_in_mapping(mapping_data, "imdb_id", imdb_id)
+        return _anime_mapper.mal_id_from_imdb(mapping_data, imdb_id)
 
     def _parse_mal_id(self, mal_id):
         """Parse MAL ID from potentially comma-separated string."""
-        if isinstance(mal_id, str) and "," in mal_id:
-            return mal_id.split(",")[0].strip()
-        return mal_id
+        return _anime_mapper.parse_mal_id(mal_id)
 
     def _handle_movie(self, media_id, payload, user):
         """Handle movie playback event."""
