@@ -16,7 +16,7 @@ from app.mixins import disable_fetch_releases
 from app.models import BasicMedia, Status
 from app.providers import services
 from app.services import backlog, recent
-from app.views import _backlog_helpers
+from app.views._backlog_helpers import get_max_pin_order
 from app.views._backlog_save import commit_backlog_form
 from app.views._rewatch import (
     create_rewatch_instance,
@@ -375,10 +375,6 @@ def _render_backlog_save_response(
     return response
 
 
-_update_pin_order = _backlog_helpers.update_pin_order
-_check_rewatch_cancelled = _backlog_helpers.check_rewatch_cancelled
-
-
 def _render_backlog_form_errors(request, media, source_context, errors):
     """Render card with form errors after invalid backlog save."""
     if source_context == "medialist":
@@ -500,9 +496,6 @@ def _dispatch_bulk_action(action, items, model, value, user, instance_ids):
     return None
 
 
-_get_max_pin_order = _backlog_helpers.get_max_pin_order
-
-
 @require_POST
 def toggle_pin(request):
     """Toggle pin status of a Planning item via HTMX."""
@@ -514,7 +507,7 @@ def toggle_pin(request):
     if media.is_pinned:
         media.pin_order = None
     else:
-        max_order = _get_max_pin_order(request.user)
+        max_order = get_max_pin_order(request.user)
         media.pin_order = 0 if max_order is None else max_order + 1
 
     media.save(update_fields=["pin_order"])

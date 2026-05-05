@@ -716,34 +716,34 @@ class MaxPinOrderTests(TestCase):
 
     def test_returns_none_when_no_pinned_items(self):
         """Test returns None when nothing is pinned."""
-        from app.views.actions import _get_max_pin_order
+        from app.views._backlog_helpers import get_max_pin_order
 
         self._make_movie("100")
 
-        result = _get_max_pin_order(self.user)
+        result = get_max_pin_order(self.user)
 
         self.assertIsNone(result)
 
     def test_returns_max_from_single_type(self):
         """Test returns max pin_order from a single media type."""
-        from app.views.actions import _get_max_pin_order
+        from app.views._backlog_helpers import get_max_pin_order
 
         self._make_movie("101", pin_order=0)
         self._make_movie("102", pin_order=3)
         self._make_movie("103", pin_order=1)
 
-        result = _get_max_pin_order(self.user)
+        result = get_max_pin_order(self.user)
 
         self.assertEqual(result, 3)
 
     def test_returns_max_across_types(self):
         """Test returns max pin_order across different media types."""
-        from app.views.actions import _get_max_pin_order
+        from app.views._backlog_helpers import get_max_pin_order
 
         self._make_movie("104", pin_order=2)
         self._make_anime("105", pin_order=5)
 
-        result = _get_max_pin_order(self.user)
+        result = get_max_pin_order(self.user)
 
         self.assertEqual(result, 5)
 
@@ -875,11 +875,11 @@ class GetMaxPinOrderEdgeTests(TestCase):
     def test_no_media_types_returns_none(self):
         from unittest.mock import MagicMock
 
-        from app.views.actions import _get_max_pin_order
+        from app.views._backlog_helpers import get_max_pin_order
 
         user = MagicMock()
         user.get_active_media_types.return_value = []
-        self.assertIsNone(_get_max_pin_order(user))
+        self.assertIsNone(get_max_pin_order(user))
 
 
 class RewatchHelperTests(TestCase):
