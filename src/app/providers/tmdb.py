@@ -9,6 +9,7 @@ from app import helpers
 from app._types import is_season_media
 from app.models import MediaTypes, Sources
 from app.providers import services
+from app.providers._client import ProviderClient
 
 logger = logging.getLogger(__name__)
 base_url = "https://api.themoviedb.org/3"
@@ -41,6 +42,14 @@ def handle_error(error):
         Sources.TMDB.value,
         error,
     )
+
+
+TMDB_CLIENT = ProviderClient(
+    provider=Sources.TMDB.value,
+    base_url=base_url,
+    base_params=base_params,
+    error_handler=handle_error,
+)
 
 
 def get_external_links(external_ids):
@@ -175,30 +184,15 @@ def _format_browse_result(media, media_type, *, include_backdrop=False):
 def find(external_id, external_source):
     """Search for media on TMDB."""
     cache_key = f"find_{Sources.TMDB.value}_{external_id}_{external_source}"
-    data = cache.get(cache_key)
-
-    if data is None:
-        url = f"{base_url}/find/{external_id}"
-
-        params = {
-            **base_params,
-            "external_source": external_source,
-        }
-
-        try:
-            response = services.api_request(
-                Sources.TMDB.value,
-                "GET",
-                url,
-                params=params,
-            )
-        except requests.exceptions.HTTPError as error:
-            handle_error(error)
-
-        cache.set(cache_key, response)
-        return response
-
-    return data
+    return TMDB_CLIENT.cached(
+        cache_key,
+        settings.CACHE_TIMEOUT,
+        lambda: TMDB_CLIENT.request(
+            "GET",
+            f"/find/{external_id}",
+            params={"external_source": external_source},
+        ),
+    )
 
 
 def movie(media_id):

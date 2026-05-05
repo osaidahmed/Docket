@@ -14,6 +14,7 @@ from django.core.cache import cache
 from app import helpers
 from app.models import MediaTypes, Sources
 from app.providers import services
+from app.providers._client import ProviderClient
 
 logger = logging.getLogger(__name__)
 base_url = "https://boardgamegeek.com/xmlapi2"
@@ -33,39 +34,37 @@ def handle_error(error):
     raise services.ProviderAPIError(Sources.BGG.value, error)
 
 
+BGG_CLIENT = ProviderClient(
+    provider=Sources.BGG.value,
+    base_url=base_url,
+    base_headers={"Authorization": f"Bearer {settings.BGG_API_TOKEN}"},
+    error_handler=handle_error,
+)
+
+
 def search(query, page):
     """Search for board games on BoardGameGeek."""
-    cache_key = (
-        f"search_{Sources.BGG.value}_{MediaTypes.BOARDGAME.value}_{query}_{page}"
+    page_key = f"search_{Sources.BGG.value}_{MediaTypes.BOARDGAME.value}_{query}_{page}"
+    results_key = (
+        f"search_results_{Sources.BGG.value}_{MediaTypes.BOARDGAME.value}_{query}"
     )
-    data = cache.get(cache_key)
 
-    if data is None:
-        search_results_cache_key = (
-            f"search_results_{Sources.BGG.value}_{MediaTypes.BOARDGAME.value}_{query}"
-        )
-        all_results = cache.get(search_results_cache_key)
-
-        if all_results is None:
-            try:
-                root = services.api_request(
-                    Sources.BGG.value,
+    def compute_page():
+        all_results = BGG_CLIENT.cached(
+            results_key,
+            settings.CACHE_TIMEOUT,
+            lambda: _parse_item_list(
+                BGG_CLIENT.request(
                     "GET",
-                    f"{base_url}/search",
+                    "/search",
                     params={"query": query, "type": "boardgame"},
-                    headers={"Authorization": f"Bearer {settings.BGG_API_TOKEN}"},
                     response_format="xml",
-                )
-            except requests.exceptions.HTTPError as error:
-                handle_error(error)
+                ),
+            ),
+        )
+        return _paginate_and_enrich(all_results, page)
 
-            all_results = _parse_item_list(root)
-            cache.set(search_results_cache_key, all_results)
-
-        data = _paginate_and_enrich(all_results, page)
-        cache.set(cache_key, data)
-
-    return data
+    return BGG_CLIENT.cached(page_key, settings.CACHE_TIMEOUT, compute_page)
 
 
 def _parse_item_list(root):
