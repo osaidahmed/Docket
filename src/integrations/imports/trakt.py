@@ -8,8 +8,8 @@ from django.utils.dateparse import parse_datetime
 import app
 from app.models import MediaTypes, Sources, Status
 from app.providers import services
-from integrations.imports import helpers
-from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
+from integrations.imports import _trakt_helpers, helpers
+from integrations.imports.helpers import MediaImportUnexpectedError
 from integrations.imports.trakt_auth import (
     get_access_token,
     handle_oauth_callback,  # noqa: F401 - re-exported for views
@@ -117,17 +117,7 @@ class TraktImporter:
 
     def _handle_api_error(self, error):
         """Translate common HTTP errors into user-facing messages."""
-        status = error.response.status_code
-        if status == requests.codes.not_found:
-            msg = (
-                f"User slug {self.username} not found. "
-                "User slug can be found in your Trakt profile URL."
-            )
-            raise MediaImportError(msg) from error
-        if status == requests.codes.unauthorized:
-            msg = "This account is set to private, use OAuth import instead."
-            raise MediaImportError(msg) from error
-        raise error
+        _trakt_helpers.translate_api_error(error, self.username)
 
     def _get_paginated_data(self, endpoint, item_type="items"):
         """Get paginated data from Trakt API."""
@@ -195,14 +185,7 @@ class TraktImporter:
 
     def _get_tmdb_id(self, entry_data):
         """Extract TMDB ID from entry data."""
-        tmdb_id = entry_data.get("ids", {}).get("tmdb")
-        if tmdb_id:
-            return str(tmdb_id)
-
-        self.warnings.append(
-            f"{entry_data['title']}: No {Sources.TMDB.label} ID found.",
-        )
-        return None
+        return _trakt_helpers.get_tmdb_id_or_warn(entry_data, self.warnings)
 
     def _get_metadata(self, media_type, tmdb_id, title, season_number=None):
         """Get metadata for a media item."""
@@ -301,12 +284,7 @@ class TraktImporter:
 
     def _get_episode_image(self, episode_number, season_metadata):
         """Extract episode image URL from season metadata."""
-        for episode in season_metadata["episodes"]:
-            if episode["episode_number"] == episode_number:
-                if episode.get("still_path"):
-                    return f"https://image.tmdb.org/t/p/w500{episode['still_path']}"
-                break
-        return settings.IMG_NONE
+        return _trakt_helpers.get_episode_image(episode_number, season_metadata)
 
     def process_watched_episode(self, entry):
         """Process a single episode watch event."""
@@ -402,9 +380,7 @@ class TraktImporter:
         season_metadata,
     ):
         """Validate that an episode exists in TMDB metadata."""
-        if any(
-            ep["episode_number"] == episode_number for ep in season_metadata["episodes"]
-        ):
+        if _trakt_helpers.episode_exists_in_metadata(episode_number, season_metadata):
             return True
         self.warnings.append(
             f"{title} S{season_number}E{episode_number}: "
