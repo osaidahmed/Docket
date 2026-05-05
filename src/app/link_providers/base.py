@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 
@@ -9,7 +10,7 @@ class LinkResult:
     site_id: str
 
 
-class LinkProvider:
+class LinkProvider(ABC):
     """Base class for site-specific link providers."""
 
     site_id: str
@@ -17,10 +18,9 @@ class LinkProvider:
     media_types: tuple
     requires_flaresolverr: bool = False
 
+    @abstractmethod
     def find(self, item):
         """Return a LinkResult for the item, or None if no match was found."""
-        del item
-        raise NotImplementedError
 
 
 class LinkProviderError(Exception):
