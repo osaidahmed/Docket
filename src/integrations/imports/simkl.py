@@ -7,12 +7,11 @@ import requests
 from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
 
 import app
 from app.models import MediaTypes, Sources, Status
 from app.providers import services
-from integrations.imports import helpers
+from integrations.imports import _simkl_helpers, helpers
 from integrations.imports.helpers import MediaImportError, MediaImportUnexpectedError
 
 logger = logging.getLogger(__name__)
@@ -413,54 +412,24 @@ class SimklImporter:
 
     def _get_episode_image(self, episode, season_number, metadata):
         """Get the image for the episode."""
-        for episode_metadata in metadata[f"season/{season_number}"]["episodes"]:
-            if episode_metadata["episode_number"] == episode["number"]:
-                return (
-                    f"https://image.tmdb.org/t/p/w500{episode_metadata['still_path']}"
-                )
-        return settings.IMG_NONE
+        return _simkl_helpers.get_episode_image(episode, season_number, metadata)
 
     def _get_status(self, status):
         """Map Simkl status to internal status."""
-        status_mapping = {
-            "completed": Status.COMPLETED.value,
-            "watching": Status.IN_PROGRESS.value,
-            "plantowatch": Status.PLANNING.value,
-            "hold": Status.PAUSED.value,
-            "dropped": Status.DROPPED.value,
-        }
-
-        return status_mapping.get(status, Status.IN_PROGRESS.value)
+        return _simkl_helpers.map_status(status)
 
     def _get_date(self, date_str):
         """Convert the date from Simkl to a date object."""
-        if date_str:
-            return parse_datetime(date_str)
-        return None
+        return _simkl_helpers.parse_date(date_str)
 
     def _get_start_date(self, anime):
         """Get the start date based on earliest watched episode."""
-        if "seasons" not in anime:
-            return None
-        dates = [
-            self._get_date(ep.get("watched_at"))
-            for ep in anime["seasons"][0]["episodes"]
-        ]
-        valid_dates = [d for d in dates if d is not None]
-        return min(valid_dates) if valid_dates else None
+        return _simkl_helpers.get_start_date(anime)
 
     def _get_end_date(self, anime_status, last_watched_at):
         """Get the end date based on the anime status."""
-        if anime_status == Status.COMPLETED.value:
-            return self._get_date(last_watched_at)
-        return None
+        return _simkl_helpers.get_end_date(anime_status, last_watched_at)
 
     def _get_history_date(self, entry):
         """Get the history date from the entry."""
-        if entry.get("last_watched_at"):
-            return parse_datetime(entry.get("last_watched_at"))
-
-        if entry.get("added_to_watchlist_at"):
-            return parse_datetime(entry.get("added_to_watchlist_at"))
-
-        return timezone.now()
+        return _simkl_helpers.get_history_date(entry)

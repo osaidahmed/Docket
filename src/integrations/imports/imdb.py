@@ -6,36 +6,18 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 import app
-import app.providers
 from app.models import MediaTypes, Sources, Status
-from app.providers.services import ProviderAPIError
 from integrations.imports import helpers
 from integrations.imports._csv_decoder import decode_csv_file
 from integrations.imports._dedup_two_pass import TwoPassDeduplicator
+from integrations.imports._imdb_tmdb_mapper import (
+    IMDB_TYPE_MAPPING,
+    UNSUPPORTED_TYPES,
+    lookup_in_tmdb,
+)
 from integrations.imports.helpers import MediaImportUnexpectedError
 
 logger = logging.getLogger(__name__)
-
-# Mapping of IMDB title types to media types
-IMDB_TYPE_MAPPING = {
-    "Movie": MediaTypes.MOVIE,
-    "TV Series": MediaTypes.TV,
-    "Short": MediaTypes.MOVIE,
-    "TV Mini Series": MediaTypes.TV,
-    "TV Movie": MediaTypes.MOVIE,
-    "TV Special": MediaTypes.MOVIE,
-    "Video": MediaTypes.MOVIE,
-}
-
-# IMDB title types we don't support
-UNSUPPORTED_TYPES = {
-    "TV Episode",
-    "TV Short",
-    "Video Game",
-    "Music Video",
-    "Podcast Series",
-    "Podcast Episode",
-}
 
 
 def importer(file, user, mode):
@@ -219,33 +201,7 @@ class IMDBImporter:
 
     def _lookup_in_tmdb(self, imdb_id, title_type):
         """Look up media in TMDB using IMDB ID."""
-        try:
-            response = app.providers.tmdb.find(imdb_id, "imdb_id")
-        except ProviderAPIError as e:
-            logger.warning("Error looking up IMDB ID %s in TMDB: %s", imdb_id, e)
-            return None
-
-        media_type = IMDB_TYPE_MAPPING.get(title_type, "")
-
-        if media_type == MediaTypes.MOVIE.value and response.get("movie_results"):
-            movie = response["movie_results"][0]
-            return {
-                "media_id": movie["id"],
-                "title": movie["title"],
-                "image": app.providers.tmdb.get_image_url(movie["poster_path"]),
-                "media_type": MediaTypes.MOVIE.value,
-            }
-
-        if media_type == MediaTypes.TV.value and response.get("tv_results"):
-            tv_show = response["tv_results"][0]
-            return {
-                "media_id": tv_show["id"],
-                "title": tv_show["name"],
-                "image": app.providers.tmdb.get_image_url(tv_show["poster_path"]),
-                "media_type": MediaTypes.TV.value,
-            }
-
-        return None
+        return lookup_in_tmdb(imdb_id, title_type)
 
     def _create_or_update_item(self, tmdb_data, media_type):
         """Create or update the item in database."""
