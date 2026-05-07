@@ -119,6 +119,17 @@ class GetItemsToProcessTests(TestCase):
             status=Status.PLANNING.value,
         )
 
+    def test_sentinel_only_items_are_included(self):
+        """Items with only sentinel events get reprocessed (e.g. stuck in NYA)."""
+        from datetime import datetime as _dt
+        from zoneinfo import ZoneInfo
+
+        sentinel = _dt.min.replace(tzinfo=ZoneInfo("UTC"))
+        Event.objects.create(item=self.anime_item, datetime=sentinel)
+
+        items = get_items_to_process(self.user)
+        self.assertIn(self.anime_item, items)
+
     def test_filters_by_user_and_event_state(self):
         user2 = get_user_model().objects.create_user(
             username="test2",

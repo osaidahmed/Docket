@@ -188,6 +188,10 @@ def filter_items_to_fetch(items):
     tv_items_to_include = get_tv_items_to_include(tv_items, now, sentinel_datetime)
 
     future_events = Event.objects.filter(item=OuterRef("pk"), datetime__gte=now)
+    sentinel_events = Event.objects.filter(
+        item=OuterRef("pk"),
+        datetime=sentinel_datetime,
+    )
     latest_comic_event = Event.objects.filter(
         item=OuterRef("pk"),
         item__media_type=MediaTypes.COMIC.value,
@@ -195,6 +199,7 @@ def filter_items_to_fetch(items):
 
     annotated = items.annotate(
         has_future_events=Exists(future_events),
+        has_sentinel_events=Exists(sentinel_events),
         latest_comic_event_datetime=Subquery(latest_comic_event.values("datetime")[:1]),
     )
 
@@ -203,7 +208,7 @@ def filter_items_to_fetch(items):
         Q(event__isnull=True) | Q(latest_comic_event_datetime__gte=one_year_ago)
     )
     other_q = ~Q(media_type__in=[MediaTypes.TV.value, MediaTypes.COMIC.value]) & (
-        Q(event__isnull=True) | Q(has_future_events=True)
+        Q(event__isnull=True) | Q(has_future_events=True) | Q(has_sentinel_events=True)
     )
 
     return annotated.filter(tv_q | comic_q | other_q).distinct()

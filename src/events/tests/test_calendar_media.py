@@ -453,6 +453,79 @@ class CalendarMediaTests(TestCase):
         self.assertEqual(events_bulk[0].content_number, 50)
 
     @patch("events.calendar_processors.services.get_media_metadata")
+    def test_process_other_skips_sentinel_when_currently_airing(
+        self,
+        mock_metadata,
+    ):
+        """Currently-airing anime with empty end_date does not get a sentinel event."""
+        mock_metadata.return_value = {
+            "max_progress": 12,
+            "details": {"end_date": None, "status": "Airing"},
+        }
+        events_bulk = []
+        process_other(self.anime_item, events_bulk)
+        self.assertEqual(events_bulk, [])
+
+    @patch("events.calendar_processors.services.get_media_metadata")
+    def test_process_other_clears_existing_sentinel_when_airing(
+        self,
+        mock_metadata,
+    ):
+        """Existing sentinel event is removed when status flips to Airing."""
+        from events.calendar import SENTINEL_DATETIME
+        from events.models import Event
+
+        Event.objects.create(item=self.anime_item, datetime=SENTINEL_DATETIME)
+        mock_metadata.return_value = {
+            "max_progress": 12,
+            "details": {"end_date": None, "status": "Airing"},
+        }
+        events_bulk = []
+        process_other(self.anime_item, events_bulk)
+        self.assertEqual(events_bulk, [])
+        self.assertFalse(
+            Event.objects.filter(
+                item=self.anime_item,
+                datetime=SENTINEL_DATETIME,
+            ).exists(),
+        )
+
+    @patch("events.calendar_processors.services.get_media_metadata")
+    def test_process_other_keeps_sentinel_when_upcoming(self, mock_metadata):
+        """Upcoming anime with empty end_date still gets a sentinel event."""
+        from events.calendar import SENTINEL_DATETIME
+
+        mock_metadata.return_value = {
+            "max_progress": 12,
+            "details": {"end_date": None, "status": "Upcoming"},
+        }
+        events_bulk = []
+        process_other(self.anime_item, events_bulk)
+        self.assertEqual(len(events_bulk), 1)
+        self.assertEqual(events_bulk[0].datetime, SENTINEL_DATETIME)
+
+    @patch("events.calendar_processors.services.get_media_metadata")
+    def test_process_other_clears_sentinel_when_publishing(self, mock_metadata):
+        """Currently-publishing manga clears existing sentinel event."""
+        from events.calendar import SENTINEL_DATETIME
+        from events.models import Event
+
+        Event.objects.create(item=self.manga_item, datetime=SENTINEL_DATETIME)
+        mock_metadata.return_value = {
+            "max_progress": 100,
+            "details": {"end_date": None, "status": "Publishing"},
+        }
+        events_bulk = []
+        process_other(self.manga_item, events_bulk)
+        self.assertEqual(events_bulk, [])
+        self.assertFalse(
+            Event.objects.filter(
+                item=self.manga_item,
+                datetime=SENTINEL_DATETIME,
+            ).exists(),
+        )
+
+    @patch("events.calendar_processors.services.get_media_metadata")
     @patch("events.calendar_processors.services.api_request")
     def test_anime_mal_more_episodes_skips(self, mock_api, mock_metadata):
         """Test anime skipped when MAL has more episodes than AniList."""
