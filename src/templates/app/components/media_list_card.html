@@ -103,7 +103,7 @@
                   class="p-2 text-gray-400 hover:text-accent-soft transition-colors cursor-pointer"
                   title="Edit">{% include "app/icons/edit-flat.svg" with classes="w-5 h-5" %}</button>
 
-          {% if media.status == Status.PLANNING.value and not media.not_yet_airing %}
+          {% if not media.not_yet_airing %}
             <button hx-post="{% url 'toggle_pin' %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                     hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'

@@ -141,7 +141,7 @@
         {% endif %}
       </td>
       <td class="p-2">
-        {% if media.status == Status.PLANNING.value and not media.not_yet_airing %}
+        {% if not media.not_yet_airing %}
           <button hx-post="{% url 'toggle_pin' %}"
                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                   hx-vals='{"media_type": "{{ media.item.media_type }}", "instance_id": "{{ media.id }}"}'

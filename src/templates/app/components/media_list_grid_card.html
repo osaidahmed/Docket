@@ -124,7 +124,7 @@
                 hx-trigger="click once"
                 @click="historyOpen = true">{% include "app/icons/history.svg" with classes="w-4 h-4" %}</button>
 
-        {% if media.status == Status.PLANNING.value and not media.not_yet_airing %}
+        {% if not media.not_yet_airing %}
           <button class="p-2.5 rounded-full hover:scale-110 transition-all duration-200 cursor-pointer {% if media.is_pinned %}bg-accent text-white{% else %}bg-gray-600 text-white hover:bg-gray-500{% endif %}"
                   title="{% if media.is_pinned %}Unpin{% else %}Pin{% endif %}"
                   hx-post="{% url 'toggle_pin' %}"

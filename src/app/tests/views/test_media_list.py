@@ -121,7 +121,14 @@ class MediaListViewTests(TestCase):
         )
 
     def test_media_list_htmx_planning_page1_redirect(self):
-        headers = {"HTTP_HX_REQUEST": "true"}
+        headers = {
+            "HTTP_HX_REQUEST": "true",
+            "HTTP_HX_CURRENT_URL": (
+                "http://testserver"
+                + reverse("medialist", args=[MediaTypes.MOVIE.value])
+                + "?status=In+progress"
+            ),
+        }
         url = (
             reverse("medialist", args=[MediaTypes.MOVIE.value])
             + "?status=Planning&page=1"

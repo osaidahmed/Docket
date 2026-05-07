@@ -22,16 +22,30 @@
        @keydown.escape.window="if (selecting) { selecting = false; selected = []; lastSelected = null; }">
   {# djlint:on #}
 
-  {% if supports_recommendations %}
-    <div class="flex gap-2 mb-4">
+  {% if supports_recommendations or has_browse or has_discover %}
+    <div class="flex gap-1 mb-4 border-b border-white/10 overflow-x-auto">
       <button @click="activeTab = 'collection'; const u = new URL(window.location); u.searchParams.delete('tab'); history.replaceState({}, '', u)"
-              :class="activeTab === 'collection' ? 'bg-accent text-white' : 'bg-input hover:bg-highlight'"
-              class="px-4 py-2 rounded-md cursor-pointer transition-colors font-medium"
+              :class="activeTab === 'collection' ? 'text-white border-accent' : 'text-gray-400 border-transparent hover:text-white'"
+              class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer"
               type="button">Collection</button>
-      <button @click="activeTab = 'recommendations'; const u = new URL(window.location); u.searchParams.set('tab', 'recommendations'); history.replaceState({}, '', u)"
-              :class="activeTab === 'recommendations' ? 'bg-accent text-white' : 'bg-input hover:bg-highlight'"
-              class="px-4 py-2 rounded-md cursor-pointer transition-colors font-medium"
-              type="button">Recommendations</button>
+      {% if has_browse %}
+        <button @click="activeTab = 'browse'; const u = new URL(window.location); u.searchParams.set('tab', 'browse'); history.replaceState({}, '', u)"
+                :class="activeTab === 'browse' ? 'text-white border-accent' : 'text-gray-400 border-transparent hover:text-white'"
+                class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer"
+                type="button">Browse</button>
+      {% endif %}
+      {% if has_discover %}
+        <button @click="activeTab = 'discover'; const u = new URL(window.location); u.searchParams.set('tab', 'discover'); history.replaceState({}, '', u)"
+                :class="activeTab === 'discover' ? 'text-white border-accent' : 'text-gray-400 border-transparent hover:text-white'"
+                class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer"
+                type="button">Discover</button>
+      {% endif %}
+      {% if supports_recommendations %}
+        <button @click="activeTab = 'recommendations'; const u = new URL(window.location); u.searchParams.set('tab', 'recommendations'); history.replaceState({}, '', u)"
+                :class="activeTab === 'recommendations' ? 'text-white border-accent' : 'text-gray-400 border-transparent hover:text-white'"
+                class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer"
+                type="button">Recommendations</button>
+      {% endif %}
     </div>
   {% endif %}
 
@@ -314,7 +328,7 @@
           <p class="text-gray-400 mb-6">
             Start tracking your {{ media_type_plural }} to keep a record of what you've {{ media_type|media_past_verb }}.
           </p>
-          <a href="{% url 'explore_type' media_type=media_type %}"
+          <a href="{% url 'medialist' media_type=media_type %}?tab=browse"
              class="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover transition-colors">
             Browse {{ media_type|media_type_readable_plural }}
           </a>
@@ -434,9 +448,7 @@
 
     {% if media_list %}
       <div class="flex items-center gap-2 mb-3">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">
-          {{ media_list.paginator.count }} more planning item{{ media_list.paginator.count|pluralize }}
-        </h2>
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">{{ rest_count_label }}</h2>
       </div>
     {% endif %}
   {% endif %}
@@ -654,6 +666,22 @@
 
 </div>
 {# end collection tab #}
+
+{% if has_browse %}
+  <div x-show="activeTab === 'browse'"
+       {% if active_tab != 'browse' %}x-cloak{% endif %}
+       hx-get="{% url 'medialist_browse_tab' media_type %}?tab=browse"
+       hx-trigger="revealed"
+       hx-swap="innerHTML"></div>
+{% endif %}
+
+{% if has_discover %}
+  <div x-show="activeTab === 'discover'"
+       {% if active_tab != 'discover' %}x-cloak{% endif %}
+       hx-get="{% url 'medialist_browse_tab' media_type %}?tab=discover"
+       hx-trigger="revealed"
+       hx-swap="innerHTML"></div>
+{% endif %}
 
 {% if supports_recommendations %}
   <div x-show="activeTab === 'recommendations'"

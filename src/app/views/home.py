@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import parse_qs, urlparse
 
 from django.core.cache import cache
 from django.core.paginator import Paginator
@@ -192,10 +193,8 @@ def progress_edit(request, media_type, instance_id):
     )
 
 
-def _split_pinned_from_queryset(queryset, status_filter):
-    """Separate pinned Planning items from the main queryset."""
-    if status_filter != Status.PLANNING.value:
-        return queryset, []
+def _split_pinned_from_queryset(queryset):
+    """Separate pinned items from the main queryset, scoped to the filter."""
     pinned = list(queryset.filter(pin_order__isnull=False).order_by("pin_order"))
     rest = queryset.filter(pin_order__isnull=True)
     return rest, pinned
@@ -268,10 +267,7 @@ def media_list(request, media_type):
         search=params["search"],
         sort_dir=params["sort_dir"],
     )
-    media_queryset, pinned_list = _split_pinned_from_queryset(
-        media_queryset,
-        status_filter,
-    )
+    media_queryset, pinned_list = _split_pinned_from_queryset(media_queryset)
 
     is_grouped = _should_group(request.user, media_type)
     media_page = _paginate_medialist(media_queryset, page, media_type, is_grouped)
@@ -316,11 +312,36 @@ def _medialist_htmx_redirect(request, page, pinned_list, status_filter, media_ty
         response = HttpResponse()
         response["HX-Redirect"] = reverse("medialist", args=[media_type])
         return response
-    if int(page) <= 1 and (pinned_list or status_filter == Status.PLANNING.value):
+    if int(page) <= 1 and _needs_full_reload(request, pinned_list, status_filter):
         response = HttpResponse()
         response["HX-Redirect"] = request.get_full_path()
         return response
     return None
+
+
+def _rest_count_label(media_page, status_filter):
+    """Build the 'N more <status> items' header string for the medialist."""
+    count = media_page.paginator.count
+    word = "item" if count == 1 else "items"
+    if status_filter and status_filter != MediaStatusChoices.ALL.value:
+        return f"{count} more {status_filter.lower()} {word}"
+    return f"{count} more {word}"
+
+
+def _needs_full_reload(request, pinned_list, status_filter):
+    """Full reload when page structure (pinned section, header) must change."""
+    if pinned_list:
+        return True
+    return _status_filter_changed(request, status_filter)
+
+
+def _status_filter_changed(request, new_status):
+    """Detect a status-filter change between current and previous URL."""
+    current_url = request.headers.get("HX-Current-URL", "")
+    if not current_url:
+        return False
+    prev_status = parse_qs(urlparse(current_url).query).get("status", [None])[0]
+    return prev_status is not None and prev_status != new_status
 
 
 def _build_medialist_context(
@@ -348,6 +369,7 @@ def _build_medialist_context(
         "current_sort": sort_filter,
         "current_sort_dir": effective_sort_dir,
         "current_status": params["status_filter"],
+        "rest_count_label": _rest_count_label(media_page, params["status_filter"]),
         "sort_choices": MediaSortChoices.choices,
         "status_choices": MediaStatusChoices.choices,
         "export_txt_template": export_cfg.get(
@@ -356,10 +378,19 @@ def _build_medialist_context(
         ),
         "export_txt_separator": export_cfg.get("separator", "\\n"),
         "edit_status_choices": Status.choices,
-        "supports_recommendations": config.supports_recommendations(media_type),
+        **_build_tab_flags(media_type),
         "pinned_list": pinned_list,
         "active_tab": request.GET.get("tab", "collection"),
         "is_grouped": is_grouped,
+    }
+
+
+def _build_tab_flags(media_type):
+    """Return Collection/Browse/Discover/Recommendations tab availability flags."""
+    return {
+        "supports_recommendations": config.supports_recommendations(media_type),
+        "has_browse": config.get_explore_categories(media_type) is not None,
+        "has_discover": config.get_discover_sections(media_type) is not None,
     }
 
 
