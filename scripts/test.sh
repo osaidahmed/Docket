@@ -5,6 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SRC_DIR="$ROOT_DIR/src"
 
+if [ -n "${REMOTE_RUN:-}" ] && [ -x "$ROOT_DIR/scripts/remote.sh" ]; then
+  exec "$ROOT_DIR/scripts/remote.sh" "./scripts/$(basename "$0")" "$@"
+fi
+
 # auto-activate virtualenv if present and not already active
 if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "$ROOT_DIR/.venv/bin/activate" ]; then
   # shellcheck disable=SC1091

@@ -19,9 +19,10 @@ rsync -az \
   --exclude='htmlcov' \
   --exclude='*.pyc' \
   --exclude='.codegraph' \
+  --exclude='db/' \
+  --exclude='/docker-compose.yml' \
   --delete \
-  "$ROOT_DIR/" "$SERVER:$REMOTE_DIR/src/"
-
+  "$ROOT_DIR/" "$SERVER:$REMOTE_DIR/"
 echo "Building and restarting..."
 ssh "$SERVER" "cd $REMOTE_DIR && docker compose build --quiet && docker compose up -d"
 
