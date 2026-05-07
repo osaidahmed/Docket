@@ -8,7 +8,7 @@
      class="mt-6 text-center"
      hx-swap-oob="true">
   {% if has_next_page %}
-    <button hx-get="{% url 'explore_section' media_type=media_type section_key=section_key %}?page={{ next_page }}"
+    <button hx-get="{% url 'medialist_section' media_type=media_type section_key=section_key %}?page={{ next_page }}"
             hx-target="#{{ section_key }}-grid"
             hx-swap="beforeend"
             class="px-8 py-2.5 text-sm font-medium text-gray-300 bg-card hover:bg-input border border-white/10 rounded-lg transition-colors">

@@ -30,16 +30,26 @@ urlpatterns = [
         name="print_media",
     ),
     path("search", views.media_search, name="search"),
-    path("explore", views.explore, name="explore"),
+    path("news", views.news, name="news"),
     path(
         "explore/<media_type:media_type>",
-        views.explore_type,
+        views.explore_type_redirect,
         name="explore_type",
     ),
     path(
         "explore/<media_type:media_type>/section/<str:section_key>",
-        views.explore_section,
+        views.explore_section_redirect,
         name="explore_section",
+    ),
+    path(
+        "medialist/<media_type:media_type>/browse",
+        views.medialist_browse_tab,
+        name="medialist_browse_tab",
+    ),
+    path(
+        "medialist/<media_type:media_type>/section/<str:section_key>",
+        views.explore_section,
+        name="medialist_section",
     ),
     path(
         "details/<source:source>/<media_type:media_type>/<str:media_id>/<str:title>",

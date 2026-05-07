@@ -36,7 +36,7 @@ def test_empty_login_stays_on_page(page: Page, live_server, db):
 
 
 def test_protected_routes_redirect_to_login(page: Page, live_server, db):
-    for path in ["/", "/explore", "/statistics", "/lists", "/calendar"]:
+    for path in ["/", "/news", "/statistics", "/lists", "/calendar"]:
         page.goto(f"{live_server.url}{path}")
         expect(page).to_have_url(re.compile(r".*/accounts/login/"))
 

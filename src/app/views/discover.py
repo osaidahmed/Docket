@@ -6,14 +6,14 @@ from app.providers import services
 
 
 def render_discover(request, media_type):
-    """Render discover content for a media type (called from explore_type)."""
+    """Render the Discover sections partial (HTMX-only, called from medialist tab)."""
     sections_config = config.get_discover_sections(media_type)
     sections_data = services.discover_sections(media_type)
     sections = _build_sections(request, sections_config, sections_data)
 
     return render(
         request,
-        "app/explore_type.html",
+        "app/partials/discover_content.html",
         {
             "media_type": media_type,
             "sections": sections,

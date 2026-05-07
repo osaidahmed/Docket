@@ -109,7 +109,7 @@ def test_preferences_affect_home(
     assert pref.enabled is False
 
 
-def test_disable_media_type_hides_in_explore(
+def test_disable_media_type_hides_from_sidebar(
     authenticated_page: Page,
     live_server,
     test_user,
@@ -131,11 +131,11 @@ def test_disable_media_type_hides_in_explore(
     ).click()
     authenticated_page.wait_for_load_state("networkidle")
 
-    authenticated_page.goto(f"{live_server.url}/explore")
-    boardgame_link = authenticated_page.locator(
-        "a[href*='/explore/boardgame']",
+    authenticated_page.goto(f"{live_server.url}/news")
+    sidebar_boardgame_link = authenticated_page.locator(
+        "a[href*='/medialist/boardgame']",
     )
-    expect(boardgame_link).to_have_count(0)
+    expect(sidebar_boardgame_link).to_have_count(0)
 
 
 def test_track_delete_retrack(

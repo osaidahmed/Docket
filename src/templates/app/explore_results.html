@@ -2,10 +2,10 @@
 
 <div class="flex flex-wrap gap-2 mb-8">
   {% for cat in categories %}
-    <a href="{% url 'explore_type' media_type=media_type %}?category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
-       hx-get="{% url 'explore_type' media_type=media_type %}?category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+    <a href="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+       hx-get="{% url 'medialist_browse_tab' media_type=media_type %}?tab=browse&category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
        hx-target="#explore-results"
-       hx-push-url="true"
+       hx-push-url="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ cat.slug }}&layout={{ layout }}{% if hide_watched_anime %}&hide_watched_anime=1{% endif %}"
        class="px-4 py-2 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if current_category == cat.slug and not has_active_filters %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
       {{ cat.label }}
     </a>
@@ -13,10 +13,10 @@
 
   {% if is_manga %}
     <span class="w-px self-stretch bg-gray-700"></span>
-    <a href="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
-       hx-get="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+    <a href="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
+       hx-get="{% url 'medialist_browse_tab' media_type=media_type %}?tab=browse&category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
        hx-target="#explore-results"
-       hx-push-url="true"
+       hx-push-url="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ current_category }}&layout={{ layout }}{% if not hide_watched_anime %}&hide_watched_anime=1{% endif %}"
        class="px-4 py-2 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if hide_watched_anime %}bg-accent text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
       Hide watched anime
     </a>
@@ -28,28 +28,28 @@
 {% if show_season_picker %}
   <div class="flex flex-wrap items-center gap-4 mb-8">
     <div class="flex items-center gap-1">
-      <a href="{% url 'explore_type' media_type=media_type %}?category=seasonal&year={{ prev_year }}&season={{ season }}&layout={{ layout }}"
-         hx-get="{% url 'explore_type' media_type=media_type %}?category=seasonal&year={{ prev_year }}&season={{ season }}&layout={{ layout }}"
+      <a href="{% url 'medialist' media_type=media_type %}?tab=browse&category=seasonal&year={{ prev_year }}&season={{ season }}&layout={{ layout }}"
+         hx-get="{% url 'medialist_browse_tab' media_type=media_type %}?tab=browse&category=seasonal&year={{ prev_year }}&season={{ season }}&layout={{ layout }}"
          hx-target="#explore-results"
-         hx-push-url="true"
+         hx-push-url="{% url 'medialist' media_type=media_type %}?tab=browse&category=seasonal&year={{ prev_year }}&season={{ season }}&layout={{ layout }}"
          class="p-1.5 rounded-md bg-input hover:bg-highlight cursor-pointer">
         {% include "app/icons/chevron-left.svg" with classes="w-4 h-4" %}
       </a>
       <span class="text-sm font-semibold w-14 text-center">{{ year }}</span>
-      <a href="{% url 'explore_type' media_type=media_type %}?category=seasonal&year={{ next_year }}&season={{ season }}&layout={{ layout }}"
-         hx-get="{% url 'explore_type' media_type=media_type %}?category=seasonal&year={{ next_year }}&season={{ season }}&layout={{ layout }}"
+      <a href="{% url 'medialist' media_type=media_type %}?tab=browse&category=seasonal&year={{ next_year }}&season={{ season }}&layout={{ layout }}"
+         hx-get="{% url 'medialist_browse_tab' media_type=media_type %}?tab=browse&category=seasonal&year={{ next_year }}&season={{ season }}&layout={{ layout }}"
          hx-target="#explore-results"
-         hx-push-url="true"
+         hx-push-url="{% url 'medialist' media_type=media_type %}?tab=browse&category=seasonal&year={{ next_year }}&season={{ season }}&layout={{ layout }}"
          class="p-1.5 rounded-md bg-input hover:bg-highlight cursor-pointer">
         {% include "app/icons/chevron-right.svg" with classes="w-5 h-5" %}
       </a>
     </div>
     <div class="flex gap-2">
       {% for s in seasons %}
-        <a href="{% url 'explore_type' media_type=media_type %}?category=seasonal&year={{ year }}&season={{ s.value }}&layout={{ layout }}"
-           hx-get="{% url 'explore_type' media_type=media_type %}?category=seasonal&year={{ year }}&season={{ s.value }}&layout={{ layout }}"
+        <a href="{% url 'medialist' media_type=media_type %}?tab=browse&category=seasonal&year={{ year }}&season={{ s.value }}&layout={{ layout }}"
+           hx-get="{% url 'medialist_browse_tab' media_type=media_type %}?tab=browse&category=seasonal&year={{ year }}&season={{ s.value }}&layout={{ layout }}"
            hx-target="#explore-results"
-           hx-push-url="true"
+           hx-push-url="{% url 'medialist' media_type=media_type %}?tab=browse&category=seasonal&year={{ year }}&season={{ s.value }}&layout={{ layout }}"
            class="px-3 py-1.5 text-sm rounded-full transition-colors duration-200 cursor-pointer {% if season == s.value %}bg-accent-hover text-white{% else %}bg-input text-gray-300 hover:bg-highlight{% endif %}">
           {{ s.label }}
         </a>
@@ -75,10 +75,10 @@
 {% if data.total_pages > 1 %}
   <div class="flex flex-wrap justify-center items-center mt-8 gap-x-2 gap-y-3">
     {% if data.page > 1 %}
-      <a href="?category={{ current_category }}&page={{ data.page|add:'-1' }}&layout={{ layout }}{{ extra_params }}"
-         hx-get="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&page={{ data.page|add:'-1' }}&layout={{ layout }}{{ extra_params }}"
+      <a href="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ current_category }}&page={{ data.page|add:'-1' }}&layout={{ layout }}{{ extra_params }}"
+         hx-get="{% url 'medialist_browse_tab' media_type=media_type %}?tab=browse&category={{ current_category }}&page={{ data.page|add:'-1' }}&layout={{ layout }}{{ extra_params }}"
          hx-target="#explore-results"
-         hx-push-url="true"
+         hx-push-url="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ current_category }}&page={{ data.page|add:'-1' }}&layout={{ layout }}{{ extra_params }}"
          class="p-2 rounded-md bg-card text-white hover:bg-input">
         {% include "app/icons/chevron-left.svg" with classes="w-5 h-5" %}
       </a>
@@ -90,10 +90,10 @@
     {% get_pagination_range data.page data.total_pages 2 data.total_exact as pages %}
     {% for page_num in pages %}
       {% if page_num %}
-        <a href="?category={{ current_category }}&page={{ page_num }}&layout={{ layout }}{{ extra_params }}"
-           hx-get="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&page={{ page_num }}&layout={{ layout }}{{ extra_params }}"
+        <a href="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ current_category }}&page={{ page_num }}&layout={{ layout }}{{ extra_params }}"
+           hx-get="{% url 'medialist_browse_tab' media_type=media_type %}?tab=browse&category={{ current_category }}&page={{ page_num }}&layout={{ layout }}{{ extra_params }}"
            hx-target="#explore-results"
-           hx-push-url="true"
+           hx-push-url="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ current_category }}&page={{ page_num }}&layout={{ layout }}{{ extra_params }}"
            class="min-w-10 h-10 px-2 rounded-md {% if data.page == page_num %}bg-accent{% else %}bg-card hover:bg-input{% endif %} text-white flex items-center justify-center">
           {{ page_num }}
         </a>
@@ -105,10 +105,10 @@
     {% endfor %}
 
     {% if data.page < data.total_pages %}
-      <a href="?category={{ current_category }}&page={{ data.page|add:'1' }}&layout={{ layout }}{{ extra_params }}"
-         hx-get="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&page={{ data.page|add:'1' }}&layout={{ layout }}{{ extra_params }}"
+      <a href="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ current_category }}&page={{ data.page|add:'1' }}&layout={{ layout }}{{ extra_params }}"
+         hx-get="{% url 'medialist_browse_tab' media_type=media_type %}?tab=browse&category={{ current_category }}&page={{ data.page|add:'1' }}&layout={{ layout }}{{ extra_params }}"
          hx-target="#explore-results"
-         hx-push-url="true"
+         hx-push-url="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ current_category }}&page={{ data.page|add:'1' }}&layout={{ layout }}{{ extra_params }}"
          class="p-2 rounded-md bg-card text-white hover:bg-input">
         {% include "app/icons/chevron-right.svg" with classes="w-5 h-5" %}
       </a>

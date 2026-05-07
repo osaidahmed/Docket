@@ -34,8 +34,9 @@ from app.views.discover import (
     explore_section,
 )
 from app.views.explore import (
-    explore,
-    explore_type,
+    explore_section_redirect,
+    explore_type_redirect,
+    medialist_browse_tab,
 )
 from app.views.export import (
     export_media,
@@ -53,6 +54,7 @@ from app.views.home import (
     recommendations_section,
     toggle_grouping,
 )
+from app.views.news import news
 from app.views.search import (
     media_search,
     search_parent_season,
@@ -74,9 +76,9 @@ __all__ = [
     "create_entry",
     "delete_history_record",
     "episode_save",
-    "explore",
     "explore_section",
-    "explore_type",
+    "explore_section_redirect",
+    "explore_type_redirect",
     "export_media",
     "export_media_txt",
     "history_modal",
@@ -86,6 +88,8 @@ __all__ = [
     "media_list",
     "media_save",
     "media_search",
+    "medialist_browse_tab",
+    "news",
     "print_media",
     "progress_edit",
     "quick_add",

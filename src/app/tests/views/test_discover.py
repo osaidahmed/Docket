@@ -41,6 +41,13 @@ def _mock_schedule_data():
     ]
 
 
+def _discover_url(media_type):
+    return (
+        reverse("medialist_browse_tab", kwargs={"media_type": media_type})
+        + "?tab=discover"
+    )
+
+
 class DiscoverViewTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -53,16 +60,14 @@ class DiscoverViewTests(TestCase):
     @patch("app.providers.services.discover_sections")
     def test_discover_movie_200(self, mock_discover):
         mock_discover.return_value = {"trending": _mock_section_data()}
-        url = reverse("explore_type", kwargs={"media_type": "movie"})
-        response = self.client.get(url + "?view=discover")
+        response = self.client.get(_discover_url("movie"))
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "app/explore_type.html")
+        self.assertTemplateUsed(response, "app/partials/discover_content.html")
 
     @patch("app.providers.services.discover_sections")
     def test_discover_tv_200(self, mock_discover):
         mock_discover.return_value = {"trending": _mock_section_data()}
-        url = reverse("explore_type", kwargs={"media_type": "tv"})
-        self.assertEqual(self.client.get(url + "?view=discover").status_code, 200)
+        self.assertEqual(self.client.get(_discover_url("tv")).status_code, 200)
 
     @patch("app.providers.services.discover_sections")
     def test_discover_anime_200(self, mock_discover):
@@ -70,39 +75,30 @@ class DiscoverViewTests(TestCase):
             "trending": _mock_section_data(),
             "schedule": _mock_schedule_data(),
         }
-        url = reverse("explore_type", kwargs={"media_type": "anime"})
-        self.assertEqual(self.client.get(url + "?view=discover").status_code, 200)
+        self.assertEqual(self.client.get(_discover_url("anime")).status_code, 200)
 
     @patch("app.providers.services.discover_sections")
     def test_discover_manga_200(self, mock_discover):
         mock_discover.return_value = {"trending": _mock_section_data()}
-        url = reverse("explore_type", kwargs={"media_type": "manga"})
-        self.assertEqual(self.client.get(url + "?view=discover").status_code, 200)
+        self.assertEqual(self.client.get(_discover_url("manga")).status_code, 200)
 
     @patch("app.providers.services.discover_sections")
     def test_discover_game_200(self, mock_discover):
         mock_discover.return_value = {"trending": _mock_section_data()}
-        url = reverse("explore_type", kwargs={"media_type": "game"})
-        self.assertEqual(self.client.get(url + "?view=discover").status_code, 200)
+        self.assertEqual(self.client.get(_discover_url("game")).status_code, 200)
 
-    @patch("app.providers.services.browse")
-    def test_unsupported_type_falls_back_to_browse(self, mock_browse):
-        mock_browse.return_value = {
-            "page": 1,
-            "total_results": 0,
-            "total_pages": 1,
-            "results": [],
-        }
-        url = reverse("explore_type", kwargs={"media_type": "book"})
-        response = self.client.get(url + "?view=discover")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["current_view"], "browse")
+    def test_unsupported_type_redirects_to_medialist(self):
+        """Discover for a type without sections (e.g. book) redirects to medialist."""
+        response = self.client.get(_discover_url("book"))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.url, reverse("medialist", kwargs={"media_type": "book"})
+        )
 
     @patch("app.providers.services.discover_sections")
     def test_context_has_current_view_discover(self, mock_discover):
         mock_discover.return_value = {"trending": _mock_section_data()}
-        url = reverse("explore_type", kwargs={"media_type": "movie"})
-        response = self.client.get(url + "?view=discover")
+        response = self.client.get(_discover_url("movie"))
         self.assertEqual(response.context["current_view"], "discover")
 
     @patch("app.providers.services.browse")
@@ -113,19 +109,19 @@ class DiscoverViewTests(TestCase):
             "total_pages": 1,
             "results": [],
         }
-        url = reverse("explore_type", kwargs={"media_type": "movie"})
+        url = reverse("medialist_browse_tab", kwargs={"media_type": "movie"})
         response = self.client.get(url)
         self.assertEqual(response.context["current_view"], "browse")
 
     @patch("app.providers.services.browse")
-    def test_has_discover_in_context(self, mock_browse):
+    def test_has_discover_in_browse_context(self, mock_browse):
         mock_browse.return_value = {
             "page": 1,
             "total_results": 0,
             "total_pages": 1,
             "results": [],
         }
-        url = reverse("explore_type", kwargs={"media_type": "anime"})
+        url = reverse("medialist_browse_tab", kwargs={"media_type": "anime"})
         response = self.client.get(url)
         self.assertTrue(response.context["has_discover"])
 
@@ -137,7 +133,7 @@ class DiscoverViewTests(TestCase):
             "total_pages": 1,
             "results": [],
         }
-        url = reverse("explore_type", kwargs={"media_type": "book"})
+        url = reverse("medialist_browse_tab", kwargs={"media_type": "book"})
         response = self.client.get(url)
         self.assertFalse(response.context["has_discover"])
 
@@ -147,20 +143,20 @@ class DiscoverViewTests(TestCase):
             "trending": _mock_section_data(),
             "upcoming": None,
         }
-        url = reverse("explore_type", kwargs={"media_type": "movie"})
-        response = self.client.get(url + "?view=discover")
+        response = self.client.get(_discover_url("movie"))
         section_keys = [s["key"] for s in response.context["sections"]]
         self.assertNotIn("upcoming", section_keys)
 
     def test_requires_auth(self):
         self.client.logout()
-        url = reverse("explore_type", kwargs={"media_type": "anime"})
-        response = self.client.get(url + "?view=discover")
+        response = self.client.get(_discover_url("anime"))
         self.assertEqual(response.status_code, 302)
         self.assertIn("login", response.url)
 
 
-class ExploreSectionTests(TestCase):
+class MedialistSectionTests(TestCase):
+    """Tests for the discover section load-more endpoint at /medialist/<type>/section/<key>."""
+
     @classmethod
     def setUpTestData(cls):
         cls.credentials = {"username": "test", "password": "12345"}
@@ -173,7 +169,7 @@ class ExploreSectionTests(TestCase):
     def test_load_more_returns_items(self, mock_page):
         mock_page.return_value = _mock_section_data(5)
         url = reverse(
-            "explore_section",
+            "medialist_section",
             kwargs={"media_type": "anime", "section_key": "recently_updated"},
         )
         response = self.client.get(url + "?page=2")
@@ -186,7 +182,7 @@ class ExploreSectionTests(TestCase):
         data["has_next_page"] = True
         mock_page.return_value = data
         url = reverse(
-            "explore_section",
+            "medialist_section",
             kwargs={"media_type": "anime", "section_key": "recently_updated"},
         )
         response = self.client.get(url + "?page=2")
@@ -198,7 +194,7 @@ class ExploreSectionTests(TestCase):
         data["has_next_page"] = False
         mock_page.return_value = data
         url = reverse(
-            "explore_section",
+            "medialist_section",
             kwargs={"media_type": "anime", "section_key": "recently_updated"},
         )
         response = self.client.get(url + "?page=2")
@@ -222,7 +218,7 @@ class ExploreSectionTests(TestCase):
             ],
         }
         url = reverse(
-            "explore_section",
+            "medialist_section",
             kwargs={"media_type": "anime", "section_key": "recently_updated"},
         )
         response = self.client.get(url + "?page=2")
@@ -230,7 +226,7 @@ class ExploreSectionTests(TestCase):
 
     def test_invalid_section_key_returns_empty(self):
         url = reverse(
-            "explore_section",
+            "medialist_section",
             kwargs={"media_type": "anime", "section_key": "nonexistent"},
         )
         response = self.client.get(url)

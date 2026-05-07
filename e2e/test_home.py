@@ -15,7 +15,7 @@ def test_sidebar_links_navigate_correctly(
     live_server,
 ):
     for link_name, expected_path in {
-        "Explore": "/explore",
+        "News": "/news",
         "Statistics": "/statistics",
         "Calendar": "/calendar",
         "Lists": "/lists",

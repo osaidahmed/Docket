@@ -21,7 +21,7 @@ class ExploreSeasonalViewTests(TestCase):
         cls.credentials = {"username": "test", "password": "12345"}
         cls.user = get_user_model().objects.create_user(**cls.credentials)
         cls.anime_url = reverse(
-            "explore_type", kwargs={"media_type": MediaTypes.ANIME.value}
+            "medialist_browse_tab", kwargs={"media_type": MediaTypes.ANIME.value}
         )
 
     def setUp(self):
@@ -195,7 +195,9 @@ class ExploreUpcomingTests(TestCase):
             MediaTypes.ANIME.value, Sources.MAL.value
         )
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.ANIME.value}
+            )
             + "?category=upcoming",
         )
         self.assertTrue(response.context["is_upcoming"])
@@ -207,7 +209,9 @@ class ExploreUpcomingTests(TestCase):
             MediaTypes.GAME.value, Sources.IGDB.value
         )
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.GAME.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.GAME.value}
+            )
             + "?category=anticipated",
         )
         self.assertTrue(response.context["is_upcoming"])
@@ -219,7 +223,9 @@ class ExploreUpcomingTests(TestCase):
             MediaTypes.ANIME.value, Sources.MAL.value, is_ongoing=True
         )
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.ANIME.value}
+            )
             + "?category=airing",
         )
         self.assertFalse(response.context["is_upcoming"])
@@ -233,7 +239,9 @@ class ExploreUpcomingTests(TestCase):
             MediaTypes.ANIME.value, Sources.MAL.value
         )
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.ANIME.value}
+            )
             + "?category=seasonal&year=2027&season=spring",
         )
         self.assertTrue(response.context["is_upcoming"])
@@ -246,7 +254,9 @@ class ExploreUpcomingTests(TestCase):
             MediaTypes.ANIME.value, Sources.MAL.value, is_ongoing=True
         )
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.ANIME.value}
+            )
             + "?category=seasonal&year=2026&season=winter",
         )
         self.assertFalse(response.context["is_upcoming"])
@@ -259,7 +269,7 @@ class ExploreUpcomingTests(TestCase):
             MediaTypes.TV.value, Sources.TMDB.value
         )
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.TV.value})
+            reverse("medialist_browse_tab", kwargs={"media_type": MediaTypes.TV.value})
             + "?category=trending",
         )
         self.assertFalse(response.context["is_upcoming"])
@@ -271,7 +281,7 @@ class ExploreUpcomingTests(TestCase):
             MediaTypes.TV.value, Sources.TMDB.value
         )
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.TV.value})
+            reverse("medialist_browse_tab", kwargs={"media_type": MediaTypes.TV.value})
             + "?category=on_the_air",
         )
         self.assertFalse(response.context["is_upcoming"])
@@ -310,7 +320,9 @@ class ExplorePaginationDisplayTests(TestCase):
         }
 
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.MOVIE.value}
+            )
             + "?category=popular",
         )
 
@@ -336,7 +348,9 @@ class ExplorePaginationDisplayTests(TestCase):
         }
 
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.ANIME.value}
+            )
             + "?category=all",
         )
 
@@ -364,7 +378,9 @@ class ExploreFilterTests(TestCase):
             "results": [],
         }
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.ANIME.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.ANIME.value}
+            )
             + "?category=all&genres=1,2",
         )
         self.assertEqual(response.status_code, 200)
@@ -411,7 +427,9 @@ class ExploreFilterTests(TestCase):
         }
 
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.MANGA.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.MANGA.value}
+            )
             + "?category=all&hide_watched_anime=1",
         )
         self.assertEqual(response.status_code, 200)
@@ -447,7 +465,9 @@ class ExploreGenreChipGridTests(TestCase):
         }
 
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.MOVIE.value}
+            )
             + "?category=trending&genres=28",
         )
 
@@ -473,7 +493,9 @@ class ExploreGenreChipGridTests(TestCase):
         }
 
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.MOVIE.value}
+            )
             + "?category=trending&genres=28",
         )
 
@@ -508,7 +530,9 @@ class ExploreGenreChipGridTests(TestCase):
         }
 
         response = self.client.get(
-            reverse("explore_type", kwargs={"media_type": MediaTypes.MOVIE.value})
+            reverse(
+                "medialist_browse_tab", kwargs={"media_type": MediaTypes.MOVIE.value}
+            )
             + "?category=trending&genres=1",
         )
 

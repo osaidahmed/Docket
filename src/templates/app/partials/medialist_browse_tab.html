@@ -1,0 +1,10 @@
+{% load app_tags %}
+
+<div id="explore-results"
+     {% if current_view == "browse" %}hx-on:htmx:after-swap="if (event.detail.target === this) window.scrollTo({top: 0})"{% endif %}>
+  {% if current_view == "discover" %}
+    {% include "app/partials/discover_content.html" %}
+  {% else %}
+    {% include "app/explore_results.html" %}
+  {% endif %}
+</div>
