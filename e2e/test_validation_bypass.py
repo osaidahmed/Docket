@@ -241,7 +241,7 @@ def test_media_type_tampered(
     authenticated_page: Page,
     test_user,
 ):
-    movie = create_movie(
+    create_movie(
         test_user,
         "550",
         "Fight Club",
@@ -263,9 +263,8 @@ def test_media_type_tampered(
 
     with authenticated_page.expect_response(
         re.compile(r".*/backlog_save"),
-    ) as response_info:
+    ):
         card.locator("button[type='submit']").click()
-    response = response_info.value
 
 
 def test_instance_id_tampered_to_other_user(
@@ -287,7 +286,7 @@ def test_instance_id_tampered_to_other_user(
         score=5,
     )
 
-    movie = create_movie(
+    create_movie(
         test_user,
         "550",
         "Fight Club",

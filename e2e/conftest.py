@@ -16,12 +16,13 @@ def login(page, live_server, username="e2etest", password="e2epass12345"):
         page.get_by_role("button", name="Sign In").click()
         try:
             expect(page).to_have_url(f"{live_server.url}/", timeout=10000)
-            return
         except AssertionError:
             if attempt < 4:
                 time.sleep(2)
             else:
                 raise
+        else:
+            return
 
 
 @pytest.fixture()

@@ -206,7 +206,7 @@ def test_auto_fill_end_date_on_completed(
     live_server,
     test_user,
 ):
-    item = Item.objects.create(
+    Item.objects.create(
         media_id="700",
         source=Sources.TMDB.value,
         media_type=MediaTypes.MOVIE.value,
@@ -241,7 +241,7 @@ def test_auto_fill_start_date_on_in_progress(
     live_server,
     test_user,
 ):
-    item = Item.objects.create(
+    Item.objects.create(
         media_id="701",
         source=Sources.TMDB.value,
         media_type=MediaTypes.MOVIE.value,

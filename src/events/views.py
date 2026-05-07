@@ -27,11 +27,11 @@ def _parse_calendar_date(request):
         current_date = (
             date(int(year), int(month), 1) if month and year else timezone.localdate()
         )
-        return current_date.month, current_date.year
     except (ValueError, TypeError):
         logger.warning("Invalid month or year provided: %s, %s", month, year)
         today = timezone.localdate()
         return today.month, today.year
+    return current_date.month, current_date.year
 
 
 def _calendar_navigation(month, year):
