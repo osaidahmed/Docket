@@ -1,6 +1,6 @@
 [tool.ruff]
 target-version = "py312"
-extend-exclude = ["migrations"]
+extend-exclude = ["migrations", ".claude"]
 force-exclude = true
 
 [tool.ruff.lint]
@@ -11,7 +11,44 @@ ignore = ["ANN", "PT", "PD", "D100", "D104", "RUF012", "PLR0913", "SLF001", "COM
 max-doc-length = 88
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["D102", "S106"]
+"**/tests/**" = [
+  "ARG001",
+  "ARG002",
+  "D101",
+  "D102",
+  "D107",
+  "DTZ001",
+  "E501",
+  "FBT002",
+  "FURB171",
+  "N806",
+  "PLC0415",
+  "RUF005",
+  "RUF059",
+  "S101",
+  "S105",
+  "S106",
+  "W505",
+]
+"e2e/**" = [
+  "ARG001",
+  "ARG002",
+  "D100",
+  "D102",
+  "D103",
+  "DTZ001",
+  "DTZ011",
+  "E501",
+  "INP001",
+  "N806",
+  "PLC0415",
+  "PLR2004",
+  "S101",
+  "S105",
+  "S106",
+  "S107",
+  "W505",
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
@@ -27,12 +64,45 @@ DJANGO_SETTINGS_MODULE = "config.test_settings"
 pythonpath = ["src"]
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 addopts = "--dist worksteal"
+markers = [
+    "e2e: end-to-end browser tests (require playwright)",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::django.utils.deprecation.RemovedInDjango60Warning",
 ]
 
+[tool.mutmut]
+source_paths = [
+    "src/app/",
+    "src/users/",
+    "src/integrations/",
+    "src/lists/",
+    "src/events/",
+]
+do_not_mutate = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/__init__.py",
+    "*/admin.py",
+    "*/apps.py",
+    "src/config/*",
+    "src/manage.py",
+]
+pytest_add_cli_args = ["-o", "addopts=", "-x", "--no-cov"]
+debug = true
+
 [tool.coverage.run]
 source = ["src"]
 concurrency = ["multiprocessing"]
-omit = ["*/migrations/*", "*/tests/*", "*/__init__.py", "*/admin.py"]
+omit = ["*/migrations/*", "*/tests/*", "*/__init__.py", "*/admin.py", "src/manage.py", "src/config/settings.py", "src/users/account_adapter.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.html]
+directory = "htmlcov"
