@@ -81,12 +81,43 @@ session.mount(
     LimiterAdapter(per_minute=50),
 )
 session.mount(
-    "https://boardgamegeek.com/xmlapi2",
-    LimiterAdapter(per_second=2),
+    "https://boardgamegeek.com",
+    LimiterAdapter(per_second=1),
 )
 session.mount(
     "https://api.jikan.moe",
     LimiterAdapter(per_second=3),
+)
+# News RSS sources (per-domain mounts; longest-prefix wins for matching).
+# RSS endpoints are public/static — cached for 1h, fetched once per cycle, so
+# generous per-minute limits are safe and let parallel warming finish quickly.
+session.mount(
+    "https://www.animenewsnetwork.com",
+    LimiterAdapter(per_minute=60),
+)
+session.mount(
+    "https://deadline.com",
+    LimiterAdapter(per_minute=60),
+)
+session.mount(
+    "https://variety.com",
+    LimiterAdapter(per_minute=60),
+)
+session.mount(
+    "https://www.hollywoodreporter.com",
+    LimiterAdapter(per_minute=60),
+)
+session.mount(
+    "https://www.gamespot.com",
+    LimiterAdapter(per_minute=60),
+)
+session.mount(
+    "https://www.publishersweekly.com",
+    LimiterAdapter(per_minute=60),
+)
+session.mount(
+    "https://icv2.com",
+    LimiterAdapter(per_minute=60),
 )
 
 

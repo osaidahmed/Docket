@@ -1,0 +1,26 @@
+{% load app_tags %}
+
+<a href="{{ article.url }}"
+   target="_blank"
+   rel="noopener noreferrer"
+   class="flex-shrink-0 w-64 bg-card rounded-lg overflow-hidden hover:bg-input transition-colors duration-200 group">
+  {% if article.image %}
+    <img src="{{ article.image }}"
+         alt="{{ article.title }}"
+         loading="lazy"
+         class="w-full h-36 object-cover">
+  {% else %}
+    <div class="w-full h-36 bg-input flex items-center justify-center">
+      {% include "app/icons/newspaper.svg" with classes="w-8 h-8 text-gray-600" %}
+    </div>
+  {% endif %}
+  <div class="p-3">
+    <p class="text-xs text-gray-500 mb-1">
+      {{ article.source }}
+      {% if article.published_at %}· {{ article.published_at|timesince }} ago{% endif %}
+    </p>
+    <p class="text-sm font-medium text-white group-hover:text-accent-soft transition-colors line-clamp-3">
+      {{ article.title }}
+    </p>
+  </div>
+</a>

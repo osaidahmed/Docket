@@ -1,0 +1,17 @@
+{% load app_tags %}
+
+<div class="mb-8">
+  <div class="flex items-center gap-2 mb-3">
+    {% icon lane.media_type is_active=False extra_classes="w-4 h-4 text-gray-400" %}
+    <h4 class="text-base font-semibold text-gray-200">{{ lane.label }}</h4>
+  </div>
+  {% if lane.empty %}
+    <p class="text-sm text-gray-500 py-4">No recent news available. Check back soon.</p>
+  {% else %}
+    <div class="flex gap-4 overflow-x-auto pb-2">
+      {% for article in lane.articles %}
+        {% include "app/components/news_article_card.html" with article=article %}
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load app_tags %}
+
+{% block title %}
+  News - Docket
+{% endblock title %}
+
+{% block content %}
+  <div class="mb-8">
+    <h2 class="text-2xl font-bold">News</h2>
+    <p class="text-gray-400 mt-1">Industry news and updates from your library</p>
+  </div>
+
+  {% if all_empty %}
+    <div class="flex flex-col items-center justify-center py-32 px-4 bg-card rounded-lg">
+      <div class="bg-input rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+        {% include "app/icons/newspaper.svg" with classes="w-8 h-8 text-gray-400" %}
+      </div>
+      <h3 class="text-xl font-semibold mb-2">News loading</h3>
+      <p class="text-gray-400 text-center max-w-md">
+        Articles are being fetched in the background. Check back in a few minutes.
+      </p>
+    </div>
+  {% else %}
+    {% if industry_lanes %}
+      <section class="mb-12">
+        <h3 class="text-xl font-bold mb-6 text-white">Industry News</h3>
+        {% for lane in industry_lanes %}
+          {% include "app/components/news_lane.html" with lane=lane %}
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    {% if library_lanes %}
+      <section>
+        <h3 class="text-xl font-bold mb-6 text-white">From Your Library</h3>
+        {% for lane in library_lanes %}
+          {% include "app/components/news_lane.html" with lane=lane %}
+        {% endfor %}
+      </section>
+    {% endif %}
+  {% endif %}
+{% endblock content %}

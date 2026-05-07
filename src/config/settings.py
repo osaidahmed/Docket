@@ -560,6 +560,18 @@ CELERY_BEAT_SCHEDULE = {
         "task": "Send daily digest",
         "schedule": crontab(hour=DAILY_DIGEST_HOUR, minute=0),
     },
+    "warm_industry_news": {
+        "task": "Warm industry news",
+        "schedule": 60 * 60,  # every 1 hour
+    },
+    "warm_library_news_selection": {
+        "task": "Warm library news selection",
+        "schedule": 60 * 60 * 24,  # every 24 hours
+    },
+    "warm_library_news_content": {
+        "task": "Warm library news content",
+        "schedule": 60 * 60 * 3,  # every 3 hours
+    },
 }
 # Allauth settings
 if CSRF_TRUSTED_ORIGINS:
