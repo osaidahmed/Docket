@@ -45,24 +45,27 @@
     <script defer
             src="{% static 'js/media-list.js' %}{% get_static_file_mtime 'js/media-list.js' %}"></script>
     <script defer
+            src="{% static 'js/browse-filter-panel.js' %}{% get_static_file_mtime 'js/browse-filter-panel.js' %}"></script>
+    <script defer
             src="{% static 'js/archive-sort.js' %}{% get_static_file_mtime 'js/archive-sort.js' %}"></script>
     <script defer src="{% static 'js/libraries/alpinejs-3.14.9.min.js' %}"></script>
 
     <link rel="apple-touch-icon"
           sizes="180x180"
-          href="{% static "favicon/apple-touch-icon.png" %}">
+          href="{% static "favicon/apple-touch-icon.png" %}{% get_static_file_mtime 'favicon/apple-touch-icon.png' %}">
     <link rel="icon"
           type="image/png"
           sizes="32x32"
-          href="{% static "favicon/favicon-32x32.png" %}">
+          href="{% static "favicon/favicon-32x32.png" %}{% get_static_file_mtime 'favicon/favicon-32x32.png' %}">
     <link rel="icon"
           type="image/png"
           sizes="16x16"
-          href="{% static "favicon/favicon-16x16.png" %}">
+          href="{% static "favicon/favicon-16x16.png" %}{% get_static_file_mtime 'favicon/favicon-16x16.png' %}">
     <link rel="manifest" href="{% static "favicon/site.webmanifest" %}">
     <link rel="mask-icon"
           href="{% static "favicon/safari-pinned-tab.svg" color="#181a1b" %}">
-    <link rel="shortcut icon" href="{% static "favicon/favicon.ico" %}">
+    <link rel="shortcut icon"
+          href="{% static "favicon/favicon.ico" %}{% get_static_file_mtime 'favicon/favicon.ico' %}">
     <meta name="msapplication-TileColor" content="#181a1b">
     <meta name="msapplication-config"
           content="{% static "favicon/browserconfig.xml" %}">
@@ -104,13 +107,13 @@
                 </a>
               </li>
 
-              {% url 'explore' as explore_url %}
+              {% url 'news' as news_url %}
               {% get_sidebar_media_types user as sidebar_media_types %}
               {% for item in sidebar_media_types %}
                 <li>
                   <a href="{% url 'medialist' media_type=item.media_type %}"
-                     class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if media_type == item.media_type and not request.path|startswith:explore_url %}text-white bg-line{% else %}text-gray-400 hover:text-white hover:bg-nav{% endif %}">
-                    {% if request.path|startswith:explore_url %}
+                     class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if media_type == item.media_type and not request.path|startswith:news_url %}text-white bg-line{% else %}text-gray-400 hover:text-white hover:bg-nav{% endif %}">
+                    {% if request.path|startswith:news_url %}
                       {% icon item.media_type is_active=False %}
                     {% else %}
                       {% icon item.media_type is_active=media_type|str_equals:item.media_type %}
@@ -152,14 +155,14 @@
                 </li>
 
                 <li>
-                  <a href="{{ explore_url }}"
-                     class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if request.path|startswith:explore_url %}text-white bg-line{% else %}text-gray-400 hover:text-white hover:bg-nav{% endif %}">
-                    {% if request.path|startswith:explore_url %}
-                      {% include "app/icons/compass.svg" with classes="w-5 h-5 text-accent-soft " %}
+                  <a href="{{ news_url }}"
+                     class="flex items-center space-x-3 px-4 py-2 rounded-md transition-colors duration-200 text-sm {% if request.path|startswith:news_url %}text-white bg-line{% else %}text-gray-400 hover:text-white hover:bg-nav{% endif %}">
+                    {% if request.path|startswith:news_url %}
+                      {% include "app/icons/newspaper.svg" with classes="w-5 h-5 text-accent-soft " %}
                     {% else %}
-                      {% include "app/icons/compass.svg" with classes="w-5 h-5" %}
+                      {% include "app/icons/newspaper.svg" with classes="w-5 h-5" %}
                     {% endif %}
-                    <span>Explore</span>
+                    <span>News</span>
                   </a>
                 </li>
 

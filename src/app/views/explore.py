@@ -1,7 +1,9 @@
+import json
 from dataclasses import dataclass
 
 from django.apps import apps
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET
 
 from app import config, helpers
@@ -11,6 +13,24 @@ from app.providers import services
 from app.services.recommendations import _add_title_variants, _matches_cross_media
 
 TMDB_TYPES = {MediaTypes.MOVIE.value, MediaTypes.TV.value}
+
+
+def _chip_expanded_json(expanded_filters):
+    """JSON for Alpine's chipExpanded state — keys mapped to true."""
+    return json.dumps(dict.fromkeys(expanded_filters or [], True))
+
+
+def _multi_select_values_json(filter_definitions, active_filters):
+    """JSON for Alpine's multiSelectValues state — multi-select key to list."""
+    if not filter_definitions:
+        return "{}"
+    values = {}
+    for f in filter_definitions:
+        if f.get("type") != "multi_select":
+            continue
+        raw = (active_filters or {}).get(f["key"], "")
+        values[f["key"]] = [v for v in raw.split(",") if v]
+    return json.dumps(values)
 
 
 @dataclass
@@ -52,6 +72,11 @@ class ExploreContext:
             "active_filters": self.active_filters,
             "has_active_filters": bool(self.active_filters),
             "expanded_filters": self.expanded_filters,
+            "chip_expanded_json": _chip_expanded_json(self.expanded_filters),
+            "multi_select_values_json": _multi_select_values_json(
+                self.resolved_filters,
+                self.active_filters,
+            ),
             "is_tmdb_type": self.media_type in TMDB_TYPES,
             "order": self.order,
         }
@@ -69,23 +94,6 @@ class ExploreContext:
             )
         ctx.update(extras)
         return ctx
-
-
-@require_GET
-def explore(request):
-    """Landing page for browsing media by category."""
-    enabled_types = request.user.get_enabled_media_types()
-    explorable_types = set(config.get_explorable_types())
-    explorable = [
-        {
-            "media_type": mt,
-            "label": MediaTypes(mt).label,
-            "categories": config.get_explore_categories(mt),
-        }
-        for mt in enabled_types
-        if mt in explorable_types
-    ]
-    return render(request, "app/explore.html", {"explorable_types": explorable})
 
 
 def _extract_active_filters(request, filter_definitions):
@@ -176,11 +184,41 @@ def _apply_hide_watched_anime(request, media_type, data):
 
 
 @require_GET
-def explore_type(request, media_type):
-    """Browse media of a specific type by category, with optional filters."""
-    routed = _resolve_explore_route(request, media_type)
-    if routed is not None:
-        return routed
+def explore_type_redirect(request, media_type):
+    """Redirect legacy /explore/<type> bookmarks to the medialist Browse tab."""
+    tab = "discover" if request.GET.get("view") == "discover" else "browse"
+    qs = request.GET.copy()
+    qs.pop("view", None)
+    qs["tab"] = tab
+    base = reverse("medialist", args=[media_type])
+    return redirect(f"{base}?{qs.urlencode()}")
+
+
+@require_GET
+def explore_section_redirect(request, media_type, section_key):  # noqa: ARG001
+    """Redirect legacy /explore/<type>/section/<key> to the Discover tab."""
+    base = reverse("medialist", args=[media_type])
+    return redirect(f"{base}?tab=discover")
+
+
+@require_GET
+def medialist_browse_tab(request, media_type):
+    """HTMX endpoint serving the Browse or Discover tab partial for medialist."""
+    if request.GET.get("tab") == "discover":
+        if config.get_discover_sections(media_type) is None:
+            return redirect(reverse("medialist", args=[media_type]))
+        from app.views.discover import render_discover  # noqa: PLC0415
+
+        return render_discover(request, media_type)
+
+    if config.get_explore_categories(media_type) is None:
+        return redirect(reverse("medialist", args=[media_type]))
+
+    return _render_browse_partial(request, media_type)
+
+
+def _render_browse_partial(request, media_type):
+    """Build the Browse-tab context and render the partial template."""
     categories = config.get_explore_categories(media_type)
     params = _parse_explore_params(request, categories)
     filter_definitions = config.get_explore_filters(media_type)
@@ -232,25 +270,7 @@ def explore_type(request, media_type):
         current_view="browse",
         text_color=config.get_text_color(media_type),
     )
-    template = (
-        "app/explore_results.html"
-        if request.headers.get("HX-Request")
-        else "app/explore_type.html"
-    )
-    return render(request, template, context)
-
-
-def _resolve_explore_route(request, media_type):
-    """Return a redirect/discover response if explore_type should short-circuit."""
-    if config.get_explore_categories(media_type) is None:
-        return redirect("explore")
-    if request.GET.get("view") == "discover" and (
-        config.get_discover_sections(media_type) is not None
-    ):
-        from app.views.discover import render_discover  # noqa: PLC0415
-
-        return render_discover(request, media_type)
-    return None
+    return render(request, "app/partials/medialist_browse_tab.html", context)
 
 
 def _parse_explore_params(request, categories):

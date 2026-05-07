@@ -1,17 +1,12 @@
 {% load app_tags %}
 
 {% if filter_definitions %}
-  <div x-data="{ filtersOpen: {{ has_active_filters|yesno:'true,false' }}, orderValue: '{{ order }}', chipExpanded: {
-    {% for key in expanded_filters %}'{{ key }}': true,{% endfor %}
-    }, chipSearch: {}, multiSelectValues: {
-    {% for filter in filter_definitions %}
-
-      {% if filter.type == 'multi_select' %}
-        '{{ filter.key }}': '{{ active_filters|get_item:filter.key }}'.split(',').filter(v => v),
-      {% endif %}
-
-    {% endfor %}
-    }, toggleChip(key, value) { const arr = this.multiSelectValues[key] || []; const idx = arr.indexOf(value); if (idx === -1) { arr.push(value); } else { arr.splice(idx, 1); } this.multiSelectValues[key] = [...arr]; this.$nextTick(() => document.getElementById('filter-form').requestSubmit()); }, hasChip(key, value) { return (this.multiSelectValues[key] || []).includes(value); }, getMultiSelectValue(key) { return (this.multiSelectValues[key] || []).join(','); }, chipVisible(key, label, index, value) { if (this.hasChip(key, value)) return true; const search = (this.chipSearch[key] || '').toLowerCase(); if (search && !label.toLowerCase().includes(search)) return false; if (!this.chipExpanded[key] && !search && index >= 12) return false; return true; } }" class="mb-6">
+  <div x-data="browseFilterPanel"
+       data-has-active-filters="{{ has_active_filters|yesno:'true,false' }}"
+       data-order="{{ order }}"
+       data-chip-expanded='{{ chip_expanded_json }}'
+       data-multi-select-values='{{ multi_select_values_json }}'
+       class="mb-6">
     <button @click="filtersOpen = !filtersOpen"
             type="button"
             class="flex items-center gap-2 px-4 py-2 bg-input rounded-full hover:bg-highlight transition-colors cursor-pointer text-sm">
@@ -33,12 +28,13 @@
          x-cloak
          class="mt-3 p-4 bg-card rounded-lg border border-gray-700">
 
-      <form id="filter-form"
-            hx-get="{% url 'explore_type' media_type=media_type %}"
+      <form id="browse-filter-form"
+            hx-get="{% url 'medialist_browse_tab' media_type=media_type %}"
             hx-target="#explore-results"
             hx-push-url="true"
             class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 
+        <input type="hidden" name="tab" value="browse">
         <input type="hidden" name="category" value="{{ current_category }}">
         <input type="hidden" name="layout" value="{{ layout }}">
         <input type="hidden" name="page" value="1">
@@ -168,10 +164,10 @@
 
       {% if has_active_filters %}
         <div class="mt-3 flex justify-end">
-          <a href="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}"
-             hx-get="{% url 'explore_type' media_type=media_type %}?category={{ current_category }}&layout={{ layout }}"
+          <a href="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ current_category }}&layout={{ layout }}"
+             hx-get="{% url 'medialist_browse_tab' media_type=media_type %}?tab=browse&category={{ current_category }}&layout={{ layout }}"
              hx-target="#explore-results"
-             hx-push-url="true"
+             hx-push-url="{% url 'medialist' media_type=media_type %}?tab=browse&category={{ current_category }}&layout={{ layout }}"
              class="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">Clear all filters</a>
         </div>
       {% endif %}
