@@ -48,13 +48,22 @@ def movie_progress_one(media_list, _current_datetime):
 def tv_progress_released_episodes(media_list, current_datetime):
     from collections import defaultdict  # noqa: PLC0415
 
+    from django.db.models import Q  # noqa: PLC0415
+
     from app._types import MediaTypes  # noqa: PLC0415
 
     if not media_list:
         return
+
+    source_filter = Q()
+    for tv in media_list:
+        source_filter |= Q(
+            item__media_id=tv.item.media_id,
+            item__source=tv.item.source,
+        )
+
     released_events = events.models.Event.objects.filter(
-        item__media_id__in=[tv.item.media_id for tv in media_list],
-        item__source=media_list[0].item.source,
+        source_filter,
         item__media_type=MediaTypes.SEASON.value,
         item__season_number__gt=0,
         datetime__lte=current_datetime,
@@ -63,16 +72,16 @@ def tv_progress_released_episodes(media_list, current_datetime):
 
     released_episodes = defaultdict(dict)
     for event in released_events:
-        media_id = event.item.media_id
+        key = (event.item.media_id, event.item.source)
         sn = event.item.season_number
         ep = event.content_number
-        released_episodes[media_id][sn] = max(
+        released_episodes[key][sn] = max(
             ep,
-            released_episodes[media_id].get(sn, 0),
+            released_episodes[key].get(sn, 0),
         )
 
     for tv in media_list:
-        tv_episodes = released_episodes.get(tv.item.media_id, {})
+        tv_episodes = released_episodes.get((tv.item.media_id, tv.item.source), {})
         tv.max_progress = sum(tv_episodes.values()) if tv_episodes else 0
 
 

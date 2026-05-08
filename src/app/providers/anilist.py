@@ -158,7 +158,7 @@ def _anilist_type(media_type):
 def _format_media(media, media_type):
     """Convert AniList media object to Docket's standard item format."""
     mal_id = media.get("idMal")
-    title_obj = media.get("title", {})
+    title_obj = media.get("title") or {}
     romaji = title_obj.get("romaji") or ""
     english = title_obj.get("english") or ""
     return {

@@ -134,6 +134,78 @@ class ListsViewFilterTests(TestCase):
         self.assertEqual(len(response.context["custom_lists"]), 7)
 
 
+class ApplyListsSortOrderingTests(TestCase):
+    """Pin actual ordering of _apply_lists_sort branches with distinguishable fixtures."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "sortuser", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+        cls.alpha = CustomList.objects.create(
+            name="Alpha",
+            description="A",
+            owner=cls.user,
+        )
+        cls.beta = CustomList.objects.create(
+            name="Beta",
+            description="B",
+            owner=cls.user,
+        )
+        cls.gamma = CustomList.objects.create(
+            name="Gamma",
+            description="C",
+            owner=cls.user,
+        )
+        for i in range(3):
+            item = Item.objects.create(
+                media_id=f"alpha-{i}",
+                source=Sources.TMDB.value,
+                media_type=MediaTypes.MOVIE.value,
+                title=f"Alpha Item {i}",
+            )
+            CustomListItem.objects.create(custom_list=cls.alpha, item=item)
+        item = Item.objects.create(
+            media_id="beta-0",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.MOVIE.value,
+            title="Beta Item",
+        )
+        CustomListItem.objects.create(custom_list=cls.beta, item=item)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def _names(self, response):
+        return [lst.name for lst in response.context["custom_lists"]]
+
+    @patch.object(get_user_model(), "update_preference")
+    def test_name_sort_returns_alphabetical(self, mock_update_preference):
+        mock_update_preference.return_value = "name"
+        response = self.client.get(reverse("lists") + "?sort=name")
+        assert self._names(response) == ["Alpha", "Beta", "Gamma"]
+
+    @patch.object(get_user_model(), "update_preference")
+    def test_items_count_sort_returns_descending(self, mock_update_preference):
+        mock_update_preference.return_value = "items_count"
+        response = self.client.get(reverse("lists") + "?sort=items_count")
+        names = self._names(response)
+        assert names[0] == "Alpha"
+        assert names[-1] == "Gamma"
+
+    @patch.object(get_user_model(), "update_preference")
+    def test_newest_first_sort_returns_newest_id_first(self, mock_update_preference):
+        mock_update_preference.return_value = "newest_first"
+        response = self.client.get(reverse("lists") + "?sort=newest_first")
+        assert self._names(response) == ["Gamma", "Beta", "Alpha"]
+
+    @patch.object(get_user_model(), "update_preference")
+    def test_unknown_sort_falls_back_to_default(self, mock_update_preference):
+        mock_update_preference.return_value = "garbage_sort_value"
+        response = self.client.get(reverse("lists") + "?sort=garbage_sort_value")
+        names = self._names(response)
+        assert set(names) == {"Alpha", "Beta", "Gamma"}
+
+
 class ListDetailFilterTests(TestCase):
     """Tests for list detail filtering, sorting, search, and HTMX."""
 
@@ -372,3 +444,24 @@ class ListDetailFilterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "lists/components/media_grid.html")
         self.assertNotIn("form", response.context)
+
+    @patch.object(get_user_model(), "update_preference")
+    def test_list_detail_handles_non_integer_page(self, mock_update_preference):
+        mock_update_preference.return_value = "date_added"
+        url = reverse("list_detail", args=[self.custom_list.id])
+        response = self.client.get(url + "?page=garbage")
+        self.assertEqual(response.status_code, 200)
+
+    @patch.object(get_user_model(), "update_preference")
+    def test_list_detail_handles_negative_page(self, mock_update_preference):
+        mock_update_preference.return_value = "date_added"
+        url = reverse("list_detail", args=[self.custom_list.id])
+        response = self.client.get(url + "?page=-5")
+        self.assertEqual(response.status_code, 200)
+
+    @patch.object(get_user_model(), "update_preference")
+    def test_list_detail_handles_huge_page(self, mock_update_preference):
+        mock_update_preference.return_value = "date_added"
+        url = reverse("list_detail", args=[self.custom_list.id])
+        response = self.client.get(url + "?page=99999")
+        self.assertEqual(response.status_code, 200)

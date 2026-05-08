@@ -71,6 +71,8 @@ class PlexWebhookProcessor(BaseWebhookProcessor):
             series_name = payload["Metadata"].get("grandparentTitle")
             season_number = payload["Metadata"].get("parentIndex")
             episode_number = payload["Metadata"].get("index")
+            if not series_name or season_number is None or episode_number is None:
+                return None
             title = f"{series_name} S{season_number:02d}E{episode_number:02d}"
 
         elif self._get_media_type(payload) == MediaTypes.MOVIE.value:

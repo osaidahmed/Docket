@@ -55,13 +55,13 @@ def lists(request):
 
 def _apply_lists_sort(custom_lists, sort_by):
     """Apply the user-selected sort to the custom-list queryset."""
-    if sort_by == "name":
+    if sort_by == ListSortChoices.NAME.value:
         return custom_lists.order_by("name")
-    if sort_by == "items_count":
+    if sort_by == ListSortChoices.ITEMS_COUNT.value:
         return custom_lists.annotate(
             items_count=Count("items", distinct=True),
         ).order_by("-items_count")
-    if sort_by == "newest_first":
+    if sort_by == ListSortChoices.NEWEST_FIRST.value:
         return custom_lists.order_by("-id")
     # last_item_added (default): latest CustomListItem date_added per list
     return custom_lists.annotate(
@@ -127,7 +127,7 @@ def list_detail(request, list_id):
         "list_detail_status",
         request.GET.get("status"),
     )
-    page = int(request.GET.get("page", 1))
+    page = request.GET.get("page", 1)
 
     items_page, media_by_item_id, paginator = _resolve_list_items(
         request,

@@ -28,11 +28,13 @@ def statistics(request):
         start_date = parse_date(start_date_str)
         end_date = parse_date(end_date_str)
 
-        if start_date and end_date:
+        if start_date is None or end_date is None:
+            start_date = None
+            end_date = None
+        else:
             start_date = timezone.make_aware(
                 datetime.combine(start_date, datetime.min.time()),
             )
-
             end_date = timezone.make_aware(
                 datetime.combine(end_date, datetime.max.time()),
             )

@@ -19,9 +19,7 @@ logger = logging.getLogger(__name__)
 def send_releases():
     """Send notifications for recently released media."""
     now = timezone.now()
-    thirty_minutes_ago = now - timezone.timedelta(minutes=30)
 
-    # Get users who should receive notifications
     users = (
         get_user_model()
         .objects.filter(
@@ -34,9 +32,7 @@ def send_releases():
     if not users.exists():
         return "No users with release notifications enabled"
 
-    # Find events that were released recently and haven't been notified yet
     base_queryset = Event.objects.filter(
-        datetime__gte=thirty_minutes_ago,
         datetime__lte=now,
         notification_sent=False,
     ).select_related("item")

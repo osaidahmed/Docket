@@ -235,17 +235,17 @@ class TVStatusTests(TestCase):
             "season/1": {
                 "image": "http://example.com/image.jpg",
                 "season_number": 1,
-                "episodes": [{"episode_number": 1}] * 10,
+                "episodes": [{"episode_number": i} for i in range(1, 11)],
             },
             "season/2": {
                 "image": "http://example.com/image.jpg",
                 "season_number": 2,
-                "episodes": [{"episode_number": 1}] * 10,
+                "episodes": [{"episode_number": i} for i in range(1, 11)],
             },
             "season/3": {
                 "image": "http://example.com/image.jpg",
                 "season_number": 3,
-                "episodes": [{"episode_number": 1}] * 10,
+                "episodes": [{"episode_number": i} for i in range(1, 11)],
             },
         }
         mock_get_metadata.return_value = mock_metadata
@@ -359,12 +359,12 @@ class TVStatusTests(TestCase):
             "season/1": {
                 "image": "http://example.com/image.jpg",
                 "season_number": 1,
-                "episodes": [{"episode_number": 1}] * 10,
+                "episodes": [{"episode_number": i} for i in range(1, 11)],
             },
             "season/2": {
                 "image": "http://example.com/image.jpg",
                 "season_number": 2,
-                "episodes": [{"episode_number": 1}] * 10,
+                "episodes": [{"episode_number": i} for i in range(1, 11)],
             },
         }
         mock_get_metadata.return_value = mock_metadata
@@ -403,17 +403,17 @@ class TVStatusTests(TestCase):
             "season/1": {
                 "image": "http://example.com/image.jpg",
                 "season_number": 1,
-                "episodes": [{"episode_number": 1}] * 10,
+                "episodes": [{"episode_number": i} for i in range(1, 11)],
             },
             "season/2": {
                 "image": "http://example.com/image.jpg",
                 "season_number": 2,
-                "episodes": [{"episode_number": 1}] * 10,
+                "episodes": [{"episode_number": i} for i in range(1, 11)],
             },
             "season/3": {
                 "image": "http://example.com/image.jpg",
                 "season_number": 3,
-                "episodes": [{"episode_number": 1}] * 10,
+                "episodes": [{"episode_number": i} for i in range(1, 11)],
             },
         }
         mock_get_metadata.return_value = mock_metadata

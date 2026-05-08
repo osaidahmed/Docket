@@ -404,3 +404,47 @@ class DownloadCalendarViewTests(TestCase):
         url = reverse("download_calendar", kwargs={"token": self.user.token})
         response = self.client.post(url)
         self.assertEqual(response.status_code, 405)
+
+
+class CalendarNavigationTests(TestCase):
+    """Pin month/year rollover semantics for the calendar navigation helper."""
+
+    def _nav(self, month, year):
+        from events.views import _calendar_navigation
+
+        return _calendar_navigation(month, year)
+
+    def test_january_prev_rolls_to_previous_december(self):
+        nav = self._nav(1, 2026)
+        assert nav["prev_month"] == 12
+        assert nav["prev_year"] == 2025
+
+    def test_december_next_rolls_to_next_january(self):
+        nav = self._nav(12, 2026)
+        assert nav["next_month"] == 1
+        assert nav["next_year"] == 2027
+
+    def test_middle_month_keeps_year(self):
+        nav = self._nav(5, 2026)
+        assert nav["prev_month"] == 4
+        assert nav["prev_year"] == 2026
+        assert nav["next_month"] == 6
+        assert nav["next_year"] == 2026
+
+    def test_january_first_and_last_day(self):
+        nav = self._nav(1, 2026)
+        assert nav["first_day"].isoformat() == "2026-01-01"
+        assert nav["last_day"].isoformat() == "2026-01-31"
+
+    def test_december_last_day_is_dec31(self):
+        nav = self._nav(12, 2026)
+        assert nav["first_day"].isoformat() == "2026-12-01"
+        assert nav["last_day"].isoformat() == "2026-12-31"
+
+    def test_february_leap_year(self):
+        nav = self._nav(2, 2024)
+        assert nav["last_day"].isoformat() == "2024-02-29"
+
+    def test_february_non_leap_year(self):
+        nav = self._nav(2, 2025)
+        assert nav["last_day"].isoformat() == "2025-02-28"

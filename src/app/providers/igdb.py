@@ -1,4 +1,5 @@
 import logging
+import time
 from enum import IntEnum
 
 import requests
@@ -77,17 +78,33 @@ def handle_error(error):
     raise services.ProviderAPIError(Sources.IGDB.value, error)
 
 
+_IGDB_TOKEN_KEY = f"{Sources.IGDB.value}_access_token"
+_IGDB_TOKEN_LOCK_KEY = f"{Sources.IGDB.value}_access_token_lock"
+_IGDB_TOKEN_LOCK_TTL = 30
+_IGDB_TOKEN_WAIT_DELAY = 0.2
+_IGDB_TOKEN_WAIT_MAX = 30
+
+
 def get_access_token():
     """Return the access token for the IGDB API."""
-    access_token = cache.get(f"{Sources.IGDB.value}_access_token")
-    if access_token is None:
+    access_token = cache.get(_IGDB_TOKEN_KEY)
+    if access_token is not None:
+        return access_token
+
+    if not cache.add(_IGDB_TOKEN_LOCK_KEY, "1", _IGDB_TOKEN_LOCK_TTL):
+        for _ in range(int(_IGDB_TOKEN_WAIT_MAX / _IGDB_TOKEN_WAIT_DELAY)):
+            time.sleep(_IGDB_TOKEN_WAIT_DELAY)
+            access_token = cache.get(_IGDB_TOKEN_KEY)
+            if access_token is not None:
+                return access_token
+
+    try:
         url = "https://id.twitch.tv/oauth2/token"
         json = {
             "client_id": settings.IGDB_ID,
             "client_secret": settings.IGDB_SECRET,
             "grant_type": "client_credentials",
         }
-
         try:
             response = services.api_request(
                 Sources.IGDB.value,
@@ -100,10 +117,12 @@ def get_access_token():
 
         access_token = response["access_token"]
         cache.set(
-            f"{Sources.IGDB.value}_access_token",
+            _IGDB_TOKEN_KEY,
             access_token,
             response["expires_in"] - 60,
-        )  # 1 min buffer to avoid using an expired token
+        )
+    finally:
+        cache.delete(_IGDB_TOKEN_LOCK_KEY)
     return access_token
 
 
@@ -176,7 +195,7 @@ def external_game(external_id, source=ExternalGameSource.STEAM):
         )
         response = _igdb_request(f"{base_url}/external_games", query)
 
-        if response and len(response) > 0:
+        if response:
             data = response[0].get("game")
             logger.debug(
                 "Found IGDB match for external ID %s (source: %s): %s",

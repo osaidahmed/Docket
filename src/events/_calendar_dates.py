@@ -18,7 +18,7 @@ def date_parser(date_str):
     elif len(parts) == year_month_parts:
         date_str += default_day
 
-    dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=ZoneInfo("UTC"))
+    dt = datetime.strptime(date_str, "%Y-%m-%d")  # noqa: DTZ007
     return dt.replace(
         hour=SentinelDatetime.HOUR,
         minute=SentinelDatetime.MINUTE,

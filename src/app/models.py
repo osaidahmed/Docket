@@ -890,7 +890,7 @@ class Season(Media):
 
             item, _ = Item.objects.get_or_create(
                 media_id=self.item.media_id,
-                source=Sources.TMDB.value,
+                source=self.item.source,
                 media_type=MediaTypes.TV.value,
                 defaults={
                     "title": tv_metadata["title"],
@@ -964,10 +964,7 @@ class Season(Media):
                         f"https://image.tmdb.org/t/p/original{episode['still_path']}"
                     )
                 elif "image" in episode:
-                    # for manual seasons
                     image = episode["image"]
-                else:
-                    image = settings.IMG_NONE
                 break
 
         item, _ = Item.objects.get_or_create(
@@ -1086,6 +1083,12 @@ class Episode(models.Model):
             "-end_date",
             "-created_at",
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["item", "related_season", "end_date"],
+                name="app_episode_unique_play",
+            ),
+        ]
 
     def __str__(self):
         """Return the season and episode number."""
@@ -1143,7 +1146,14 @@ class Episode(models.Model):
                 tv.status = Status.IN_PROGRESS.value
                 bulk_update_with_history([tv], TV, fields=["status"])
             return
-        last_season = tv_metadata["related"]["seasons"][-1]["season_number"]
+        last_season = max(
+            (
+                s["season_number"]
+                for s in tv_metadata["related"]["seasons"]
+                if s["season_number"] != 0
+            ),
+            default=0,
+        )
         next_episode_season = tv_metadata.get("next_episode_season")
         if season_number == last_season and next_episode_season is None:
             tv.status = Status.COMPLETED.value

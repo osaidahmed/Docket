@@ -58,7 +58,7 @@ def get_user_media(user, start_date, end_date):
 def _build_base_episodes(user, media_models, start_date, end_date):
     if TV not in media_models and Season not in media_models:
         return None
-    if start_date is None and end_date is None:
+    if start_date is None or end_date is None:
         return Episode.objects.filter(related_season__user=user)
     return Episode.objects.filter(
         related_season__user=user,
@@ -71,7 +71,7 @@ def _build_model_queryset(model, user, base_episodes, start_date, end_date):
         return _build_tv_queryset(base_episodes)
     if model == Season:
         return _build_season_queryset(base_episodes)
-    if start_date is None and end_date is None:
+    if start_date is None or end_date is None:
         return model.objects.filter(user=user)
     return model.objects.filter(user=user).filter(
         _build_date_range_filter(start_date, end_date),
@@ -232,7 +232,8 @@ def get_score_distribution(user_media):
 
         for media in scored_media:
             all_scored_media.append(media)
-            score_counts[int(media.score)] += 1
+            bucket = max(0, min(int(media.score), 10))
+            score_counts[bucket] += 1
             total_scored += 1
             total_score_sum += media.score
 

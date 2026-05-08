@@ -421,3 +421,50 @@ class EmbyWebhookTests(TestCase):
         if result != expected:
             msg = f"Expected {expected}, got {result}"
             raise AssertionError(msg)
+
+
+class EmbyWebhookGetMediaTitleNullGuardTests(TestCase):
+    def test_returns_none_when_series_name_missing(self):
+        payload = {
+            "Item": {
+                "Type": "Episode",
+                "ParentIndexNumber": 1,
+                "IndexNumber": 2,
+            },
+        }
+        title = EmbyWebhookProcessor()._get_media_title(payload)
+        self.assertIsNone(title)
+
+    def test_returns_none_when_season_number_missing(self):
+        payload = {
+            "Item": {
+                "Type": "Episode",
+                "SeriesName": "Friends",
+                "IndexNumber": 2,
+            },
+        }
+        title = EmbyWebhookProcessor()._get_media_title(payload)
+        self.assertIsNone(title)
+
+    def test_returns_none_when_episode_number_missing(self):
+        payload = {
+            "Item": {
+                "Type": "Episode",
+                "SeriesName": "Friends",
+                "ParentIndexNumber": 1,
+            },
+        }
+        title = EmbyWebhookProcessor()._get_media_title(payload)
+        self.assertIsNone(title)
+
+    def test_zero_indexed_specials_still_format(self):
+        payload = {
+            "Item": {
+                "Type": "Episode",
+                "SeriesName": "Friends",
+                "ParentIndexNumber": 0,
+                "IndexNumber": 0,
+            },
+        }
+        title = EmbyWebhookProcessor()._get_media_title(payload)
+        self.assertEqual(title, "Friends S00E00")

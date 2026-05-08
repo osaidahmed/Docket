@@ -1,5 +1,6 @@
 import logging
 
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 import app
@@ -371,7 +372,7 @@ class BaseWebhookProcessor:
             )
             return
 
-        now = timezone.now().replace(second=0, microsecond=0)
+        now = timezone.now()
         latest = (
             app.models.Episode.objects.filter(
                 item=episode_item, related_season=season_instance
@@ -381,8 +382,8 @@ class BaseWebhookProcessor:
         )
 
         if latest and latest.end_date:
-            time_diff = abs((now - latest.end_date).total_seconds())
-            if time_diff < _DUPLICATE_EPISODE_WINDOW_SECONDS:
+            time_diff = (now - latest.end_date).total_seconds()
+            if 0 <= time_diff < _DUPLICATE_EPISODE_WINDOW_SECONDS:
                 logger.debug(
                     "Skipping duplicate episode record "
                     "(time difference: %d seconds): %s S%02dE%02d",
@@ -393,9 +394,22 @@ class BaseWebhookProcessor:
                 )
                 return
 
-        app.models.Episode.objects.create(
-            item=episode_item, related_season=season_instance, end_date=now
-        )
+        try:
+            with transaction.atomic():
+                app.models.Episode.objects.create(
+                    item=episode_item,
+                    related_season=season_instance,
+                    end_date=now,
+                )
+        except IntegrityError:
+            logger.debug(
+                "Concurrent webhook race: episode already recorded "
+                "(constraint hit): %s S%02dE%02d",
+                title,
+                season_number,
+                episode_number,
+            )
+            return
         logger.info(
             "Marked episode as played: %s S%02dE%02d",
             title,

@@ -21,7 +21,7 @@ _TASK_TO_SOURCE = {v: k for k, v in _IMPORT_TASKS.items()}
 def collect_task_results(user):
     """Build the recent-import history list for the given user."""
     task_results = TaskResult.objects.filter(
-        task_kwargs__contains=f"'user_id': {user.id},",
+        task_kwargs__regex=rf"['\"]user_id['\"]\s*:\s*{user.id}\b",
         task_name__in=_IMPORT_TASKS.values(),
     ).order_by("-date_done")
 
@@ -45,7 +45,7 @@ def collect_periodic_tasks(user):
     """Build the active import-schedule list for the given user."""
     periodic_tasks = PeriodicTask.objects.filter(
         task__in=_IMPORT_TASKS.values(),
-        kwargs__contains=f'"user_id": {user.id},',
+        kwargs__regex=rf"['\"]user_id['\"]\s*:\s*{user.id}\b",
         enabled=True,
     ).select_related("crontab")
 

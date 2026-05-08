@@ -96,7 +96,7 @@ def _parse_flaresolverr(response):
         raise LinkProviderError(msg)
     solution = data.get("solution") or {}
     return ScrapedResponse(
-        html=solution.get("response", "") or "",
+        html=solution.get("response", ""),
         status_code=int(solution.get("status") or 0),
-        final_url=solution.get("url", "") or "",
+        final_url=solution.get("url", ""),
     )

@@ -545,3 +545,71 @@ class FormatNotificationTests(TestCase):
         notification_text = format_notification(releases=[])
         self.assertIn("Enjoy your media!", notification_text)
         self.assertNotIn("ANIME", notification_text)
+
+
+class SendUserNotificationCallShapeTests(TestCase):
+    """Pin Apprise notify() invocation shape (kwargs + URL list)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="notify-shape",
+            password="x",
+        )
+
+    def test_notify_called_with_title_and_body_kwargs(self):
+        from unittest.mock import MagicMock, patch
+
+        from events.notifications import send_user_notification
+
+        with patch("events.notifications.apprise.Apprise") as mock_apprise_cls:
+            mock_obj = MagicMock()
+            mock_obj.notify.return_value = True
+            mock_apprise_cls.return_value = mock_obj
+            send_user_notification(
+                self.user,
+                ["mailto://user@x"],
+                "Hello",
+                "Body content",
+            )
+        mock_obj.notify.assert_called_once_with(title="Hello", body="Body content")
+
+    def test_each_url_added_to_apprise(self):
+        from unittest.mock import MagicMock, patch
+
+        from events.notifications import send_user_notification
+
+        with patch("events.notifications.apprise.Apprise") as mock_apprise_cls:
+            mock_obj = MagicMock()
+            mock_obj.notify.return_value = True
+            mock_apprise_cls.return_value = mock_obj
+            send_user_notification(
+                self.user,
+                ["mailto://a", "discord://b", "slack://c"],
+                "Hello",
+                "Body",
+            )
+        added_calls = [c.args[0] for c in mock_obj.add.call_args_list]
+        self.assertEqual(added_calls, ["mailto://a", "discord://b", "slack://c"])
+
+    def test_failed_notify_logs_error(self):
+        from unittest.mock import MagicMock, patch
+
+        from events.notifications import send_user_notification
+
+        with (
+            patch("events.notifications.apprise.Apprise") as mock_apprise_cls,
+            patch(
+                "events.notifications.logger.error",
+            ) as mock_error,
+        ):
+            mock_obj = MagicMock()
+            mock_obj.notify.return_value = False
+            mock_apprise_cls.return_value = mock_obj
+            send_user_notification(
+                self.user,
+                ["mailto://a"],
+                "Hello",
+                "Body",
+            )
+        self.assertTrue(mock_error.called)

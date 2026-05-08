@@ -238,7 +238,7 @@ class HandleTVEpisodeTests(TestCase):
             title="Friends",
             image="https://image.tmdb.org/t/p/original/ep1.jpg",
         )
-        now = timezone.now().replace(second=0, microsecond=0)
+        now = timezone.now()
         ep = Episode(
             item=episode_item,
             related_season=season_instance,

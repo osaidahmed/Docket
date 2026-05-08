@@ -122,3 +122,70 @@ class PreferencesLinkPrefsTests(TestCase):
         self.assertEqual(
             self.user.link_preferences, {"manga": {"provider": "allmanga"}}
         )
+
+
+class PreferencesValidationTests(TestCase):
+    """Tests for preferences-form validation against TextChoices values."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "vtester", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def _post(self, **fields):
+        response = self.client.post(reverse("preferences"), fields)
+        self.assertEqual(response.status_code, 302)
+        self.user.refresh_from_db()
+        return response
+
+    def test_invalid_color_scheme_is_rejected(self):
+        original = self.user.color_scheme
+        self._post(color_scheme="totally-fake-scheme")
+        self.assertEqual(self.user.color_scheme, original)
+
+    def test_invalid_quick_watch_date_is_rejected(self):
+        original = self.user.quick_watch_date
+        self._post(quick_watch_date="garbage")
+        self.assertEqual(self.user.quick_watch_date, original)
+
+    def test_invalid_home_truncation_is_rejected(self):
+        original = self.user.home_truncation
+        self._post(home_truncation="not-a-choice")
+        self.assertEqual(self.user.home_truncation, original)
+
+    def test_invalid_date_format_is_rejected(self):
+        original = self.user.date_format
+        self._post(date_format="rubbish")
+        self.assertEqual(self.user.date_format, original)
+
+    def test_invalid_time_format_is_rejected(self):
+        original = self.user.time_format
+        self._post(time_format="rubbish")
+        self.assertEqual(self.user.time_format, original)
+
+    def test_invalid_media_type_in_checkboxes_is_filtered_out(self):
+        from app._types import MediaTypes
+
+        valid = MediaTypes.MOVIE.value
+        self.client.post(
+            reverse("preferences"),
+            {"media_types_checkboxes": [valid, "not-a-real-type"]},
+        )
+        self.user.refresh_from_db()
+        movie_pref = self.user.get_or_create_media_pref(valid)
+        self.assertTrue(movie_pref.enabled)
+
+    def test_invalid_json_link_preferences_logs_warning(self):
+        with patch(
+            "users.preferences_form.logger.warning",
+        ) as mock_warning:
+            self.client.post(
+                reverse("preferences"),
+                {"link_preferences": "{not-valid-json"},
+            )
+        self.assertTrue(mock_warning.called)
+        first_arg = mock_warning.call_args[0][0]
+        self.assertIn("Invalid JSON for preference", first_arg)

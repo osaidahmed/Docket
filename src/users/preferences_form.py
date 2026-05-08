@@ -1,5 +1,5 @@
-import contextlib
 import json
+import logging
 
 from django.apps import apps
 
@@ -11,16 +11,28 @@ from users.models import (
     TimeFormatChoices,
 )
 
+logger = logging.getLogger(__name__)
+
+
+def _validated(post_data, key, choices, default):
+    value = post_data.get(key, default)
+    valid = {c[0] for c in choices}
+    return value if value in valid else default
+
 
 def update_preferences_from_post(user, post_data, all_types):
     """Apply a POSTed preferences form to ``user`` and persist the changes."""
     user.clickable_media_cards = "clickable_media_cards" in post_data
-    user.quick_watch_date = post_data.get(
+    user.quick_watch_date = _validated(
+        post_data,
         "quick_watch_date",
+        QuickWatchDateChoices.choices,
         QuickWatchDateChoices.CURRENT_DATE,
     )
-    user.home_truncation = post_data.get(
+    user.home_truncation = _validated(
+        post_data,
         "home_truncation",
+        HomeTruncationChoices.choices,
         HomeTruncationChoices.ALL,
     )
     user.progress_bar = "progress_bar" in post_data
@@ -33,10 +45,23 @@ def update_preferences_from_post(user, post_data, all_types):
     if color_scheme in valid_schemes:
         user.color_scheme = color_scheme
 
-    user.date_format = post_data.get("date_format", DateFormatChoices.ISO)
-    user.time_format = post_data.get("time_format", TimeFormatChoices.HOUR_24)
+    user.date_format = _validated(
+        post_data,
+        "date_format",
+        DateFormatChoices.choices,
+        DateFormatChoices.ISO,
+    )
+    user.time_format = _validated(
+        post_data,
+        "time_format",
+        TimeFormatChoices.choices,
+        TimeFormatChoices.HOUR_24,
+    )
 
-    media_types_checked = post_data.getlist("media_types_checkboxes")
+    valid_types = set(MediaTypes.values)
+    media_types_checked = [
+        t for t in post_data.getlist("media_types_checkboxes") if t in valid_types
+    ]
     for media_type in all_types:
         pref = user.get_or_create_media_pref(media_type)
         pref.enabled = media_type in media_types_checked
@@ -51,8 +76,10 @@ def update_preferences_from_post(user, post_data, all_types):
 def _load_json_pref(user, attr, raw_value):
     if not raw_value:
         return
-    with contextlib.suppress(json.JSONDecodeError, TypeError):
+    try:
         setattr(user, attr, json.loads(raw_value))
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.warning("Invalid JSON for preference %s: %s", attr, exc)
 
 
 def queue_link_backfill(user):

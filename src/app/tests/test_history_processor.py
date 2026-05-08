@@ -552,3 +552,84 @@ class HistoryProcessorBranchTests(TestCase):
                 progress_field, _FakeRecord(), MediaTypes.MOVIE.value
             )
         )
+
+
+class ShouldSkipCreationFieldBranchTests(TestCase):
+    """Pin each branch of _should_skip_creation_field independently."""
+
+    def _field(self, name, attname=None):
+        from unittest.mock import MagicMock
+
+        field = MagicMock()
+        field.name = name
+        field.attname = attname or name
+        return field
+
+    def _record_with(self, *attrs):
+        class _Rec:
+            pass
+
+        rec = _Rec()
+        for attr in attrs:
+            setattr(rec, attr, 1)
+        return rec
+
+    def test_history_prefixed_field_is_skipped(self):
+        from app.history_processor import _should_skip_creation_field
+
+        rec = self._record_with("history_user_id")
+        assert _should_skip_creation_field(
+            self._field("history_user_id"),
+            rec,
+            MediaTypes.TV.value,
+        )
+
+    def test_id_field_is_skipped(self):
+        from app.history_processor import _should_skip_creation_field
+
+        rec = self._record_with("id")
+        assert _should_skip_creation_field(
+            self._field("id"),
+            rec,
+            MediaTypes.TV.value,
+        )
+
+    def test_field_missing_on_record_is_skipped(self):
+        from app.history_processor import _should_skip_creation_field
+
+        rec = self._record_with()
+        assert _should_skip_creation_field(
+            self._field("not_on_record"),
+            rec,
+            MediaTypes.TV.value,
+        )
+
+    def test_movie_progress_is_skipped(self):
+        from app.history_processor import _should_skip_creation_field
+
+        rec = self._record_with("progress")
+        assert _should_skip_creation_field(
+            self._field("progress"),
+            rec,
+            MediaTypes.MOVIE.value,
+        )
+
+    def test_tv_progress_is_kept(self):
+        from app.history_processor import _should_skip_creation_field
+
+        rec = self._record_with("progress")
+        assert not _should_skip_creation_field(
+            self._field("progress"),
+            rec,
+            MediaTypes.TV.value,
+        )
+
+    def test_normal_field_is_kept(self):
+        from app.history_processor import _should_skip_creation_field
+
+        rec = self._record_with("score")
+        assert not _should_skip_creation_field(
+            self._field("score"),
+            rec,
+            MediaTypes.TV.value,
+        )

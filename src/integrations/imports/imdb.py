@@ -238,15 +238,15 @@ class IMDBImporter:
         date_modified = self._parse_date(row.get("Modified", ""))
         date_rated = self._parse_date(row.get("Date Rated", ""))
 
-        # filter out None dates
-        dates = [date_created, date_modified, date_rated]
-        most_recent_date = max(date for date in dates if date)
+        valid_dates = [d for d in (date_created, date_modified, date_rated) if d]
+        most_recent_date = max(valid_dates) if valid_dates else None
 
         # Movies can have progress and end_date set directly.
         # TV shows manage their own progress and dates through episodes.
         if is_movie_media(media_type) and status == Status.COMPLETED.value:
             params["progress"] = 1
-            params["end_date"] = most_recent_date
+            if most_recent_date is not None:
+                params["end_date"] = most_recent_date
 
         instance = model(**params)
         instance._history_date = most_recent_date or timezone.now()
@@ -255,7 +255,7 @@ class IMDBImporter:
 
     def _parse_rating(self, rating_str):
         """Parse user rating from string to decimal."""
-        if not rating_str or rating_str.strip() == "":
+        if not (rating_str and rating_str.strip()):
             return None
 
         try:

@@ -85,3 +85,17 @@ class StatisticsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/javascript")
         self.assertEqual(response["Service-Worker-Allowed"], "/")
+
+    def test_statistics_view_only_start_date_falls_back_to_all(self):
+        url = reverse("statistics") + "?start-date=2026-01-01&end-date=garbage"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["start_date"])
+        self.assertIsNone(response.context["end_date"])
+
+    def test_statistics_view_only_end_date_falls_back_to_all(self):
+        url = reverse("statistics") + "?start-date=garbage&end-date=2026-12-31"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["start_date"])
+        self.assertIsNone(response.context["end_date"])

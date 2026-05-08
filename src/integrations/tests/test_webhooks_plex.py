@@ -421,3 +421,107 @@ class PlexWebhookTests(TestCase):
         if result != expected:
             msg = f"Expected {expected}, got {result}"
             raise AssertionError(msg)
+
+
+class PlexWebhookEpisodeIdempotencyTests(TestCase):
+    """Tests for episode dedup + idempotency in Plex webhooks."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_superuser(
+            username="testuser",
+            token="test-token",
+            plex_usernames="testuser",
+        )
+        cls.url = reverse("plex_webhook", kwargs={"token": "test-token"})
+
+    def setUp(self):
+        self.client = Client()
+
+    def _payload(self):
+        return {
+            "event": "media.scrobble",
+            "Account": {"title": "testuser"},
+            "Metadata": {
+                "type": "episode",
+                "grandparentTitle": "Friends",
+                "index": 1,
+                "parentIndex": 1,
+                "Guid": [
+                    {"id": "imdb://tt0583459"},
+                    {"id": "tmdb://85987"},
+                    {"id": "tvdb://303821"},
+                ],
+            },
+        }
+
+    def test_burst_replay_creates_one_episode(self):
+        data = {"payload": json.dumps(self._payload())}
+        for _ in range(3):
+            response = self.client.post(self.url, data=data, format="multipart")
+            self.assertEqual(response.status_code, 200)
+        episodes = Episode.objects.filter(
+            item__media_id="1668",
+            item__season_number=1,
+            item__episode_number=1,
+        )
+        self.assertEqual(episodes.count(), 1)
+
+    def test_episode_end_date_is_set(self):
+        data = {"payload": json.dumps(self._payload())}
+        self.client.post(self.url, data=data, format="multipart")
+        episode = Episode.objects.get(
+            item__media_id="1668",
+            item__season_number=1,
+            item__episode_number=1,
+        )
+        self.assertIsNotNone(episode.end_date)
+
+
+class PlexWebhookGetMediaTitleNullGuardTests(TestCase):
+    """Tests that the TV title path tolerates missing payload fields."""
+
+    def test_returns_none_when_series_name_missing(self):
+        payload = {
+            "Metadata": {
+                "type": "episode",
+                "parentIndex": 1,
+                "index": 2,
+            },
+        }
+        title = PlexWebhookProcessor()._get_media_title(payload)
+        self.assertIsNone(title)
+
+    def test_returns_none_when_season_number_missing(self):
+        payload = {
+            "Metadata": {
+                "type": "episode",
+                "grandparentTitle": "Friends",
+                "index": 2,
+            },
+        }
+        title = PlexWebhookProcessor()._get_media_title(payload)
+        self.assertIsNone(title)
+
+    def test_returns_none_when_episode_number_missing(self):
+        payload = {
+            "Metadata": {
+                "type": "episode",
+                "grandparentTitle": "Friends",
+                "parentIndex": 1,
+            },
+        }
+        title = PlexWebhookProcessor()._get_media_title(payload)
+        self.assertIsNone(title)
+
+    def test_zero_indexed_specials_still_format(self):
+        payload = {
+            "Metadata": {
+                "type": "episode",
+                "grandparentTitle": "Friends",
+                "parentIndex": 0,
+                "index": 0,
+            },
+        }
+        title = PlexWebhookProcessor()._get_media_title(payload)
+        self.assertEqual(title, "Friends S00E00")

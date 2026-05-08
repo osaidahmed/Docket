@@ -49,6 +49,8 @@ class EmbyWebhookProcessor(BaseWebhookProcessor):
             series_name = payload["Item"].get("SeriesName")
             season_number = payload["Item"].get("ParentIndexNumber")
             episode_number = payload["Item"].get("IndexNumber")
+            if not series_name or season_number is None or episode_number is None:
+                return None
             title = f"{series_name} S{season_number:02d}E{episode_number:02d}"
 
         elif self._get_media_type(payload) == MediaTypes.MOVIE.value:
