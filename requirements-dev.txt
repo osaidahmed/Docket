@@ -4,7 +4,7 @@ djlint==1.36.4
 fakeredis==2.33.0
 mutmut==3.4.0
 pre-commit==4.5.1
-pytest-cov==7.0.0
+pytest-cov==7.1.0
 pytest-django==4.11.1
 pytest-playwright==0.7.0
 pytest-xdist==3.5.0
