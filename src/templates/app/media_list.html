@@ -219,6 +219,11 @@
             <a :href="`{% url 'export_media' media_type %}?format=md${search ? '&search=' + encodeURIComponent(search) : ''}`"
                class="block px-4 py-2 text-sm text-gray-300 hover:bg-highlight hover:text-white transition-colors"
                @click="open = false">Markdown</a>
+            {% if media_type == "anime" or media_type == "manga" %}
+              <a :href="`{% url 'export_media' media_type %}?format=mal_xml${search ? '&search=' + encodeURIComponent(search) : ''}`"
+                 class="block px-4 py-2 text-sm text-gray-300 hover:bg-highlight hover:text-white transition-colors"
+                 @click="open = false">MAL XML</a>
+            {% endif %}
             <button class="block w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-highlight hover:text-white transition-colors cursor-pointer"
                     @click="open = false; txtOpen = true"
                     type="button">TXT (Custom)</button>

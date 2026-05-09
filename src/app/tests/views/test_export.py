@@ -1,10 +1,11 @@
 import json
 
+from defusedxml.ElementTree import fromstring as xml_fromstring
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from app.models import Item, MediaTypes, Movie, Sources, Status
+from app.models import Anime, Item, Manga, MediaTypes, Movie, Sources, Status
 
 
 class ExportMediaViewTests(TestCase):
@@ -135,6 +136,100 @@ class ExportMediaViewTests(TestCase):
             reverse("export_media", args=["movie"]) + "?format=csv"
         )
         self.assertEqual(response.content.decode(), "")
+
+
+class ExportMalXmlViewTests(TestCase):
+    """Test the MAL XML export branch of export_media."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.credentials = {"username": "malxmluser", "password": "12345"}
+        cls.user = get_user_model().objects.create_user(**cls.credentials)
+
+        anime_item = Item.objects.create(
+            media_id="1",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Cowboy Bebop",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=anime_item,
+            user=cls.user,
+            status=Status.IN_PROGRESS.value,
+            progress=2,
+        )
+
+        manga_item = Item.objects.create(
+            media_id="2",
+            source=Sources.MAL.value,
+            media_type=MediaTypes.MANGA.value,
+            title="Berserk",
+            image="http://example.com/image.jpg",
+        )
+        Manga.objects.create(
+            item=manga_item,
+            user=cls.user,
+            status=Status.IN_PROGRESS.value,
+            progress=10,
+        )
+
+        non_mal_anime = Item.objects.create(
+            media_id="999",
+            source=Sources.MANUAL.value,
+            media_type=MediaTypes.ANIME.value,
+            title="Manual Anime",
+            image="http://example.com/image.jpg",
+        )
+        Anime.objects.create(
+            item=non_mal_anime,
+            user=cls.user,
+            status=Status.COMPLETED.value,
+            progress=1,
+        )
+
+    def setUp(self):
+        self.client.login(**self.credentials)
+
+    def test_anime_mal_xml_200(self):
+        response = self.client.get(
+            reverse("export_media", args=["anime"]) + "?format=mal_xml"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/xml")
+        self.assertRegex(
+            response["Content-Disposition"],
+            r"animelist_malxmluser_\d{4}-\d{2}-\d{2}\.xml",
+        )
+        root = xml_fromstring(response.content.decode())
+        self.assertEqual(root.tag, "myanimelist")
+        self.assertEqual(len(root.findall("anime")), 1)
+
+    def test_manga_mal_xml_200(self):
+        response = self.client.get(
+            reverse("export_media", args=["manga"]) + "?format=mal_xml"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertRegex(
+            response["Content-Disposition"],
+            r"mangalist_malxmluser_\d{4}-\d{2}-\d{2}\.xml",
+        )
+        root = xml_fromstring(response.content.decode())
+        self.assertEqual(len(root.findall("manga")), 1)
+
+    def test_mal_xml_invalid_media_type_400(self):
+        response = self.client.get(
+            reverse("export_media", args=["movie"]) + "?format=mal_xml"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_mal_xml_skips_non_mal_source(self):
+        response = self.client.get(
+            reverse("export_media", args=["anime"]) + "?format=mal_xml"
+        )
+        body = response.content.decode()
+        self.assertIn("Skipped 1 entries without MAL IDs", body)
+        self.assertNotIn("Manual Anime", body)
 
 
 class ExportTxtViewTests(TestCase):
