@@ -73,6 +73,47 @@ class FetchSourceTests(TestCase):
         self.assertEqual(len(articles), 5)
 
 
+class ExtractImageTests(TestCase):
+    def test_prefers_media_content(self):
+        entry = {
+            "media_content": [{"url": "https://example.com/mc.jpg"}],
+            "media_thumbnail": [{"url": "https://example.com/mt.jpg"}],
+        }
+        self.assertEqual(news_rss._extract_image(entry), "https://example.com/mc.jpg")
+
+    def test_falls_back_to_media_thumbnail(self):
+        entry = {"media_thumbnail": [{"url": "https://example.com/mt.jpg"}]}
+        self.assertEqual(news_rss._extract_image(entry), "https://example.com/mt.jpg")
+
+    def test_uses_image_enclosure(self):
+        entry = {
+            "enclosures": [
+                {"href": "https://example.com/skip.pdf", "type": "application/pdf"},
+                {"href": "https://example.com/img.jpg", "type": "image/jpeg"},
+            ],
+        }
+        self.assertEqual(news_rss._extract_image(entry), "https://example.com/img.jpg")
+
+    def test_extracts_img_from_content_html(self):
+        entry = {
+            "content": [
+                {
+                    "value": '<p>Hi</p><figure><img src="https://example.com/c.jpg" /></figure>'
+                }
+            ],
+        }
+        self.assertEqual(news_rss._extract_image(entry), "https://example.com/c.jpg")
+
+    def test_extracts_img_from_summary_html(self):
+        entry = {
+            "summary": '<figure class="post-thumbnail"><img width="1056" src="https://example.com/s.jpg" /></figure>Body text',
+        }
+        self.assertEqual(news_rss._extract_image(entry), "https://example.com/s.jpg")
+
+    def test_returns_none_when_no_image(self):
+        self.assertIsNone(news_rss._extract_image({"summary": "no images here"}))
+
+
 class GetIndustryArticlesTests(TestCase):
     def setUp(self):
         cache.clear()
@@ -88,7 +129,7 @@ class GetIndustryArticlesTests(TestCase):
             "media_type": "anime",
             "media_id": None,
         }
-        cache.set(news_rss.cache_key("ann"), [article])
+        cache.set(news_rss.cache_key("comicbook-anime"), [article])
         result = news_rss.get_industry_articles("anime")
         self.assertEqual(result, [article])
 

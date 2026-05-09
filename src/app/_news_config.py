@@ -3,16 +3,16 @@
 NEWS_SOURCES = {
     "anime": [
         {
-            "slug": "ann",
-            "label": "Anime News Network",
-            "rss_url": "https://www.animenewsnetwork.com/newsroom/rss.xml",
+            "slug": "comicbook-anime",
+            "label": "ComicBook.com Anime",
+            "rss_url": "https://comicbook.com/category/anime/feed/",
         },
     ],
     "manga": [
         {
-            "slug": "ann",
-            "label": "Anime News Network",
-            "rss_url": "https://www.animenewsnetwork.com/newsroom/rss.xml",
+            "slug": "comicbook-manga",
+            "label": "ComicBook.com Manga",
+            "rss_url": "https://comicbook.com/tag/manga/feed/",
         },
     ],
     "tv": [

@@ -1,6 +1,7 @@
 """RSS article fetcher for the news aggregator."""
 
 import logging
+import re
 from datetime import UTC, datetime
 
 import feedparser
@@ -12,6 +13,7 @@ from app.providers.services import session
 logger = logging.getLogger(__name__)
 
 INDUSTRY_TTL = 3600  # 1 hour
+_IMG_SRC_RE = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
 
 
 def cache_key(source_slug):
@@ -61,11 +63,35 @@ def _parse_entry(entry, source_label, media_type):
 
 def _extract_image(entry):
     """Pick the best available image from a feedparser entry."""
+    for extractor in (_media_url, _enclosure_url, _html_img_url):
+        url = extractor(entry)
+        if url:
+            return url
+    return None
+
+
+def _media_url(entry):
     if entry.get("media_content"):
         return entry["media_content"][0].get("url")
     if entry.get("media_thumbnail"):
         return entry["media_thumbnail"][0].get("url")
     return None
+
+
+def _enclosure_url(entry):
+    for enc in entry.get("enclosures") or []:
+        if (enc.get("type") or "").startswith("image/") and enc.get("href"):
+            return enc["href"]
+    return None
+
+
+def _html_img_url(entry):
+    for content in entry.get("content") or []:
+        match = _IMG_SRC_RE.search(content.get("value", ""))
+        if match:
+            return match.group(1)
+    match = _IMG_SRC_RE.search(entry.get("summary", "") or "")
+    return match.group(1) if match else None
 
 
 def _extract_published(entry):
