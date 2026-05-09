@@ -1,13 +1,6 @@
 name: App Tests
 
 on:
-  pull_request:
-    paths-ignore:
-      - ".github/workflows/**"
-  push:
-    branches:
-      - main
-      - dev
   workflow_dispatch:
 
 permissions:
