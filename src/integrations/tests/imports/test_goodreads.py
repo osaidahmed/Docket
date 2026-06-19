@@ -32,7 +32,27 @@ class ImportGoodreads(TestCase):
             username="test",
             password="12345",
         )
-        with Path(mock_path / "import_goodreads.csv").open("rb") as file:
+
+        def fake_search(media_type, query, page, source=None):
+            """Mock book search; empty Goodreads ISBN columns ('=""') yield no hits."""
+            del media_type, page, source
+            if not query or query.strip('="') == "":
+                return {"results": []}
+            return {
+                "results": [
+                    {
+                        "title": query,
+                        "source": Sources.HARDCOVER.value,
+                        "media_id": f"book-{query}",
+                        "image": "https://img/book.jpg",
+                    },
+                ],
+            }
+
+        with (
+            patch("app.providers.services.search", side_effect=fake_search),
+            Path(mock_path / "import_goodreads.csv").open("rb") as file,
+        ):
             cls.import_results = goodreads.importer(file, cls.user, "new")
 
     def test_import_counts(self):

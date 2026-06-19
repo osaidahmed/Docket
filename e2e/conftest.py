@@ -35,6 +35,9 @@ def test_user(transactional_db):
     from users.models import BUILTIN_MEDIA_TYPES, UserMediaPreference
 
     User = get_user_model()
+    # Defensive: under transactional_db + live_server's separate connection a prior
+    # test's flush may not be visible yet, which collides on the unique username.
+    User.objects.filter(username="e2etest").delete()
     user = User.objects.create_user(username="e2etest", password="e2epass12345")
     for mt in BUILTIN_MEDIA_TYPES:
         UserMediaPreference.objects.get_or_create(
@@ -87,6 +90,7 @@ def create_second_user(transactional_db=None):
     from users.models import BUILTIN_MEDIA_TYPES, UserMediaPreference
 
     User = get_user_model()
+    User.objects.filter(username="user_b").delete()
     user = User.objects.create_user(username="user_b", password="pass12345")
     for mt in BUILTIN_MEDIA_TYPES:
         UserMediaPreference.objects.get_or_create(

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -13,14 +14,51 @@ from app.models import (
     Episode,
     Item,
     Manga,
+    MediaTypes,
     Movie,
     Season,
     Sources,
 )
+from app.providers import services
 from integrations.imports import (
     docket,
 )
 from integrations.imports.helpers import MediaImportError
+
+
+def _mock_book_providers():
+    """Patch BOOK search/metadata to canned data; pass other types to live providers.
+
+    Books resolve via the Hardcover API whose default token may be expired; other
+    media types still resolve against their live providers (TMDB, etc.).
+    """
+    real_search = services.search
+    real_metadata = services.get_media_metadata
+
+    def fake_search(media_type, query, page, source=None):
+        if media_type == MediaTypes.BOOK.value:
+            return {
+                "results": [
+                    {
+                        "title": "Warlock",
+                        "source": Sources.HARDCOVER.value,
+                        "media_id": f"book-{query}",
+                        "image": "https://img/warlock.jpg",
+                    },
+                ],
+            }
+        return real_search(media_type, query, page, source)
+
+    def fake_metadata(media_type, media_id, source, *args, **kwargs):
+        if media_type == MediaTypes.BOOK.value:
+            return {"title": "Warlock", "image": "https://img/warlock.jpg"}
+        return real_metadata(media_type, media_id, source, *args, **kwargs)
+
+    return (
+        patch("app.providers.services.search", side_effect=fake_search),
+        patch("app.providers.services.get_media_metadata", side_effect=fake_metadata),
+    )
+
 
 mock_path = Path(__file__).resolve().parent.parent / "mock_data"
 app_mock_path = (
@@ -138,7 +176,12 @@ class ImportDocketPartials(TestCase):
             username="test",
             password="12345",
         )
-        with Path(mock_path / "import_docket_partials.csv").open("rb") as file:
+        search_patch, metadata_patch = _mock_book_providers()
+        with (
+            search_patch,
+            metadata_patch,
+            Path(mock_path / "import_docket_partials.csv").open("rb") as file,
+        ):
             cls.import_results = docket.importer(file, cls.user, "new")
 
     def test_import_counts(self):

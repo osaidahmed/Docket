@@ -9,12 +9,33 @@ from app.tests.providers._http_error_helpers import make_http_error
 
 
 class HardcoverBrowse(TestCase):
-    """Test the Hardcover browse API calls."""
+    """Test the Hardcover browse parsing (mocked; no live token required)."""
 
     required_keys = {"media_id", "media_type", "title", "image", "synopsis"}
 
-    def test_popular(self):
+    def setUp(self):
+        cache.clear()
+
+    @staticmethod
+    def _books_response(count=5):
+        return {
+            "data": {
+                "books": [
+                    {
+                        "id": i,
+                        "title": f"Book {i}",
+                        "cached_image": f"https://img/{i}.jpg",
+                        "description": f"Description {i}",
+                    }
+                    for i in range(1, count + 1)
+                ],
+            },
+        }
+
+    @patch("app.providers.services.api_request")
+    def test_popular(self, mock_api):
         """Test browsing popular books."""
+        mock_api.return_value = self._books_response()
         response = hardcover.browse("popular", 1)
 
         self.assertGreater(len(response["results"]), 0)
@@ -22,22 +43,28 @@ class HardcoverBrowse(TestCase):
             self.assertTrue(all(key in item for key in self.required_keys))
             self.assertEqual(item["media_type"], MediaTypes.BOOK.value)
 
-    def test_top_rated(self):
+    @patch("app.providers.services.api_request")
+    def test_top_rated(self, mock_api):
         """Test browsing top rated books."""
+        mock_api.return_value = self._books_response()
         response = hardcover.browse("top_rated", 1)
 
         self.assertGreater(len(response["results"]), 0)
 
-    def test_pagination(self):
+    @patch("app.providers.services.api_request")
+    def test_pagination(self, mock_api):
         """Test that pagination returns different pages."""
+        mock_api.return_value = self._books_response()
         page1 = hardcover.browse("popular", 1)
         page2 = hardcover.browse("popular", 2)
 
         self.assertEqual(page1["page"], 1)
         self.assertEqual(page2["page"], 2)
 
-    def test_response_format(self):
+    @patch("app.providers.services.api_request")
+    def test_response_format(self, mock_api):
         """Test that the response has the expected keys."""
+        mock_api.return_value = self._books_response()
         response = hardcover.browse("popular", 1)
 
         self.assertIn("page", response)

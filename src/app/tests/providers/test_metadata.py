@@ -312,7 +312,29 @@ class OpenLibraryMetadataTests(TestCase):
 class HardcoverMetadataTests(TestCase):
     """Test Hardcover provider metadata and helper functions."""
 
-    def test_book(self):
+    @patch("app.providers.services.api_request")
+    def test_book(self, mock_api):
+        mock_api.return_value = {
+            "data": {
+                "books_by_pk": {
+                    "id": 377193,
+                    "title": "The Great Gatsby",
+                    "slug": "the-great-gatsby",
+                    "cached_contributors": "F. Scott Fitzgerald",
+                    "cached_tags": [
+                        {"tag": "Fiction"},
+                        {"tag": "Young Adult"},
+                        {"tag": "Classics"},
+                    ],
+                    "rating": 3.7,
+                    "ratings_count": 100,
+                    "pages": 180,
+                    "description": "A classic novel.",
+                    "release_date": "1925-04-10",
+                    "default_cover_edition": None,
+                },
+            },
+        }
         response = hardcover.book("377193")
         self.assertEqual(response["title"], "The Great Gatsby")
         self.assertEqual(response["details"]["author"], "F. Scott Fitzgerald")
@@ -321,7 +343,20 @@ class HardcoverMetadataTests(TestCase):
         self.assertIn("Classics", response["genres"])
         self.assertAlmostEqual(response["score"], 7.4, delta=0.1)
 
-    def test_book_unknown(self):
+    @patch("app.providers.services.api_request")
+    def test_book_unknown(self, mock_api):
+        mock_api.return_value = {
+            "data": {
+                "books_by_pk": {
+                    "id": 1265528,
+                    "title": "MiNRS",
+                    "slug": "minrs",
+                    "cached_contributors": "Kevin Sylvester",
+                    "release_date": "2015-09-22",
+                    "default_cover_edition": {"edition_format": None},
+                },
+            },
+        }
         response = hardcover.book("1265528")
         self.assertEqual(response["title"], "MiNRS")
         self.assertEqual(response["details"]["author"], "Kevin Sylvester")
