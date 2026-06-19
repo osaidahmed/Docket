@@ -14,6 +14,16 @@ from app.models import BasicMedia, Item, MediaTypes, Status
 VALID_MEDIA_TYPES = frozenset(MediaTypes.values)
 
 
+def item_defaults_from_metadata(metadata):
+    """Build the Item defaults (title/english_title/image/synopsis) from metadata."""
+    return {
+        "title": metadata["title"],
+        "english_title": metadata.get("english_title", ""),
+        "image": metadata["image"],
+        "synopsis": metadata.get("synopsis", ""),
+    }
+
+
 def resolve_item(media_id, source, media_type):
     """Return an Item, creating or refreshing stale metadata when needed."""
     from app.providers import services  # noqa: PLC0415
@@ -30,12 +40,7 @@ def resolve_item(media_id, source, media_type):
             media_id=media_id,
             source=source,
             media_type=media_type,
-            defaults={
-                "title": metadata["title"],
-                "english_title": metadata.get("english_title", ""),
-                "image": metadata["image"],
-                "synopsis": metadata.get("synopsis", ""),
-            },
+            defaults=item_defaults_from_metadata(metadata),
         )
         return item
 

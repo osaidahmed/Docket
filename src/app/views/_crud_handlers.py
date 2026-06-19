@@ -28,12 +28,7 @@ def resolve_or_build_media_instance(
         source=source,
         media_type=media_type,
         season_number=season_number,
-        defaults={
-            "title": metadata["title"],
-            "english_title": metadata.get("english_title", ""),
-            "image": metadata["image"],
-            "synopsis": metadata.get("synopsis", ""),
-        },
+        defaults=helpers.item_defaults_from_metadata(metadata),
     )
     model = helpers.get_media_model(media_type)
     return model(item=item, user=user)

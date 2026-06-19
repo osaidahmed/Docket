@@ -166,6 +166,13 @@ def _render_medialist_card(request, media):
     )
 
 
+def _medialist_refresh_response(request, media):
+    """Render the medialist card with an HX-Refresh header."""
+    response = _render_medialist_card(request, media)
+    response["HX-Refresh"] = "true"
+    return response
+
+
 @require_POST
 def quick_complete(request):
     """Mark a backlog item as completed via HTMX."""
@@ -181,9 +188,7 @@ def quick_complete(request):
     media = BasicMedia.objects.get_media_prefetch(request.user, media_type, instance_id)
 
     if source_context == "medialist":
-        response = _render_medialist_card(request, media)
-        response["HX-Refresh"] = "true"
-        return response
+        return _medialist_refresh_response(request, media)
 
     archive_count = backlog.count_archive(request.user)
 
@@ -259,9 +264,7 @@ def quick_status_transition(request):
     backlog.annotate_next_event([media])
 
     if source_context == "medialist":
-        response = _render_medialist_card(request, media)
-        response["HX-Refresh"] = "true"
-        return response
+        return _medialist_refresh_response(request, media)
 
     response = render(
         request,
@@ -301,9 +304,7 @@ def quick_catch_up(request):
     backlog.annotate_next_event([media])
 
     if source_context == "medialist":
-        response = _render_medialist_card(request, media)
-        response["HX-Refresh"] = "true"
-        return response
+        return _medialist_refresh_response(request, media)
 
     return render(
         request,

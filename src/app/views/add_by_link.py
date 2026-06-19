@@ -6,6 +6,7 @@ from django.apps import apps
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
+from app import helpers
 from app.models import BasicMedia, Item, MediaTypes, Status
 from app.providers import services
 
@@ -74,12 +75,7 @@ def _track_or_update_media(request, media_type, media_id, source, url):
             media_id=media_id,
             source=source,
             media_type=media_type,
-            defaults={
-                "title": metadata["title"],
-                "english_title": metadata.get("english_title", ""),
-                "image": metadata["image"],
-                "synopsis": metadata.get("synopsis", ""),
-            },
+            defaults=helpers.item_defaults_from_metadata(metadata),
         )
 
     model = apps.get_model(app_label="app", model_name=media_type)

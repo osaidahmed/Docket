@@ -223,12 +223,7 @@ def sync_metadata(request, source, media_type, media_id, season_number=None):
             source=source,
             media_type=media_type,
             season_number=season_number,
-            defaults={
-                "title": metadata["title"],
-                "english_title": metadata.get("english_title", ""),
-                "image": metadata["image"],
-                "synopsis": metadata.get("synopsis", ""),
-            },
+            defaults=helpers.item_defaults_from_metadata(metadata),
         )
         title = metadata["title"]
         if season_number:

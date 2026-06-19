@@ -184,7 +184,7 @@ def _apply_pinned_and_grouping(sg, status_val, user):
     if status_val == Status.PLANNING.value:
         _split_pinned(sg, user)
     elif user and user.group_related_media:
-        sg["items"] = _apply_grouping_to_backlog_items(sg["items"], user)
+        sg["items"] = apply_grouping_to_backlog_items(sg["items"], user)
 
 
 def _build_flat_groups(all_backlog, backlog_statuses, sort_by, user=None):
@@ -205,16 +205,16 @@ def _build_flat_groups(all_backlog, backlog_statuses, sort_by, user=None):
     ]
 
 
+def _next_event_sortkey(m):
+    """Sort key: items with no next event last, then by event datetime."""
+    return (m.next_event is None, m.next_event.datetime if m.next_event else None)
+
+
 def _append_nya_group(groups, nya_items):
     """Append a Not Yet Airing group if items exist."""
     if not nya_items:
         return
-    nya_items.sort(
-        key=lambda m: (
-            m.next_event is None,
-            m.next_event.datetime if m.next_event else None,
-        )
-    )
+    nya_items.sort(key=_next_event_sortkey)
     groups.append(
         {
             "media_type": "not_yet_airing",
@@ -319,12 +319,7 @@ def _append_nya_sorted_groups(groups, nya_items, backlog_statuses):
         items = [m for m in nya_items if m.status == status_val]
         if not items:
             continue
-        items.sort(
-            key=lambda m: (
-                m.next_event is None,
-                m.next_event.datetime if m.next_event else None,
-            )
-        )
+        items.sort(key=_next_event_sortkey)
         nya_status_groups.append({"status": status_val, "items": items})
     if nya_status_groups:
         groups.append(
@@ -465,13 +460,13 @@ def _split_pinned(status_group, user=None):
         status_group["pinned_items"] = pinned
 
     status_group["items"] = (
-        _apply_grouping_to_backlog_items(rest, user)
+        apply_grouping_to_backlog_items(rest, user)
         if user and user.group_related_media
         else rest
     )
 
 
-def _apply_grouping_to_backlog_items(items, user):  # noqa: ARG001  user kept for parity with caller signatures
+def apply_grouping_to_backlog_items(items, user):  # noqa: ARG001  user kept for parity with caller signatures
     """Apply grouping to backlog items, handling mixed media types."""
     by_type = {}
     order = []
@@ -491,10 +486,7 @@ def _apply_grouping_to_backlog_items(items, user):  # noqa: ARG001  user kept fo
 def _sort_in_progress_media(media_list, sort_by):
     """Sort in-progress media based on the sort criteria."""
     primary_sort_functions = {
-        users.models.HomeSortChoices.UPCOMING: lambda x: (
-            x.next_event is None,
-            x.next_event.datetime if x.next_event else None,
-        ),
+        users.models.HomeSortChoices.UPCOMING: _next_event_sortkey,
         users.models.HomeSortChoices.RECENT: lambda x: (
             -timezone.datetime.timestamp(
                 x.progressed_at if x.progressed_at is not None else x.created_at,

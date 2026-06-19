@@ -39,11 +39,7 @@ def explore_section(request, media_type, section_key):
         return render(request, "app/partials/discover_grid_items.html", {"items": []})
 
     data = services.discover_section_page(media_type, section_cfg, page)
-    items = data.get("results", []) if isinstance(data, dict) else []
-    items = items[: section_cfg["limit"]]
-
-    if items:
-        items = helpers.enrich_items_with_user_data(request, items, "discover")
+    items = _enrich_section_items(request, data, section_cfg["limit"])
 
     has_next_page = _has_next(data)
 
@@ -59,6 +55,15 @@ def explore_section(request, media_type, section_key):
             "text_color": config.get_text_color(media_type),
         },
     )
+
+
+def _enrich_section_items(request, data, limit):
+    """Extract, slice to limit, and enrich a discover section's items."""
+    items = data.get("results", []) if isinstance(data, dict) else []
+    items = items[:limit]
+    if items:
+        items = helpers.enrich_items_with_user_data(request, items, "discover")
+    return items
 
 
 def _build_sections(request, sections_config, sections_data):
@@ -78,11 +83,7 @@ def _build_sections(request, sections_config, sections_data):
         if cfg["type"] == "schedule_list":
             section["days"] = data
         else:
-            items = data.get("results", []) if isinstance(data, dict) else []
-            items = items[: cfg["limit"]]
-            if items:
-                items = helpers.enrich_items_with_user_data(request, items, "discover")
-            section["items"] = items
+            section["items"] = _enrich_section_items(request, data, cfg["limit"])
             section["has_next_page"] = _has_next(data)
             section["next_page"] = 2
 
