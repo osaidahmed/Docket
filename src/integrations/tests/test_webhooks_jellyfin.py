@@ -16,6 +16,7 @@ from app.models import (
     Sources,
     Status,
 )
+from integrations.webhooks import _anime_mapper
 from integrations.webhooks.base import BaseWebhookProcessor
 from integrations.webhooks.jellyfin import JellyfinWebhookProcessor
 
@@ -453,16 +454,13 @@ class BaseWebhookProcessorTests(TestCase):
             processor._get_media_title({})
 
     def test_parse_mal_id_single(self):
-        processor = BaseWebhookProcessor()
-        self.assertEqual(processor._parse_mal_id(12345), 12345)
+        self.assertEqual(_anime_mapper.parse_mal_id(12345), 12345)
 
     def test_parse_mal_id_comma_separated(self):
-        processor = BaseWebhookProcessor()
-        self.assertEqual(processor._parse_mal_id("123,456,789"), "123")
+        self.assertEqual(_anime_mapper.parse_mal_id("123,456,789"), "123")
 
     def test_parse_mal_id_string_no_comma(self):
-        processor = BaseWebhookProcessor()
-        self.assertEqual(processor._parse_mal_id("12345"), "12345")
+        self.assertEqual(_anime_mapper.parse_mal_id("12345"), "12345")
 
     def test_get_mal_id_from_tvdb_no_match(self):
         processor = BaseWebhookProcessor()
@@ -493,19 +491,17 @@ class BaseWebhookProcessorTests(TestCase):
         self.assertIsNone(offset)
 
     def test_get_mal_id_from_tmdb_movie_no_match(self):
-        processor = BaseWebhookProcessor()
         mapping_data = {
             "1": {"tmdb_movie_id": 999, "mal_id": 100},
         }
-        result = processor._get_mal_id_from_tmdb_movie(mapping_data, 888)
+        result = _anime_mapper.mal_id_from_tmdb_movie(mapping_data, 888)
         self.assertIsNone(result)
 
     def test_get_mal_id_from_imdb_no_match(self):
-        processor = BaseWebhookProcessor()
         mapping_data = {
             "1": {"imdb_id": "tt999", "mal_id": 100},
         }
-        result = processor._get_mal_id_from_imdb(mapping_data, "tt888")
+        result = _anime_mapper.mal_id_from_imdb(mapping_data, "tt888")
         self.assertIsNone(result)
 
 

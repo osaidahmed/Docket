@@ -1,14 +1,12 @@
 import json
 import logging
 
-from app.models import MediaTypes
-
-from .base import BaseWebhookProcessor
+from .base import ItemPayloadWebhookProcessor
 
 logger = logging.getLogger(__name__)
 
 
-class JellyfinWebhookProcessor(BaseWebhookProcessor):
+class JellyfinWebhookProcessor(ItemPayloadWebhookProcessor):
     """Processor for Jellyfin webhook events."""
 
     def process_payload(self, payload, user):
@@ -37,34 +35,3 @@ class JellyfinWebhookProcessor(BaseWebhookProcessor):
 
     def _is_played(self, payload):
         return payload["Item"]["UserData"]["Played"]
-
-    def _get_media_type(self, payload):
-        return self.MEDIA_TYPE_MAPPING.get(payload["Item"].get("Type"))
-
-    def _get_media_title(self, payload):
-        """Get media title from payload."""
-        title = None
-
-        if self._get_media_type(payload) == MediaTypes.TV.value:
-            series_name = payload["Item"].get("SeriesName")
-            season_number = payload["Item"].get("ParentIndexNumber")
-            episode_number = payload["Item"].get("IndexNumber")
-            if not series_name or season_number is None or episode_number is None:
-                return None
-            title = f"{series_name} S{season_number:02d}E{episode_number:02d}"
-
-        elif self._get_media_type(payload) == MediaTypes.MOVIE.value:
-            movie_name = payload["Item"].get("Name")
-            year = payload["Item"].get("ProductionYear")
-
-            title = f"{movie_name} ({year})" if movie_name and year else movie_name
-
-        return title
-
-    def _extract_external_ids(self, payload):
-        provider_ids = payload["Item"].get("ProviderIds", {})
-        return {
-            "tmdb_id": provider_ids.get("Tmdb"),
-            "imdb_id": provider_ids.get("Imdb"),
-            "tvdb_id": provider_ids.get("Tvdb"),
-        }

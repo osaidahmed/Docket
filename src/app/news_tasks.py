@@ -21,6 +21,19 @@ SELECTION_TTL = 86400  # 24 hours
 FETCH_WORKERS = 6
 
 
+def _fetch_all_parallel(jobs, fetch_fn, label_fn):
+    """Run fetch_fn over each job in parallel, isolating and logging failures."""
+
+    def _run(job):
+        try:
+            fetch_fn(job)
+        except Exception:
+            logger.exception("Failed to warm news: %s", label_fn(job))
+
+    with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
+        list(pool.map(_run, jobs))
+
+
 def selection_cache_key(media_type):
     """Return the Redis cache key for the daily per-type item selection."""
     return f"news_selection_{media_type}"
@@ -40,15 +53,11 @@ def warm_industry_news():
             seen.add(src["slug"])
             jobs.append((src, media_type))
 
-    def _run(args):
-        src, media_type = args
-        try:
-            fetch_source(src, media_type)
-        except Exception:
-            logger.exception("Failed to warm RSS: %s", src["slug"])
-
-    with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
-        list(pool.map(_run, jobs))
+    _fetch_all_parallel(
+        jobs,
+        lambda job: fetch_source(job[0], job[1]),
+        lambda job: job[0]["slug"],
+    )
 
 
 @shared_task(name="Warm library news selection")
@@ -74,15 +83,11 @@ def warm_library_news_content():
         selection = cache.get(selection_cache_key(media_type)) or []
         jobs.extend((media_type, str(media_id)) for media_id in selection)
 
-    def _run(args):
-        media_type, media_id = args
-        try:
-            fetch_item_news(media_type, media_id)
-        except Exception:
-            logger.exception("Failed to warm news for %s/%s", media_type, media_id)
-
-    with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
-        list(pool.map(_run, jobs))
+    _fetch_all_parallel(
+        jobs,
+        lambda job: fetch_item_news(job[0], job[1]),
+        lambda job: f"{job[0]}/{job[1]}",
+    )
 
 
 def _collect_candidate_ids(media_type):

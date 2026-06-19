@@ -302,10 +302,8 @@ def list_item_toggle(request):
 
     item = get_object_or_404(Item, id=item_id)
     custom_list = get_object_or_404(
-        CustomList.objects.filter(
-            Q(owner=request.user) | Q(collaborators=request.user),
-            id=custom_list_id,
-        ).distinct(),  # To prevent duplicates, when user is owner and collaborator
+        CustomList.objects.accessible_to(request.user),
+        id=custom_list_id,
     )
 
     if custom_list.items.filter(id=item.id).exists():

@@ -10,6 +10,7 @@ from app.models import (
     Movie,
     Status,
 )
+from integrations.webhooks import _anime_mapper
 from integrations.webhooks.plex import PlexWebhookProcessor
 
 MOVIE_METADATA = {
@@ -153,7 +154,7 @@ class ProcessMovieTests(TestCase):
             del self.user._pref_cache
 
         with patch.object(
-            self.processor, "_fetch_mapping_data", return_value=mapping_data
+            _anime_mapper, "fetch_mapping_data", return_value=mapping_data
         ):
             self.processor._process_movie(self.played_payload, self.user, ids)
 
@@ -182,7 +183,7 @@ class ProcessMovieTests(TestCase):
             del self.user._pref_cache
 
         with patch.object(
-            self.processor, "_fetch_mapping_data", return_value=mapping_data
+            _anime_mapper, "fetch_mapping_data", return_value=mapping_data
         ):
             self.processor._process_movie(self.played_payload, self.user, ids)
 

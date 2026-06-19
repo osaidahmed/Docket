@@ -101,7 +101,7 @@ class BaseWebhookProcessor:
         imdb_id = ids["imdb_id"]
 
         if user.get_or_create_media_pref("anime").enabled:
-            mal_id = self._detect_anime_movie(ids)
+            mal_id = _anime_mapper.detect_anime_movie(ids)
             if mal_id:
                 self._handle_anime(mal_id, 1, payload, user)
                 return
@@ -116,24 +116,6 @@ class BaseWebhookProcessor:
             return
 
         logger.warning("No TMDB or IMDB ID found for movie, skipping processing")
-
-    def _detect_anime_movie(self, ids):
-        """Try to detect anime movie from external IDs."""
-        mapping_data = self._fetch_mapping_data()
-
-        if ids["tmdb_id"]:
-            mal_id = self._get_mal_id_from_tmdb_movie(mapping_data, ids["tmdb_id"])
-            if mal_id:
-                logger.info("Detected anime movie with MAL ID: %s (via TMDB)", mal_id)
-                return mal_id
-
-        if ids["imdb_id"]:
-            mal_id = self._get_mal_id_from_imdb(mapping_data, ids["imdb_id"])
-            if mal_id:
-                logger.info("Detected anime movie with MAL ID: %s (via IMDB)", mal_id)
-                return mal_id
-
-        return None
 
     def _handle_movie_by_imdb(self, imdb_id, payload, user):
         """Look up movie via IMDB ID and handle it."""
@@ -174,22 +156,6 @@ class BaseWebhookProcessor:
         return _anime_mapper.mal_id_from_tvdb(
             mapping_data, tvdb_id, season_number, episode_number
         )
-
-    def _find_mal_id_in_mapping(self, mapping_data, field, value):
-        """Find MAL ID from mapping data by matching a field value."""
-        return _anime_mapper.find_mal_id_in_mapping(mapping_data, field, value)
-
-    def _get_mal_id_from_tmdb_movie(self, mapping_data, tmdb_movie_id):
-        """Find MAL ID from TMDB movie mapping."""
-        return _anime_mapper.mal_id_from_tmdb_movie(mapping_data, tmdb_movie_id)
-
-    def _get_mal_id_from_imdb(self, mapping_data, imdb_id):
-        """Find MAL ID from IMDB ID mapping."""
-        return _anime_mapper.mal_id_from_imdb(mapping_data, imdb_id)
-
-    def _parse_mal_id(self, mal_id):
-        """Parse MAL ID from potentially comma-separated string."""
-        return _anime_mapper.parse_mal_id(mal_id)
 
     def _handle_movie(self, media_id, payload, user):
         """Handle movie playback event."""
@@ -416,3 +382,38 @@ class BaseWebhookProcessor:
             season_number,
             episode_number,
         )
+
+
+class ItemPayloadWebhookProcessor(BaseWebhookProcessor):
+    """Shared payload parsing for Emby/Jellyfin (keyed on payload['Item'])."""
+
+    def _get_media_type(self, payload):
+        return self.MEDIA_TYPE_MAPPING.get(payload["Item"].get("Type"))
+
+    def _get_media_title(self, payload):
+        """Get media title from payload."""
+        title = None
+
+        if self._get_media_type(payload) == MediaTypes.TV.value:
+            series_name = payload["Item"].get("SeriesName")
+            season_number = payload["Item"].get("ParentIndexNumber")
+            episode_number = payload["Item"].get("IndexNumber")
+            if not series_name or season_number is None or episode_number is None:
+                return None
+            title = f"{series_name} S{season_number:02d}E{episode_number:02d}"
+
+        elif self._get_media_type(payload) == MediaTypes.MOVIE.value:
+            movie_name = payload["Item"].get("Name")
+            year = payload["Item"].get("ProductionYear")
+
+            title = f"{movie_name} ({year})" if movie_name and year else movie_name
+
+        return title
+
+    def _extract_external_ids(self, payload):
+        provider_ids = payload["Item"].get("ProviderIds", {})
+        return {
+            "tmdb_id": provider_ids.get("Tmdb"),
+            "imdb_id": provider_ids.get("Imdb"),
+            "tvdb_id": provider_ids.get("Tvdb"),
+        }

@@ -8,10 +8,14 @@ from app.models import Item
 class CustomListManager(models.Manager):
     """Manager for custom lists."""
 
+    def accessible_to(self, user):
+        """Return the lists the user owns or collaborates on."""
+        return self.filter(Q(owner=user) | Q(collaborators=user)).distinct()
+
     def get_user_lists(self, user):
         """Return the custom lists that the user owns or collaborates on."""
         return (
-            self.filter(Q(owner=user) | Q(collaborators=user))
+            self.accessible_to(user)
             .select_related("owner")
             .prefetch_related(
                 "collaborators",
@@ -24,7 +28,6 @@ class CustomListManager(models.Manager):
                     queryset=CustomListItem.objects.order_by("-date_added"),
                 ),
             )
-            .distinct()
         )
 
     def get_user_lists_with_item(self, user, item):
@@ -35,11 +38,10 @@ class CustomListManager(models.Manager):
                 item=item,
             ),
         )
-        qs = self.filter(Q(owner=user) | Q(collaborators=user))
+        qs = self.accessible_to(user)
         return (
             qs.annotate(has_item=has_item)
             .prefetch_related("collaborators")
-            .distinct()
             .order_by("name")
         )
 
@@ -88,7 +90,8 @@ class CustomList(models.Model):
     @property
     def image(self):
         """Return the image of the first item in the list."""
-        return self.items.first().image if self.items.first() else settings.IMG_NONE
+        first = self.items.first()
+        return first.image if first else settings.IMG_NONE
 
 
 class CustomListItemManager(models.Manager):

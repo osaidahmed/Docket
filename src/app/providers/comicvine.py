@@ -35,6 +35,22 @@ def handle_error(error):
     raise services.ProviderAPIError(Sources.COMICVINE.value, error)
 
 
+def _comic_card(item):
+    """Build a search/browse result card from a Comic Vine volume item."""
+    return {
+        "media_id": str(item["id"]),
+        "source": Sources.COMICVINE.value,
+        "media_type": MediaTypes.COMIC.value,
+        "title": item["name"],
+        "image": get_image(item),
+        "synopsis": (
+            BeautifulSoup(item.get("description") or "", "html.parser")
+            .get_text(separator=" ")
+            .strip()
+        ),
+    }
+
+
 def search(query, page):
     """Search for comics on Comic Vine."""
     cache_key = (
@@ -64,21 +80,7 @@ def search(query, page):
         except requests.exceptions.HTTPError as error:
             handle_error(error)
 
-        results = [
-            {
-                "media_id": str(item["id"]),
-                "source": Sources.COMICVINE.value,
-                "media_type": MediaTypes.COMIC.value,
-                "title": item["name"],
-                "image": get_image(item),
-                "synopsis": (
-                    BeautifulSoup(item.get("description") or "", "html.parser")
-                    .get_text(separator=" ")
-                    .strip()
-                ),
-            }
-            for item in response["results"]
-        ]
+        results = [_comic_card(item) for item in response["results"]]
 
         total_results = response["number_of_total_results"]
         data = helpers.format_search_response(
@@ -127,21 +129,7 @@ def browse(category, page):
         except requests.exceptions.HTTPError as error:
             handle_error(error)
 
-        results = [
-            {
-                "media_id": str(item["id"]),
-                "source": Sources.COMICVINE.value,
-                "media_type": MediaTypes.COMIC.value,
-                "title": item["name"],
-                "image": get_image(item),
-                "synopsis": (
-                    BeautifulSoup(item.get("description") or "", "html.parser")
-                    .get_text(separator=" ")
-                    .strip()
-                ),
-            }
-            for item in response["results"]
-        ]
+        results = [_comic_card(item) for item in response["results"]]
 
         total_results = response["number_of_total_results"]
         data = helpers.format_search_response(
