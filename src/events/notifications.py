@@ -187,7 +187,7 @@ def get_user_releases(users, target_events):
 
 def _event_matches_user(event, user, enabled_types, excluded_items, user_tracking_data):
     """Whether this user should receive a notification for this event."""
-    if event.item.media_type != Season and event.item.id in excluded_items:
+    if not is_season_media(event.item.media_type) and event.item.id in excluded_items:
         return False
     if event.item.media_type not in enabled_types:
         return False
@@ -308,16 +308,15 @@ def check_user_season_tracking(user_id, season_item, tv_lookup, season_lookup):
     Returns:
         bool: True if tracking, False if not tracking, None if no TV show found
     """
-    tv_key = (user_id, season_item.media_id)
-    season_key = (user_id, season_item.media_id)
+    key = (user_id, season_item.media_id)
 
     # Check if user has the TV show and it's active
-    tv_show = tv_lookup.get(tv_key)
+    tv_show = tv_lookup.get(key)
     if not tv_show or tv_show.status in INACTIVE_TRACKING_STATUSES:
         return None
 
     # Check for dropped seasons
-    user_seasons = season_lookup.get(season_key, [])
+    user_seasons = season_lookup.get(key, [])
     dropped_seasons = [
         s
         for s in user_seasons
