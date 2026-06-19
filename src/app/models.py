@@ -36,6 +36,25 @@ def _aggregate_dates(seasons, field, agg_fn):
     return agg_fn(dates) if dates else None
 
 
+def _get_or_create_season_item(source_item, season_number, image):
+    """Get or create the season Item sharing the show's media_id/source/title."""
+    item, _ = Item.objects.get_or_create(
+        media_id=source_item.media_id,
+        source=source_item.source,
+        media_type=MediaTypes.SEASON.value,
+        season_number=season_number,
+        defaults={"title": source_item.title, "image": image},
+    )
+    return item
+
+
+def _set_status_if_changed(instance, model, status):
+    """Set instance.status if it differs, persisting via a history-tracked update."""
+    if instance.status != status:
+        instance.status = status
+        bulk_update_with_history([instance], model, fields=["status"])
+
+
 class Item(CalendarTriggerMixin, models.Model):
     """Model to store basic information about media items."""
 
@@ -301,18 +320,23 @@ class Media(models.Model):
 
         super().save(*args, **kwargs)
 
+    def _resolve_metadata(self):
+        """Return injected _metadata if present, else fetch it from providers."""
+        metadata = getattr(self, "_metadata", None)
+        if metadata is None:
+            metadata = providers.services.get_media_metadata(
+                self.item.media_type,
+                self.item.media_id,
+                self.item.source,
+            )
+        return metadata
+
     def process_progress(self):
         """Update fields depending on the progress of the media."""
         if self.progress < 0:
             self.progress = 0
         elif self.status == Status.IN_PROGRESS.value:
-            metadata = getattr(self, "_metadata", None)
-            if metadata is None:
-                metadata = providers.services.get_media_metadata(
-                    self.item.media_type,
-                    self.item.media_id,
-                    self.item.source,
-                )
+            metadata = self._resolve_metadata()
             max_progress = metadata["max_progress"]
 
             if max_progress:
@@ -327,13 +351,7 @@ class Media(models.Model):
     def process_status(self):
         """Update fields depending on the status of the media."""
         if self.status == Status.COMPLETED.value:
-            metadata = getattr(self, "_metadata", None)
-            if metadata is None:
-                metadata = providers.services.get_media_metadata(
-                    self.item.media_type,
-                    self.item.media_id,
-                    self.item.source,
-                )
+            metadata = self._resolve_metadata()
             self.progress = metadata.get("max_progress") or self.progress
         self.item.fetch_releases(delay=True)
 
@@ -487,13 +505,7 @@ class TV(Media):
 
         for sn in season_numbers:
             season_metadata = tv_with_seasons_metadata[f"season/{sn}"]
-            item, _ = Item.objects.get_or_create(
-                media_id=self.item.media_id,
-                source=self.item.source,
-                media_type=MediaTypes.SEASON.value,
-                season_number=sn,
-                defaults={"title": self.item.title, "image": season_metadata["image"]},
-            )
+            item = _get_or_create_season_item(self.item, sn, season_metadata["image"])
             try:
                 season_instance = Season.objects.get(item=item, user=self.user)
                 if season_instance.status != Status.COMPLETED.value:
@@ -583,40 +595,7 @@ class TV(Media):
         ).first()
 
         if not next_unwatched_season:
-            # If all existing seasons are watched, get the next available season
-            tv_metadata = providers.services.get_media_metadata(
-                self.item.media_type,
-                self.item.media_id,
-                self.item.source,
-            )
-
-            existing_season_numbers = set(
-                all_seasons.values_list("item__season_number", flat=True),
-            )
-
-            for season_data in tv_metadata["related"]["seasons"]:
-                season_number = season_data["season_number"]
-                if season_number > 0 and season_number not in existing_season_numbers:
-                    item, _ = Item.objects.get_or_create(
-                        media_id=self.item.media_id,
-                        source=self.item.source,
-                        media_type=MediaTypes.SEASON.value,
-                        season_number=season_data["season_number"],
-                        defaults={
-                            "title": self.item.title,
-                            "image": season_data["image"],
-                        },
-                    )
-
-                    next_unwatched_season = Season(
-                        item=item,
-                        user=self.user,
-                        related_tv=self,
-                        status=Status.IN_PROGRESS.value,
-                    )
-                    bulk_create_with_history([next_unwatched_season], Season)
-                    break
-
+            self._create_next_missing_season(all_seasons)
         elif next_unwatched_season.status != Status.IN_PROGRESS.value:
             next_unwatched_season.status = Status.IN_PROGRESS.value
             bulk_update_with_history(
@@ -624,6 +603,34 @@ class TV(Media):
                 Season,
                 fields=["status"],
             )
+
+    def _create_next_missing_season(self, all_seasons):
+        """Create the first not-yet-tracked season (number > 0) as in-progress."""
+        tv_metadata = providers.services.get_media_metadata(
+            self.item.media_type,
+            self.item.media_id,
+            self.item.source,
+        )
+        existing_season_numbers = set(
+            all_seasons.values_list("item__season_number", flat=True),
+        )
+
+        for season_data in tv_metadata["related"]["seasons"]:
+            season_number = season_data["season_number"]
+            if season_number > 0 and season_number not in existing_season_numbers:
+                item = _get_or_create_season_item(
+                    self.item,
+                    season_data["season_number"],
+                    season_data["image"],
+                )
+                season = Season(
+                    item=item,
+                    user=self.user,
+                    related_tv=self,
+                    status=Status.IN_PROGRESS.value,
+                )
+                bulk_create_with_history([season], Season)
+                return
 
 
 class Season(Media):
@@ -689,16 +696,11 @@ class Season(Media):
     def _on_in_progress(self):
         """Handle season starting: backfill and update TV status."""
         self._backfill_prior_seasons()
-
-        if self.related_tv.status != Status.IN_PROGRESS.value:
-            self.related_tv.status = Status.IN_PROGRESS.value
-            bulk_update_with_history([self.related_tv], TV, fields=["status"])
+        self._sync_tv_status(Status.IN_PROGRESS.value)
 
     def _sync_tv_status(self, target_status):
         """Propagate a status to the parent TV if it differs."""
-        if self.related_tv.status != target_status:
-            self.related_tv.status = target_status
-            bulk_update_with_history([self.related_tv], TV, fields=["status"])
+        _set_status_if_changed(self.related_tv, TV, target_status)
 
     @tracker  # noqa: DJ012  save kept after status helpers it dispatches into
     def save(self, *args, **kwargs):
@@ -1040,13 +1042,7 @@ class Season(Media):
         sn = season_data["season_number"]
         if sn <= current_season_number or sn == 0:
             return None
-        item, _ = Item.objects.get_or_create(
-            media_id=self.item.media_id,
-            source=self.item.source,
-            media_type=MediaTypes.SEASON.value,
-            season_number=sn,
-            defaults={"title": self.item.title, "image": season_data["image"]},
-        )
+        item = _get_or_create_season_item(self.item, sn, season_data["image"])
         if Season.objects.filter(item=item, user=self.user).exists():
             return None
         return Season(
@@ -1129,22 +1125,14 @@ class Episode(models.Model):
                 fields=["status"],
             )
             return True
-        if self.related_season.status != Status.IN_PROGRESS.value:
-            self.related_season.status = Status.IN_PROGRESS.value
-            bulk_update_with_history(
-                [self.related_season],
-                Season,
-                fields=["status"],
-            )
+        _set_status_if_changed(self.related_season, Season, Status.IN_PROGRESS.value)
         return False
 
     def _cascade_tv_status(self, tv_metadata, season_number, season_just_completed):
         """Update TV status based on whether this completion finished the show."""
         tv = self.related_season.related_tv
         if not season_just_completed:
-            if tv.status != Status.IN_PROGRESS.value:
-                tv.status = Status.IN_PROGRESS.value
-                bulk_update_with_history([tv], TV, fields=["status"])
+            _set_status_if_changed(tv, TV, Status.IN_PROGRESS.value)
             return
         last_season = max(
             (
@@ -1174,13 +1162,7 @@ class Anime(Media):
     def process_status(self):
         """Prevent completion of ongoing/upcoming anime."""
         if self.status == Status.COMPLETED.value:
-            metadata = getattr(self, "_metadata", None)
-            if metadata is None:
-                metadata = providers.services.get_media_metadata(
-                    self.item.media_type,
-                    self.item.media_id,
-                    self.item.source,
-                )
+            metadata = self._resolve_metadata()
             is_ongoing = metadata.get("is_ongoing")
             if is_ongoing is None:
                 detail_status = metadata.get("details", {}).get("status", "")
