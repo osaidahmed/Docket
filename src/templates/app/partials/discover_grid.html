@@ -17,12 +17,7 @@
   {% endif %}
   {% if section.has_next_page %}
     <div id="{{ section.key }}-load-more" class="mt-6 text-center">
-      <button hx-get="{% url 'medialist_section' media_type=media_type section_key=section.key %}?page={{ section.next_page }}"
-              hx-target="#{{ section.key }}-grid"
-              hx-swap="beforeend"
-              class="px-8 py-2.5 text-sm font-medium text-gray-300 bg-card hover:bg-input border border-white/10 rounded-lg transition-colors">
-        Load more
-      </button>
+      {% include "app/partials/_load_more_button.html" with section_key=section.key next_page=section.next_page %}
     </div>
   {% endif %}
 </section>
