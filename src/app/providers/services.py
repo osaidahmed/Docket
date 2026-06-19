@@ -307,9 +307,9 @@ def get_media_metadata(
         MediaTypes.MOVIE.value: lambda: tmdb.movie(media_id),
         MediaTypes.GAME.value: lambda: igdb.game(media_id),
         MediaTypes.BOOK.value: lambda: (
-            hardcover.book(media_id)
-            if source == Sources.HARDCOVER.value
-            else openlibrary.book(media_id)
+            openlibrary.book(media_id)
+            if source == Sources.OPENLIBRARY.value
+            else hardcover.book(media_id)
         ),
         MediaTypes.COMIC.value: lambda: comicvine.comic(media_id),
         MediaTypes.BOARDGAME.value: lambda: bgg.boardgame(media_id),
@@ -453,8 +453,6 @@ def _resolve_section_fetcher(media_type, section_cfg):
         ),
         "anilist_upcoming": lambda p: anilist.upcoming(media_type, p, limit),
         "anilist_schedule": lambda p: anilist.airing_schedule(p, limit),
-        "jikan_schedule": lambda _p: jikan.browse_schedule(limit=limit),
-        "mangaupdates_releases": lambda p: mangaupdates.browse("releases", p),
     }
     if provider in dispatch:
         return dispatch[provider]

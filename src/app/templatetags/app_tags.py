@@ -44,7 +44,6 @@ from app.templatetags._app_tags_media import (  # noqa: F401
     media_verb_ing,
     media_view_url,
     repeat_label,
-    sample_search,
     short_unit,
     show_media_score,
     source_readable,

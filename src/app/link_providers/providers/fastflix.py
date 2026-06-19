@@ -1,4 +1,3 @@
-import logging
 from urllib.parse import quote, urljoin
 
 import requests
@@ -7,8 +6,6 @@ from django.utils.text import slugify
 
 from app.link_providers import http as link_http
 from app.link_providers.base import LinkProvider, LinkProviderError, LinkResult
-
-logger = logging.getLogger(__name__)
 
 BASE_URL = "https://fastflix.to"
 SEARCH_URL = BASE_URL + "/?s={query}"
@@ -68,7 +65,6 @@ class FastFlixProvider(LinkProvider):
     site_id = "fastflix"
     label = "FastFlix (fastflix.to)"
     media_types = ("movie", "tv")
-    requires_flaresolverr = False
 
     def find(self, item):
         """Try direct slug URL first; on miss, scrape the search page."""

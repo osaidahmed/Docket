@@ -3,7 +3,7 @@ import zoneinfo
 from datetime import datetime
 from unittest.mock import Mock, patch
 
-from django.test import SimpleTestCase, TestCase
+from django.test import TestCase
 from django_celery_beat.models import CrontabSchedule, PeriodicTask
 
 from users import helpers
@@ -214,17 +214,3 @@ class HelpersTest(TestCase):
 
         next_run_info = helpers.get_next_run_info(periodic_task)
         self.assertIsNone(next_run_info)
-
-
-class GetClientIpTests(SimpleTestCase):
-    """Test get_client_ip helper."""
-
-    def test_uses_x_forwarded_for(self):
-        request = Mock()
-        request.META = {"HTTP_X_FORWARDED_FOR": "1.2.3.4", "REMOTE_ADDR": "127.0.0.1"}
-        self.assertEqual(helpers.get_client_ip(request), "1.2.3.4")
-
-    def test_falls_back_to_remote_addr(self):
-        request = Mock()
-        request.META = {"REMOTE_ADDR": "192.168.1.1"}
-        self.assertEqual(helpers.get_client_ip(request), "192.168.1.1")

@@ -16,7 +16,6 @@ class LinkProvider(ABC):
     site_id: str
     label: str
     media_types: tuple
-    requires_flaresolverr: bool = False
 
     @abstractmethod
     def find(self, item):

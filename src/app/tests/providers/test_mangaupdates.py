@@ -4,7 +4,6 @@ import requests
 from django.core.cache import cache
 from django.test import SimpleTestCase, TestCase
 
-from app.models import Sources
 from app.providers import mangaupdates, services
 from app.providers.mangaupdates import (
     get_authors,
@@ -77,52 +76,6 @@ class HandleErrorTests(SimpleTestCase):
             handle_error(error)
 
 
-class MangaUpdatesBrowseTests(TestCase):
-    def setUp(self):
-        cache.clear()
-
-    @patch("app.providers.services.api_request")
-    def test_browse_releases(self, mock_api):
-        mock_api.return_value = {
-            "results": [
-                {
-                    "record": {
-                        "series_id": 123,
-                        "title": "Test Manga",
-                        "image": {"url": {"original": "https://img/1.jpg"}},
-                        "description": "A test manga",
-                    }
-                }
-            ],
-            "total_hits": 1,
-        }
-        data = mangaupdates.browse("releases", 1)
-        self.assertEqual(len(data["results"]), 1)
-        self.assertEqual(data["results"][0]["title"], "Test Manga")
-        self.assertEqual(data["results"][0]["source"], Sources.MANGAUPDATES.value)
-
-    @patch("app.providers.services.api_request")
-    def test_browse_releases_orderby(self, mock_api):
-        mock_api.return_value = {"results": [], "total_hits": 0}
-        mangaupdates.browse("releases", 1)
-        call_kwargs = mock_api.call_args[1]
-        self.assertEqual(call_kwargs["params"]["orderby"], "year")
-
-    @patch("app.providers.services.api_request")
-    def test_browse_rating_orderby(self, mock_api):
-        mock_api.return_value = {"results": [], "total_hits": 0}
-        mangaupdates.browse("rating", 1)
-        call_kwargs = mock_api.call_args[1]
-        self.assertEqual(call_kwargs["params"]["orderby"], "rating")
-
-    @patch("app.providers.services.api_request")
-    def test_browse_cached(self, mock_api):
-        mock_api.return_value = {"results": [], "total_hits": 0}
-        mangaupdates.browse("releases", 1)
-        mangaupdates.browse("releases", 1)
-        mock_api.assert_called_once()
-
-
 class MangaUpdatesHelperTests(SimpleTestCase):
     def test_get_genres_with_list(self):
         result = get_genres([{"genre": "Action"}, {"genre": "Drama"}])
@@ -162,19 +115,6 @@ class MangaUpdatesHelperTests(SimpleTestCase):
 class MangaUpdatesSearchHTTPError(TestCase):
     def setUp(self):
         cache.clear()
-
-    @patch("app.providers.mangaupdates.handle_error")
-    @patch("app.providers.services.api_request")
-    def test_browse_handle_error_returns_none_short_circuits(
-        self, mock_api, mock_handle
-    ):
-        mock_api.side_effect = requests.exceptions.HTTPError(
-            response=MagicMock(status_code=400, text="bad")
-        )
-        mock_handle.return_value = None
-        data = mangaupdates.browse("releases", 1)
-        self.assertEqual(data["results"], [])
-        self.assertEqual(data["total_results"], 0)
 
     @patch("app.providers.services.api_request")
     def test_async_manga_http_error(self, mock_api):

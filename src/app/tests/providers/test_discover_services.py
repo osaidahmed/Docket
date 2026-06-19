@@ -73,26 +73,6 @@ class ResolveSectionFetcherTests(TestCase):
         fetcher(1)
         mock_fn.assert_called_once_with(1, 10)
 
-    @patch("app.providers.jikan.browse_schedule")
-    def test_jikan_schedule(self, mock_fn):
-        mock_fn.return_value = []
-        fetcher = services._resolve_section_fetcher(
-            "anime",
-            _section_cfg(provider="jikan_schedule"),
-        )
-        fetcher(1)
-        mock_fn.assert_called_once_with(limit=10)
-
-    @patch("app.providers.mangaupdates.browse")
-    def test_mangaupdates(self, mock_fn):
-        mock_fn.return_value = {"results": []}
-        fetcher = services._resolve_section_fetcher(
-            "manga",
-            _section_cfg(provider="mangaupdates_releases"),
-        )
-        fetcher(1)
-        mock_fn.assert_called_once_with("releases", 1)
-
     @patch("app.providers.tmdb.browse_for_discover")
     def test_spotlight_uses_tmdb_discover(self, mock_fn):
         mock_fn.return_value = {"results": []}

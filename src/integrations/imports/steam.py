@@ -283,8 +283,6 @@ class SteamImporter:
         )
         return {
             "media_id": igdb_game_id,
-            "source": Sources.IGDB.value,
-            "media_type": MediaTypes.GAME.value,
             "title": game_details.get("title", game_name),
             "image": game_details["image"],
         }

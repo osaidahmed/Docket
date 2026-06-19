@@ -33,7 +33,3 @@ MEDIA_TYPE_REGISTRY: dict[str, MediaTypeSpec] = {
     media_type: MediaTypeSpec(media_type=media_type, config=cfg)
     for media_type, cfg in MEDIA_TYPE_CONFIG.items()
 }
-
-
-def get_spec(media_type: str) -> MediaTypeSpec:
-    return MEDIA_TYPE_REGISTRY[media_type]

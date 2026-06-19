@@ -5,7 +5,7 @@ from django.core.cache import cache
 
 from app import helpers
 from app._types import is_manga_media
-from app.models import MediaTypes, Sources
+from app.models import Sources
 from app.providers import services
 
 logger = logging.getLogger(__name__)
@@ -100,43 +100,6 @@ def _get_image_url(item):
     images = item.get("images", {})
     jpg = images.get("jpg", {})
     return jpg.get("large_image_url") or jpg.get("image_url") or settings.IMG_NONE
-
-
-def browse_schedule(day=None, limit=8):
-    """Fetch anime airing schedule from Jikan, optionally filtered by day."""
-    cache_key = f"jikan_schedule_{day or 'all'}"
-    data = cache.get(cache_key)
-
-    if data is None:
-        url = f"{base_url}/schedules"
-        params = {"limit": limit}
-        if not settings.MAL_NSFW:
-            params["sfw"] = "true"
-        if day:
-            params["filter"] = day.lower()
-
-        try:
-            response = services.api_request("jikan", "GET", url, params=params)
-        except Exception:
-            logger.exception("Jikan schedule fetch failed")
-            return []
-
-        data = [
-            {
-                "media_id": item["mal_id"],
-                "source": Sources.MAL.value,
-                "media_type": MediaTypes.ANIME.value,
-                "title": item.get("title", ""),
-                "english_title": item.get("title_english") or "",
-                "image": _get_image_url(item),
-                "broadcast_time": (item.get("broadcast") or {}).get("time", ""),
-                "broadcast_day": (item.get("broadcast") or {}).get("day", ""),
-            }
-            for item in response.get("data", [])
-        ]
-        cache.set(cache_key, data)
-
-    return data
 
 
 def _build_filter_hash(media_type, filters):

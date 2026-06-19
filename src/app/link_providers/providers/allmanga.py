@@ -1,9 +1,5 @@
-import logging
-
 from app.link_providers import http as link_http
 from app.link_providers.base import LinkProvider, LinkProviderError, LinkResult
-
-logger = logging.getLogger(__name__)
 
 GRAPHQL_URL = "https://api.allanime.day/api"
 DEEP_LINK = "https://allmanga.to/manga/{_id}"
@@ -60,7 +56,6 @@ class AllMangaProvider(LinkProvider):
     site_id = "allmanga"
     label = "AllManga (allmanga.to)"
     media_types = ("manga",)
-    requires_flaresolverr = False
 
     def find(self, item):
         """Search by english_title (preferred) then native title."""

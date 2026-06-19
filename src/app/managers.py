@@ -5,7 +5,7 @@ from django.db.models.functions import RowNumber
 from django.utils import timezone
 
 import users
-from app import _media_filters, _media_prefetch, _media_sorting, _prefetch_builders
+from app import _media_filters, _media_prefetch, _media_sorting
 from app._types import MediaTypes
 
 
@@ -70,18 +70,6 @@ class MediaManager(models.Manager):
         """Attach prefetch_related calls based on media type."""
         _ = self.model
         return _media_prefetch.apply_prefetch_related(queryset, media_type)
-
-    def _annotate_tv_released_episodes(self, tv_list, current_datetime):
-        """Annotate tv list with released episode counts up to current_datetime."""
-        _ = self.model
-        _prefetch_builders.tv_progress_released_episodes(tv_list, current_datetime)
-
-    def _sort_media_list(self, queryset, sort_filter, media_type=None, sort_dir=None):
-        """Sort media list using SQL-side annotations."""
-        _ = self.model
-        return _media_sorting.sort_media_list(
-            queryset, sort_filter, media_type, sort_dir
-        )
 
     def fetch_media_for_items(self, media_types, item_ids, user, status_filter=None):
         """Fetch media objects for given items, optionally filtering by status."""

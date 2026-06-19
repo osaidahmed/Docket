@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from django.utils import timezone
 
+from app import _media_sorting
 from app.models import (
     TV,
     Anime,
@@ -90,14 +91,16 @@ class MediaManagerSortTests(MediaManagerTestBase):
             queryset, MediaTypes.SEASON.value
         )
         return list(
-            self.manager._sort_media_list(queryset, sort_field, MediaTypes.SEASON.value)
+            _media_sorting.sort_media_list(
+                queryset, sort_field, MediaTypes.SEASON.value
+            )
         )
 
     def _sorted_tv(self, sort_field):
         queryset = TV.objects.filter(user=self.user).select_related("item")
         queryset = self.manager._apply_prefetch_related(queryset, MediaTypes.TV.value)
         return list(
-            self.manager._sort_media_list(queryset, sort_field, MediaTypes.TV.value)
+            _media_sorting.sort_media_list(queryset, sort_field, MediaTypes.TV.value)
         )
 
     @patch.object(Season, "_forward_fill_planning_seasons")
@@ -148,7 +151,7 @@ class MediaManagerSortTests(MediaManagerTestBase):
     @patch.object(Season, "_backfill_prior_seasons")
     def test_sort_movies_by_title(self, *_):
         queryset = Movie.objects.filter(user=self.user).select_related("item")
-        sorted_movies = self.manager._sort_media_list(
+        sorted_movies = _media_sorting.sort_media_list(
             queryset, "title", MediaTypes.MOVIE.value
         )
         self.assertEqual(next(iter(sorted_movies)).item.title, "Fight Club")
@@ -197,7 +200,7 @@ class MediaManagerSortTests(MediaManagerTestBase):
         )
         queryset = Anime.objects.filter(user=self.user).select_related("item")
         result = list(
-            self.manager._sort_media_list(
+            _media_sorting.sort_media_list(
                 queryset, "start_date", MediaTypes.ANIME.value, "asc"
             )
         )
@@ -206,7 +209,7 @@ class MediaManagerSortTests(MediaManagerTestBase):
     def test_sort_generic_anime_by_end_date_desc(self):
         queryset = Anime.objects.filter(user=self.user).select_related("item")
         result = list(
-            self.manager._sort_media_list(
+            _media_sorting.sort_media_list(
                 queryset, "end_date", MediaTypes.ANIME.value, "desc"
             )
         )

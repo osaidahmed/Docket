@@ -151,20 +151,6 @@ class AppTagsTests(TestCase):
             # Check that it returns a non-empty string
             self.assertTrue(isinstance(result, str))
 
-    def test_sample_search(self):
-        """Test the sample_search filter."""
-        # Test all media types
-        for media_type in MediaTypes.values:
-            if media_type in (MediaTypes.SEASON.value, MediaTypes.EPISODE.value):
-                # Skip season and episode for sample_search
-                continue
-
-            result = app_tags.sample_search(media_type)
-
-            self.assertIn("/search", result)
-            self.assertIn(f"media_type={media_type}", result)
-            self.assertIn("q=", result)
-
     def test_media_color(self):
         """Test the media_color filter."""
         # Test all media types

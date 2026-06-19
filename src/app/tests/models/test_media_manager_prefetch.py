@@ -166,5 +166,5 @@ class MediaManagerPrefetchTests(MediaManagerTestBase):
             ),
         )
 
-        self.manager._annotate_tv_released_episodes(tv_list, timezone.now())
+        self.manager.annotate_max_progress(tv_list, MediaTypes.TV.value)
         self.assertEqual(tv_list[0].max_progress, 10)

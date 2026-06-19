@@ -54,11 +54,6 @@ def has_caught_up(media_type):
     return config.supports_caught_up(media_type)
 
 
-def sample_search(media_type):
-    """Return a sample search URL for the given media type using GET parameters."""
-    return config.get_sample_search_url(media_type)
-
-
 def short_unit(media_type):
     """Return the short unit for the media type."""
     return config.get_unit(media_type, short=True)
@@ -252,7 +247,6 @@ _FILTERS = (
     "media_past_verb",
     "media_verb_ing",
     "has_caught_up",
-    "sample_search",
     "short_unit",
     "long_unit",
     "sources",

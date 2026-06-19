@@ -44,20 +44,8 @@ class ProviderAPIErrorMiddlewareTests(TestCase):
         self.assertEqual(args[0], request)
         self.assertEqual(args[1], "500.html")
         context = args[2]
-        self.assertEqual(context["provider"], Sources.TMDB.value)
         self.assertIn("details", context["error_message"])
         self.assertEqual(kwargs["status"], 500)
-
-    def test_process_exception_passes_distinct_provider(self):
-        request = self.factory.get("/")
-        error_response = MagicMock(status_code=502, text="boom")
-        exc = ProviderAPIError(Sources.MAL.value, error_response, "rate-limited")
-        with patch("app.middleware.render") as mock_render:
-            mock_render.return_value = MagicMock(status_code=500)
-            self.middleware.process_exception(request, exc)
-        context = mock_render.call_args.args[2]
-        self.assertEqual(context["provider"], Sources.MAL.value)
-        self.assertIn("rate-limited", context["error_message"])
 
     def test_call_passes_request_object_through(self):
         request = self.factory.get("/some/path")

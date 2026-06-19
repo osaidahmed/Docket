@@ -1,16 +1,6 @@
 from django.test import TestCase
 
-from users.templatetags.user_tags import get_attr, source_display
-
-
-class GetAttrTests(TestCase):
-    def test_existing_attribute(self):
-        obj = type("Obj", (), {"name": "test"})()
-        self.assertEqual(get_attr(obj, "name"), "test")
-
-    def test_missing_attribute_returns_none(self):
-        obj = type("Obj", (), {})()
-        self.assertIsNone(get_attr(obj, "nonexistent"))
+from users.templatetags.user_tags import source_display
 
 
 class SourceDisplayTests(TestCase):

@@ -157,12 +157,7 @@ def search_suggest_local(request):
     if len(query) < SUGGEST_LOCAL_MIN_QUERY:
         return render(request, "app/components/search_suggest_local.html")
 
-    enabled_types = request.user.get_enabled_media_types()
-    searchable_types = [
-        mt
-        for mt in enabled_types
-        if mt not in (MediaTypes.SEASON.value, MediaTypes.EPISODE.value)
-    ]
+    searchable_types = request.user.get_enabled_media_types()
 
     items_with_media = []
     for media_type in searchable_types:

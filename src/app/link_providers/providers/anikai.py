@@ -1,12 +1,9 @@
-import logging
 from urllib.parse import quote, urljoin
 
 from bs4 import BeautifulSoup
 
 from app.link_providers import http as link_http
 from app.link_providers.base import LinkProvider, LinkProviderError, LinkResult
-
-logger = logging.getLogger(__name__)
 
 BASE_URL = "https://anikai.to"
 SEARCH_URL = BASE_URL + "/browser?keyword={query}"
@@ -35,7 +32,6 @@ class AnikaiProvider(LinkProvider):
     site_id = "anikai"
     label = "AniKai (anikai.to)"
     media_types = ("anime",)
-    requires_flaresolverr = False
 
     def find(self, item):
         """Search by english_title (preferred) then native title."""

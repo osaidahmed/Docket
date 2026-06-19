@@ -44,7 +44,6 @@ def handle_error(error):
 
 
 _NSFW_EXCLUDE_GENRES = ["Adult", "Hentai", "Doujinshi"]
-_BROWSE_ORDERBY = {"releases": "year", "rating": "rating"}
 
 
 def _manga_card(record):
@@ -96,44 +95,6 @@ def search(query, page):
         )
         cache.set(cache_key, data)
 
-    return data
-
-
-def browse(category, page):
-    """Browse manga on MangaUpdates by category."""
-    cache_key = f"browse_{Sources.MANGAUPDATES.value}_{category}_{page}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    per_page = 24
-    params = {"search": "", "perpage": per_page, "page": page}
-    orderby = _BROWSE_ORDERBY.get(category)
-    if orderby:
-        params["orderby"] = orderby
-    if not settings.MAL_NSFW:
-        params["exclude_genre"] = _NSFW_EXCLUDE_GENRES
-
-    try:
-        response = services.api_request(
-            Sources.MANGAUPDATES.value,
-            "POST",
-            f"{base_url}/series/search",
-            params=params,
-        )
-    except requests.exceptions.HTTPError as error:
-        response = handle_error(error)
-        if response is None:
-            return helpers.format_search_response(page, per_page, 0, [])
-
-    results = [_manga_card(media["record"]) for media in response.get("results", [])]
-    data = helpers.format_search_response(
-        page,
-        per_page,
-        response.get("total_hits", 0),
-        results,
-    )
-    cache.set(cache_key, data)
     return data
 
 

@@ -3,7 +3,6 @@ from django.test import SimpleTestCase
 from app.config import (
     get_explore_filters,
     get_property,
-    get_sample_search_url,
     get_status_property,
     get_unit,
     has_explore_filters,
@@ -64,11 +63,6 @@ class ConfigHelperTests(SimpleTestCase):
     def test_get_property_missing_raises(self):
         with self.assertRaises(KeyError):
             get_property(MediaTypes.MOVIE.value, "nonexistent_property")
-
-    def test_get_sample_search_url_season(self):
-        url = get_sample_search_url(MediaTypes.SEASON.value)
-        self.assertIn("media_type=tv", url)
-        self.assertIn("Breaking+Bad", url)
 
     def test_get_unit_no_unit_type(self):
         self.assertEqual(get_unit(MediaTypes.MOVIE.value, short=True), "")

@@ -1,6 +1,3 @@
-from django.urls import reverse
-from django.utils.http import urlencode
-
 from app._explore_config import (  # noqa: F401  (re-exports for external callers)
     get_current_anime_season,
     get_explore_categories,
@@ -21,7 +18,7 @@ from app._media_type_config import (  # noqa: F401  (re-exports for external cal
     STATUS_CONFIG,
 )
 from app._media_type_registry import MEDIA_TYPE_REGISTRY
-from app._types import MediaTypes, is_season_media
+from app._types import MediaTypes
 
 
 def _types_with_config_key(key):
@@ -62,23 +59,6 @@ def get_sources(media_type):
 def get_default_source_name(media_type):
     """Get the human-readable default source name."""
     return get_property(media_type, "default_source")
-
-
-def get_sample_query(media_type):
-    """Get the sample search query."""
-    return get_property(media_type, "sample_query")
-
-
-def get_sample_search_url(media_type):
-    """Get the full sample search URL."""
-    if is_season_media(media_type):
-        media_type = MediaTypes.TV.value
-
-    query = get_sample_query(media_type)
-
-    base_url = reverse("search")
-    query_params = {"media_type": media_type, "q": query}
-    return f"{base_url}?{urlencode(query_params)}"
 
 
 def get_unicode_icon(media_type):

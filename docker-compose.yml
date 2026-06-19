@@ -5,12 +5,10 @@ services:
     restart: unless-stopped
     depends_on:
       - redis
-      - flaresolverr
     environment:
       - TZ=Europe/Berlin
       - SECRET=longstring
       - REDIS_URL=redis://redis:6379
-      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
     volumes:
       - ./db:/docket/db
     ports:
@@ -22,14 +20,6 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
-
-  flaresolverr:
-    container_name: docket-flaresolverr
-    image: ghcr.io/flaresolverr/flaresolverr:latest
-    restart: unless-stopped
-    environment:
-      - LOG_LEVEL=info
-      - TZ=Europe/Berlin
 
 volumes:
   redis_data:

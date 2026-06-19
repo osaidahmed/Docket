@@ -22,7 +22,6 @@ class ProviderAPIErrorMiddleware:
                 "500.html",
                 {
                     "error_message": str(exception),
-                    "provider": exception.provider,
                 },
                 status=500,
             )

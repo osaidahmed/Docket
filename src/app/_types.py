@@ -40,11 +40,6 @@ class Status(models.TextChoices):
     DROPPED = "Dropped", "Dropped"
 
 
-TV_STRUCTURED = frozenset(
-    {MediaTypes.TV.value, MediaTypes.SEASON.value, MediaTypes.EPISODE.value}
-)
-
-
 def is_episode_media(media_type: str) -> bool:
     return media_type == MediaTypes.EPISODE.value
 
@@ -71,7 +66,3 @@ def is_manga_media(media_type: str) -> bool:
 
 def is_game_media(media_type: str) -> bool:
     return media_type == MediaTypes.GAME.value
-
-
-def is_tv_structured(media_type: str) -> bool:
-    return media_type in TV_STRUCTURED

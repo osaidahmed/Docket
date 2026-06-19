@@ -116,11 +116,7 @@ def _process_link(request, url, media_type):
 def _get_media_type_choices(user):
     """Return media type choices for the dropdown, filtered by user preferences."""
     enabled_types = user.get_enabled_media_types()
-    return [
-        {"value": mt, "label": MediaTypes(mt).label}
-        for mt in enabled_types
-        if mt not in (MediaTypes.SEASON.value, MediaTypes.EPISODE.value)
-    ]
+    return [{"value": mt, "label": MediaTypes(mt).label} for mt in enabled_types]
 
 
 @require_GET

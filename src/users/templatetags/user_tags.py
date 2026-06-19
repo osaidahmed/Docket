@@ -5,12 +5,6 @@ from django.utils.html import format_html
 register = template.Library()
 
 
-@register.filter
-def get_attr(obj, attr):
-    """Get attribute from object dynamically."""
-    return getattr(obj, attr, None)
-
-
 SOURCES_CONFIG = {
     "kitsu": {
         "name": "Kitsu",
