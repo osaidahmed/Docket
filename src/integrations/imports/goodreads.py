@@ -21,7 +21,7 @@ def importer(file, user, mode):
     return csv_importer.import_data()
 
 
-class GoodReadsImporter:
+class GoodReadsImporter(helpers.BaseImporter):
     """Class to handle importing goodreads data from CSV files."""
 
     def __init__(self, file, user, mode):
@@ -67,18 +67,7 @@ class GoodReadsImporter:
 
         logger.debug("processed %s", self.bulk_media)
 
-        helpers.cleanup_existing_media(self.to_delete, self.user)
-        helpers.bulk_create_media(self.bulk_media, self.user)
-
-        logger.debug("processed %s", self.bulk_media)
-
-        imported_counts = {
-            media_type: len(media_list)
-            for media_type, media_list in self.bulk_media.items()
-        }
-
-        deduplicated_messages = "\n".join(dict.fromkeys(self.warnings))
-        return imported_counts, deduplicated_messages
+        return self.finalize()
 
     def _process_row(self, row):
         """Process a single row from the CSV file."""

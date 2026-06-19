@@ -40,7 +40,7 @@ def importer(username, user, mode):
     return mal_importer.import_data()
 
 
-class MyAnimeListImporter:
+class MyAnimeListImporter(helpers.BaseImporter):
     """Class to handle importing user data from MyAnimeList."""
 
     def __init__(self, username, user, mode):
@@ -77,16 +77,7 @@ class MyAnimeListImporter:
         self._process_media_type(MediaTypes.ANIME.value)
         self._process_media_type(MediaTypes.MANGA.value)
 
-        helpers.cleanup_existing_media(self.to_delete, self.user)
-        helpers.bulk_create_media(self.bulk_media, self.user)
-
-        imported_counts = {
-            media_type: len(media_list)
-            for media_type, media_list in self.bulk_media.items()
-        }
-
-        deduplicated_messages = "\n".join(dict.fromkeys(self.warnings))
-        return imported_counts, deduplicated_messages
+        return self.finalize()
 
     def _process_media_type(self, media_type):
         """Process all media of a specific type from MyAnimeList."""

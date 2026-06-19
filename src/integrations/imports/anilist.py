@@ -161,7 +161,7 @@ def importer(token, user, mode, username):
     return anilist_importer.import_data()
 
 
-class AniListImporter:
+class AniListImporter(helpers.BaseImporter):
     """Class to handle importing user data from AniList."""
 
     def __init__(self, token, user, mode, username):
@@ -204,16 +204,7 @@ class AniListImporter:
         self._process_media_data(response["data"]["anime"], MediaTypes.ANIME.value)
         self._process_media_data(response["data"]["manga"], MediaTypes.MANGA.value)
 
-        helpers.cleanup_existing_media(self.to_delete, self.user)
-        helpers.bulk_create_media(self.bulk_media, self.user)
-
-        imported_counts = {
-            media_type: len(media_list)
-            for media_type, media_list in self.bulk_media.items()
-        }
-
-        deduplicated_messages = "\n".join(dict.fromkeys(self.warnings))
-        return imported_counts, deduplicated_messages
+        return self.finalize()
 
     def _fetch_user_lists(self):
         """Fetch anime and manga lists from AniList API."""

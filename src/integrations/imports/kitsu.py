@@ -22,7 +22,7 @@ def importer(kitsu_id, user, mode):
     return kitsu_importer.import_data()
 
 
-class KitsuImporter:
+class KitsuImporter(helpers.BaseImporter):
     """Class to handle importing user data from Kitsu."""
 
     KITSU_API_BASE_URL = "https://kitsu.app/api/edge"
@@ -73,16 +73,7 @@ class KitsuImporter:
         self._process_media_type(MediaTypes.ANIME.value)
         self._process_media_type(MediaTypes.MANGA.value)
 
-        helpers.cleanup_existing_media(self.to_delete, self.user)
-        helpers.bulk_create_media(self.bulk_media, self.user)
-
-        imported_counts = {
-            media_type: len(media_list)
-            for media_type, media_list in self.bulk_media.items()
-        }
-
-        deduplicated_messages = "\n".join(dict.fromkeys(self.warnings))
-        return imported_counts, deduplicated_messages
+        return self.finalize()
 
     def _get_kitsu_id(self, username):
         """Get the user ID from Kitsu."""

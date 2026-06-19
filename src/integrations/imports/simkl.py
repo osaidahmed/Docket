@@ -97,7 +97,7 @@ def importer(token, user, mode):
     return simkl_importer.import_data()
 
 
-class SimklImporter:
+class SimklImporter(helpers.BaseImporter):
     """Class to handle importing user data from Simkl."""
 
     SIMKL_API_BASE_URL = "https://api.simkl.com"
@@ -139,16 +139,7 @@ class SimklImporter:
 
         self._process_media_lists(data)
 
-        helpers.cleanup_existing_media(self.to_delete, self.user)
-        helpers.bulk_create_media(self.bulk_media, self.user)
-
-        imported_counts = {
-            media_type: len(media_list)
-            for media_type, media_list in self.bulk_media.items()
-        }
-
-        deduplicated_messages = "\n".join(dict.fromkeys(self.warnings))
-        return imported_counts, deduplicated_messages
+        return self.finalize()
 
     def _get_user_list(self):
         """Get the user's list from Simkl."""

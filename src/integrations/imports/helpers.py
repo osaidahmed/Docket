@@ -169,6 +169,21 @@ def _bulk_create_for_type(media_type, bulk_media, user):
     )
 
 
+class BaseImporter:
+    """Shared finalisation for source importers (persist + count + message join)."""
+
+    def finalize(self, *, dedup=True, empty_message=""):
+        """Persist queued media and return (imported_counts, messages)."""
+        cleanup_existing_media(self.to_delete, self.user)
+        bulk_create_media(self.bulk_media, self.user)
+        imported_counts = {
+            media_type: len(media_list)
+            for media_type, media_list in self.bulk_media.items()
+        }
+        joined = "\n".join(dict.fromkeys(self.warnings) if dedup else self.warnings)
+        return imported_counts, (joined if self.warnings else empty_message)
+
+
 def create_import_schedule(
     username,
     request,

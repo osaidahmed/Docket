@@ -39,7 +39,7 @@ def importer(token, user, mode, username):
     return trakt_importer.import_data()
 
 
-class TraktImporter:
+class TraktImporter(helpers.BaseImporter):
     """Class to handle importing user data from Trakt."""
 
     def __init__(self, username, user, mode, refresh_token=None):
@@ -84,16 +84,7 @@ class TraktImporter:
         self.process_ratings()
         self.process_comments()
 
-        helpers.cleanup_existing_media(self.to_delete, self.user)
-        helpers.bulk_create_media(self.bulk_media, self.user)
-
-        imported_counts = {
-            media_type: len(media_list)
-            for media_type, media_list in self.bulk_media.items()
-        }
-        deduplicated_messages = "\n".join(dict.fromkeys(self.warnings))
-
-        return imported_counts, deduplicated_messages
+        return self.finalize()
 
     def _make_api_request(self, url):
         """Make a request to the Trakt API with proper headers."""

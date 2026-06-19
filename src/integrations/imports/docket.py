@@ -24,7 +24,7 @@ def importer(file, user, mode):
     return csv_importer.import_data()
 
 
-class DocketImporter:
+class DocketImporter(helpers.BaseImporter):
     """Class to handle importing user data from CSV files."""
 
     def __init__(self, file, user, mode):
@@ -71,16 +71,7 @@ class DocketImporter:
                 error_msg = f"Error processing entry: {row}"
                 raise MediaImportUnexpectedError(error_msg) from error
 
-        helpers.cleanup_existing_media(self.to_delete, self.user)
-        helpers.bulk_create_media(self.bulk_media, self.user)
-
-        imported_counts = {
-            media_type: len(media_list)
-            for media_type, media_list in self.bulk_media.items()
-        }
-
-        deduplicated_messages = "\n".join(dict.fromkeys(self.warnings))
-        return imported_counts, deduplicated_messages
+        return self.finalize()
 
     def _process_row(self, row):
         """Process a single row from the CSV file."""

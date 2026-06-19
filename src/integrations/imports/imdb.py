@@ -27,7 +27,7 @@ def importer(file, user, mode):
     return imdb_importer.import_data()
 
 
-class IMDBImporter:
+class IMDBImporter(helpers.BaseImporter):
     """Class to handle importing user data from IMDB CSV."""
 
     def __init__(self, file, user, mode):
@@ -85,16 +85,7 @@ class IMDBImporter:
         ):
             self.warnings.append(warning)
 
-        helpers.cleanup_existing_media(self.to_delete, self.user)
-        helpers.bulk_create_media(self.bulk_media, self.user)
-
-        imported_counts = {
-            media_type: len(media_list)
-            for media_type, media_list in self.bulk_media.items()
-        }
-
-        deduplicated_messages = "\n".join(dict.fromkeys(self.warnings))
-        return imported_counts, deduplicated_messages if self.warnings else None
+        return self.finalize(empty_message=None)
 
     def _process_first_pass(self, row, dedup):
         """First pass to identify duplicate entries and validate data."""

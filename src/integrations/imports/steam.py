@@ -23,7 +23,7 @@ def importer(steam_id, user, mode):
     return steam_importer.import_data()
 
 
-class SteamImporter:
+class SteamImporter(helpers.BaseImporter):
     """Class to handle importing user game data from Steam."""
 
     def __init__(self, steam_id, user, mode):
@@ -67,21 +67,13 @@ class SteamImporter:
         for game_data in owned_games:
             self._process_game(game_data)
 
-        helpers.cleanup_existing_media(self.to_delete, self.user)
-        helpers.bulk_create_media(self.bulk_media, self.user)
-
-        imported_counts = {
-            media_type: len(media_list)
-            for media_type, media_list in self.bulk_media.items()
-        }
-
+        imported_counts, message = self.finalize(dedup=False)
         logger.info(
             "Steam import completed for user %s: %s",
             self.user.username,
             imported_counts,
         )
-
-        return imported_counts, "\n".join(self.warnings) if self.warnings else ""
+        return imported_counts, message
 
     def _get_owned_games(self):
         """Fetch owned games from Steam API with retry logic for rate limiting."""
