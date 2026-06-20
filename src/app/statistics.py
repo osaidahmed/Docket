@@ -127,8 +127,10 @@ def _build_date_range_filter(start_date, end_date):
     )
 
 
-def _build_pie_chart(entries):
-    """Build a Chart.js pie-chart dict from (label, value, color) tuples."""
+def get_media_type_distribution(media_count):
+    """Get data formatted for Chart.js pie chart."""
+    # Define colors for each media type
+    # Format for Chart.js
     chart_data = {
         "labels": [],
         "datasets": [
@@ -138,25 +140,18 @@ def _build_pie_chart(entries):
             },
         ],
     }
-    for label, value, color in entries:
-        if value > 0:
+
+    # Only include media types with counts > 0
+    for media_type, count in media_count.items():
+        if media_type != "total" and count > 0:
+            # Format label with first letter capitalized
+            label = app_tags.media_type_readable(media_type)
             chart_data["labels"].append(label)
-            chart_data["datasets"][0]["data"].append(value)
-            chart_data["datasets"][0]["backgroundColor"].append(color)
+            chart_data["datasets"][0]["data"].append(count)
+            chart_data["datasets"][0]["backgroundColor"].append(
+                config.get_stats_color(media_type),
+            )
     return chart_data
-
-
-def get_media_type_distribution(media_count):
-    """Get data formatted for Chart.js pie chart."""
-    return _build_pie_chart(
-        (
-            app_tags.media_type_readable(media_type),
-            count,
-            config.get_stats_color(media_type),
-        )
-        for media_type, count in media_count.items()
-        if media_type != "total"
-    )
 
 
 def get_status_distribution(user_media):
@@ -197,14 +192,30 @@ def get_status_distribution(user_media):
 
 def get_status_pie_chart_data(status_distribution):
     """Get status distribution as a pie chart."""
-    return _build_pie_chart(
-        (
-            dataset["label"],
-            dataset["total"],
-            dataset["background_color"],
-        )
-        for dataset in status_distribution["datasets"]
-    )
+    # Format for Chart.js pie chart
+    chart_data = {
+        "labels": [],
+        "datasets": [
+            {
+                "data": [],
+                "backgroundColor": [],
+            },
+        ],
+    }
+
+    # Process each status dataset
+    for dataset in status_distribution["datasets"]:
+        status_label = dataset["label"]
+        status_count = dataset["total"]
+        status_color = dataset["background_color"]
+
+        # Only include statuses with counts > 0
+        if status_count > 0:
+            chart_data["labels"].append(status_label)
+            chart_data["datasets"][0]["data"].append(status_count)
+            chart_data["datasets"][0]["backgroundColor"].append(status_color)
+
+    return chart_data
 
 
 def get_score_distribution(user_media):
