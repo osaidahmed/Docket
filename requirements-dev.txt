@@ -2,7 +2,7 @@ coverage==7.13.3
 diff-cover==9.2.4
 djlint==1.36.4
 fakeredis==2.33.0
-mutmut==3.4.0
+mutmut==3.5.0
 pre-commit==4.5.1
 pytest-cov==7.0.0
 pytest-django==4.11.1
